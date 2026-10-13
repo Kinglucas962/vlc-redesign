@@ -122,14 +122,14 @@ jobs:
           $expected = (Get-Content artifact/windows.zip.sha256).Split(' ')[0]
           $actual = (Get-FileHash artifact/windows.zip -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actual -ne $expected) { throw 'Windows package checksum mismatch' }
-          $sourceSha = (Select-String artifact/build-environment.txt -Pattern '^source_sha=').Line.Split('=')[1]
+          $sourceSha = (Select-String -LiteralPath artifact/build-environment.txt -Pattern '^source_sha=').Line.Split('=')[1]
           if ($sourceSha -notmatch '^[0-9a-f]{40}$') { throw 'Missing source SHA in build evidence' }
           Expand-Archive artifact/windows.zip -DestinationPath unpacked
           $exe = (Resolve-Path unpacked/windows/vlc.exe).Path
           New-Item -ItemType Directory -Path native-evidence | Out-Null
           # VLC's Windows help code skips console creation/RETURN wait when PWD is set.
           $env:PWD = (Split-Path $exe)
-          $process = Start-Process -FilePath $exe -ArgumentList '--version', '--intf=dummy' `
+          $process = Start-Process -FilePath $exe -ArgumentList '--version', '--intf=dummy', '--ignore-config' `
             -WorkingDirectory (Split-Path $exe) -PassThru `
             -RedirectStandardOutput native-evidence/version-stdout.txt `
             -RedirectStandardError native-evidence/version-stderr.txt
@@ -145,8 +145,31 @@ jobs:
           Get-Content native-evidence/result.txt
           Get-Content native-evidence/version-stdout.txt
           Get-Content native-evidence/version-stderr.txt
+          # Keep actual plugin load errors visible and inspect their DLL imports.
+          $pluginErrors = @(Select-String -LiteralPath native-evidence/version-stderr.txt -Pattern 'cannot load plug-in' -SimpleMatch)
+          "plugin_load_errors=$($pluginErrors.Count)" | Add-Content native-evidence/result.txt
+          if ($pluginErrors) {
+            Get-ChildItem -LiteralPath (Split-Path $exe) -Filter '*.dll' | Select-Object -ExpandProperty Name `
+              | Tee-Object -FilePath native-evidence/root-dlls.txt
+            $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+            $dumpbin = $null
+            if (Test-Path -LiteralPath $vswhere) {
+              $dumpbin = & $vswhere -latest -products '*' -find '**\bin\Hostx64\x64\dumpbin.exe' | Select-Object -First 1
+            }
+            if ($dumpbin) {
+              $plugins = @('access/libaccess_srt_plugin.dll', 'access_output/libaccess_output_srt_plugin.dll', `
+                'codec/libx265_plugin.dll', 'demux/libgme_plugin.dll')
+              foreach ($plugin in $plugins) {
+                $dll = Join-Path (Split-Path $exe) "plugins/$plugin"
+                "IMPORTS $plugin" | Tee-Object -FilePath native-evidence/imports.txt -Append
+                & $dumpbin /nologo /dependents $dll | Tee-Object -FilePath native-evidence/imports.txt -Append
+              }
+            } else {
+              'dumpbin not available; dependency names remain pending' | Set-Content native-evidence/imports.txt
+            }
+          }
           if ($process.ExitCode -ne 0) { throw "Native executable exited with $($process.ExitCode)" }
-          if (-not (Select-String native-evidence/version-stdout.txt -SimpleMatch 'VLC version')) {
+          if (-not (Select-String -LiteralPath native-evidence/version-stdout.txt -Pattern 'VLC version' -SimpleMatch)) {
             throw 'The native executable did not print the requested version'
           }
       - name: Upload native loading evidence

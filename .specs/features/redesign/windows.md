@@ -23,9 +23,12 @@ O pacote tem 649.065.005 bytes e o arquivo oficial `SHA512SUM` inclui:
 7504d2d80be566f1caced13c8acf45af67059dc159d987a5d4e82c8912ed6fc4435fba714670e53c786bd83accf6c441f1ad345d3c97c04b5bf0ab60341f8d0d
 ```
 
-O contrib da base fixa Qt 6.8.3. O job lê a versão efetiva do header QtCore do
-contrib instalado e registra separadamente a versão do qmake de host. Esse pacote
-não fornece `Qt6Core.pc`. Não utiliza o Qt 6.4.2 do Linux local.
+A regra fonte do contrib fixa Qt 6.8.3. O pacote pré-compilado efetivamente usado
+registrou `target_header=6.8.0` e `host_qmake=6.8.0`, embora o inventário também
+contenha headers privados em pastas 6.8.3. Essa divergência entre regra fonte e
+metadados do prebuilt é preservada como limitação do baseline oficial. O job lê
+o header QtCore e registra separadamente o qmake de host. Esse pacote não fornece
+`Qt6Core.pc`. Não utiliza o Qt 6.4.2 do Linux local.
 
 ## Execução repetível
 
@@ -102,11 +105,35 @@ lê o header real e gera/publica o ZIP antes desse metadado adicional. GCC execu
 14-posix; Make: 4.4.1. O qmake de host usado pelo configure é 6.8.0; a versão do
 header target será confirmada na próxima execução.
 
-Pendente: executar a correção, publicar artefato/checksum e carregamento nativo
-básico. Um cross-build aprovado comprova compilação/empacotamento; ainda exige
-smoke nativo Windows para janela/vídeo/áudio,
-fullscreen, DPI e caminhos com espaços/acentos. O runner Windows remoto foi
-selecionado para o teste básico; nenhum host Windows interativo foi identificado.
+Segunda execução: [run 38341757506](https://github.com/SrDouglax/JuxtopposedVLC/actions/runs/38341757506)
+no commit `93c524428590416991e9a55c1746463ce493c553`. O job `win64` terminou com
+**success** e publicou o [artifact Windows 11788020301](https://github.com/SrDouglax/JuxtopposedVLC/actions/runs/38341757506/artifacts/11788020301),
+com 91.663.350 bytes. O `windows.zip` interno tem 91.748.644 bytes e SHA256:
+
+```text
+03b2071bffffe2b0547d6e4d5975658a0248bf246da5e72d8a9fb94b12540537
+```
+
+No runner nativo `win25-vs2026/20260925.250.1`, o executável saiu com código 0 e
+imprimiu `VLC version 4.0.0-dev Otto Chriek (4.0.0-dev-39363-g93c5244285)`.
+O job falhou depois em um `Select-String` com argumentos posicionais invertidos;
+a correção usa `-LiteralPath`/`-Pattern` explicitamente e `--ignore-config` para
+perfil isolado. O teste corrigido reutiliza esse artifact, sem recompilar.
+
+Há avisos reais `error 126` em quatro plugins: SRT de acesso/saída, x265 e GME.
+Carregamento básico com versão/exit 0 não prova que esses plugins funcionem.
+O smoke corrigido preserva stderr, conta os erros e coleta `dumpbin /DEPENDENTS`
+dos quatro DLLs, além do inventário de DLLs na raiz do pacote, para identificar
+a dependência ausente sem rebuild. Nomes específicos ainda pendentes.
+
+Os metadados pequenos Qt/checksum/imagem foram lidos seletivamente do arquivo
+remoto via HTTP Range (1.851 bytes de um artifact com ~87 MiB), sem baixar o ZIP
+Windows inteiro para a máquina local.
+
+Pendente: concluir o check PowerShell corrigido e identificar as dependências dos
+plugins com erro. Compilação/empacotamento foram comprovados; ainda exige smoke
+nativo Windows para janela/vídeo/áudio, fullscreen, DPI e caminhos com espaços/acentos.
+Nenhum host Windows interativo foi identificado.
 
 ## Fontes
 
@@ -115,3 +142,4 @@ selecionado para o teste básico; nenhum host Windows interativo foi identificad
 - [Prebuilt contrib e mudança de prefixo](https://github.com/videolan/vlc/blob/392bc1d0abdb7396b6c97fef206efa1d23868e19/contrib/src/main.mak)
 - [SHA512 oficial](https://artifacts.videolan.org/vlc/win64/SHA512SUM)
 - [Recursos dos runners GitHub](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
+- [Parâmetros de Select-String](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/select-string?view=powershell-7.5)
