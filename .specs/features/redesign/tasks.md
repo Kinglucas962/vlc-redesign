@@ -2,6 +2,13 @@
 
 Status: M0 em execução na branch `chore/m0`; M1 ainda planejado.
 
+| Entrega de M0 | Estado em 13/10/2026 | Evidência |
+| --- | --- | --- |
+| T01 | Concluída | Fork, SHA, toolchains e build isolado em foundation.md |
+| T02 | Concluída como inventário | 103 IDs em coverage.md; 11 inspeções visuais, 92 estruturais |
+| T03 | Concluída com limites registrados | Smoke X11 PASS, captura, áudio PCM, recursos e prova Wayland em foundation.md |
+| T04 | Em execução | Cross-build anterior passou; correção de empacotamento em CI, artefato/nativo pendentes |
+
 Este backlog detalha a fundação e a primeira fatia funcional. M2–M5 estão no roadmap; serão decompostos a partir do inventário real, antes de executar cada marco. Evitar uma lista fictícia de centenas de tarefas antes de conhecer o código.
 
 ## Ferramentas e política de testes
