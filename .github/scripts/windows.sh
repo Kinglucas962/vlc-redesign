@@ -68,9 +68,15 @@ test -s "$M0_OUTPUT/windows/plugins/codec/libavcodec_plugin.dll"
 file "$M0_OUTPUT/windows/vlc.exe" | tee "$M0_OUTPUT/executable.txt"
 file "$M0_OUTPUT/windows/vlc.exe" | grep -q 'PE32+.*x86-64'
 find "$M0_OUTPUT/windows" -type f -name '*.dll' -printf '%P\n' | sort > "$M0_OUTPUT/plugins.txt"
-PKG_CONFIG_LIBDIR="$root/contrib/x86_64-w64-mingw32/lib/pkgconfig" \
-    pkg-config --modversion Qt6Core > "$M0_OUTPUT/qt-version.txt"
 find "$M0_OUTPUT/windows" -type f \( -name '*.dll' -o -name '*.exe' \) \
     -exec x86_64-w64-mingw32-strip --strip-unneeded {} +
 (cd "$M0_OUTPUT" && zip -q -r windows.zip windows)
 sha256sum "$M0_OUTPUT/windows.zip" > "$M0_OUTPUT/windows.zip.sha256"
+
+# Qt's official contrib uses qmake/CMake metadata, without Qt6Core.pc.
+# Preserve the validated package before recording this supplementary metadata.
+target_qt=$(awk '$1 == "#define" && $2 == "QTCORE_VERSION_STR" {gsub(/"/, "", $3); print $3}' \
+    "$root/contrib/$triplet/include/QtCore/qtcoreversion.h")
+[[ "$target_qt" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+printf 'target_header=%s\nhost_qmake=%s\n' "$target_qt" "$(qmake6 -query QT_VERSION)" \
+    > "$M0_OUTPUT/qt-version.txt"

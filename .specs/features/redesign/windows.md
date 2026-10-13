@@ -23,8 +23,9 @@ O pacote tem 649.065.005 bytes e o arquivo oficial `SHA512SUM` inclui:
 7504d2d80be566f1caced13c8acf45af67059dc159d987a5d4e82c8912ed6fc4435fba714670e53c786bd83accf6c441f1ad345d3c97c04b5bf0ab60341f8d0d
 ```
 
-O contrib da base fixa Qt 6.8.3. O job consulta a versão efetiva pelo arquivo
-pkg-config do contrib instalado. Não utiliza o Qt 6.4.2 do Linux local.
+O contrib da base fixa Qt 6.8.3. O job lê a versão efetiva do header QtCore do
+contrib instalado e registra separadamente a versão do qmake de host. Esse pacote
+não fornece `Qt6Core.pc`. Não utiliza o Qt 6.4.2 do Linux local.
 
 ## Execução repetível
 
@@ -54,15 +55,26 @@ Logs, fonte SHA, contrib SHA/checksum, imagem/tamanho, versões e lista de recur
 são publicados como artifact do job. Instalação MSI/NSIS não integra este primeiro
 build portátil. Um segundo job `windows-latest` baixa esse mesmo pacote, confere
 SHA256, extrai e executa `vlc.exe --version --intf=dummy`, com timeout de 30 segundos.
-Registra versão do runner, saída e código de retorno. Esse teste comprova somente
-carregamento nativo básico; não testa a GUI ou reprodução.
+Registra versão do runner, saída e código de retorno. Define `PWD` para o diretório
+real do executável, pois a ajuda do VLC Windows usa essa variável para dispensar
+a janela de console e espera por RETURN; exige saída contendo `VLC version`.
+Esse teste comprova somente carregamento nativo básico; não testa a GUI ou reprodução.
+O input manual opcional `artifact_run_id` permite repetir somente esse teste usando
+o pacote já publicado por outra execução, sem recompilar. O resultado distingue
+o SHA do pacote (arquivo de evidência do build) do SHA do workflow de verificação.
+Se a criação do ZIP falhar mas houver `windows/vlc.exe`, uma etapa separada
+preserva a pasta portátil em um artifact de recuperação. Essa pasta só é enviada
+quando o ZIP não existe, evitando duplicar o pacote; um artifact de recuperação
+não conta como build aprovado e exige revisão da falha antes de uso.
 
 ## Recursos
 
 Manifesto remoto: 2.446.482.952 bytes em camadas comprimidas da imagem (~2,28 GiB),
 além de ~619 MiB do contrib. A imagem extraída não foi baixada ou medida localmente.
-Estimativa inicial: 6–9 GiB para imagem, 3–5 GiB para contrib e 2–4 GiB para
-build/pacote; esses valores são orçamento, não medição. O job exige pelo menos
+Medição no primeiro runner: imagem com 7.246.930.340 bytes (~6,75 GiB),
+77 GiB livres após pull/contrib e 13 GiB RAM disponível. Estimativa inicial restante:
+3–5 GiB para contrib e 2–4 GiB para build/pacote; esses valores são orçamento.
+O job exige pelo menos
 20 GiB livres antes de baixar a imagem e registra o tamanho real depois do pull.
 
 O host local tinha apenas ~17 GiB livres e ~2 GiB de RAM disponível na auditoria.
@@ -79,9 +91,20 @@ do pacote, checksum oficial correspondente, manifesto/digest da imagem pública,
 sintaxe Bash, parse YAML e etapas esperadas do workflow. Essas verificações
 não executaram o compilador nem produziram o artefato Windows.
 
-Pendente: push integrado, jobs remotos, compilação, resolução efetiva dos plugins,
-artefato/checksum e carregamento nativo básico. Um cross-build aprovado comprova
-compilação/empacotamento; ainda exige smoke nativo Windows para janela/vídeo/áudio,
+Primeira execução publicada: [run 38339351306](https://github.com/SrDouglax/JuxtopposedVLC/actions/runs/38339351306)
+no commit `90df6849023a394fd05ac89516a0bc24cf7d874f`. Compilação e
+`package-win-common` concluíram; `vlc.exe` foi reconhecido como PE32+ x86-64 e a
+lista de DLLs contém 411 arquivos, incluindo verificações aprovadas de Qt/avcodec.
+A etapa falhou depois, na coleta de versão via `pkg-config Qt6Core`, porque esse
+metadado não existe no contrib. O ZIP ainda não tinha sido criado e o runner
+efêmero encerrou, portanto não há pacote recuperável dessa execução. A correção
+lê o header real e gera/publica o ZIP antes desse metadado adicional. GCC executado:
+14-posix; Make: 4.4.1. O qmake de host usado pelo configure é 6.8.0; a versão do
+header target será confirmada na próxima execução.
+
+Pendente: executar a correção, publicar artefato/checksum e carregamento nativo
+básico. Um cross-build aprovado comprova compilação/empacotamento; ainda exige
+smoke nativo Windows para janela/vídeo/áudio,
 fullscreen, DPI e caminhos com espaços/acentos. O runner Windows remoto foi
 selecionado para o teste básico; nenhum host Windows interativo foi identificado.
 
