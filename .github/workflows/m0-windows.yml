@@ -1,0 +1,133 @@
+name: M0 Windows cross-build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master, chore/m0]
+    paths:
+      - '.github/workflows/m0-windows.yml'
+      - '.github/scripts/windows.sh'
+      - 'extras/package/win32/**'
+      - 'extras/tools/**'
+      - 'extras/ci/**'
+      - 'contrib/**'
+      - 'modules/gui/qt/**'
+      - 'share/**'
+      - '**/*.cpp'
+      - '**/*.c'
+      - '**/*.h'
+      - '**/*.am'
+      - 'configure.ac'
+  pull_request:
+    paths:
+      - '.github/workflows/m0-windows.yml'
+      - '.github/scripts/windows.sh'
+      - 'extras/package/win32/**'
+      - 'extras/tools/**'
+      - 'extras/ci/**'
+      - 'contrib/**'
+      - 'modules/gui/qt/**'
+      - 'share/**'
+      - '**/*.cpp'
+      - '**/*.c'
+      - '**/*.h'
+      - '**/*.am'
+      - 'configure.ac'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m0-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  win64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      M0_IMAGE: registry.videolan.org/vlc-debian-win64-posix@sha256:8e83e800036f8f4a6da1031a6b80c2b5bad8337259c072ffa22398baaeaad880
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check resources and official contrib availability
+        shell: bash
+        run: |
+          df -h .
+          free -h
+          available=$(df --output=avail -B1 . | tail -1)
+          if (( available < 20 * 1024 * 1024 * 1024 )); then
+            echo 'At least 20 GiB free is required before downloading the build image.' >&2
+            exit 1
+          fi
+          bash .github/scripts/windows.sh --check
+      - name: Cross-build Windows x64 with the upstream image
+        shell: bash
+        run: |
+          mkdir -p m0-artifacts
+          docker pull "$M0_IMAGE"
+          docker image inspect "$M0_IMAGE" --format '{{.Id}} {{.Size}} {{json .RepoDigests}}' | tee m0-artifacts/image.txt
+          docker run --rm --user 0:0 \
+            -e HOME=/home/videolan -e WINEPREFIX=/home/videolan/.wine \
+            -e M0_IMAGE -e JOBS=2 \
+            -v "$PWD:/build" -w /build "$M0_IMAGE" \
+            bash -c 'git config --global --add safe.directory /build; bash .github/scripts/windows.sh' \
+            2>&1 | tee m0-artifacts/windows-build.log
+      - name: Upload package and build evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-x64-${{ github.sha }}
+          path: |
+            m0-artifacts/*.txt
+            m0-artifacts/*.log
+            m0-artifacts/*.zip
+            m0-artifacts/*.sha256
+          if-no-files-found: warn
+          retention-days: 14
+
+  native-load:
+    needs: win64
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: windows-x64-${{ github.sha }}
+          path: artifact
+      - name: Verify checksum and load the native executable
+        shell: pwsh
+        run: |
+          $expected = (Get-Content artifact/windows.zip.sha256).Split(' ')[0]
+          $actual = (Get-FileHash artifact/windows.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw 'Windows package checksum mismatch' }
+          Expand-Archive artifact/windows.zip -DestinationPath unpacked
+          $exe = (Resolve-Path unpacked/windows/vlc.exe).Path
+          New-Item -ItemType Directory -Path native-evidence | Out-Null
+          $process = Start-Process -FilePath $exe -ArgumentList '--version', '--intf=dummy' `
+            -WorkingDirectory (Split-Path $exe) -PassThru `
+            -RedirectStandardOutput native-evidence/version-stdout.txt `
+            -RedirectStandardError native-evidence/version-stderr.txt
+          if (-not $process.WaitForExit(30000)) {
+            $process.Kill()
+            throw 'Native executable did not exit within 30 seconds'
+          }
+          $process.Refresh()
+          @("source_sha=${{ github.sha }}", "runner=$env:ImageOS/$env:ImageVersion", `
+            "package_sha256=$actual", "exit_code=$($process.ExitCode)", `
+            'coverage=native executable --version only; GUI and playback untested') `
+            | Set-Content native-evidence/result.txt
+          Get-Content native-evidence/result.txt
+          Get-Content native-evidence/version-stdout.txt
+          Get-Content native-evidence/version-stderr.txt
+          if ($process.ExitCode -ne 0) { throw "Native executable exited with $($process.ExitCode)" }
+      - name: Upload native loading evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-native-load-${{ github.sha }}
+          path: native-evidence/
+          if-no-files-found: warn
+          retention-days: 14
