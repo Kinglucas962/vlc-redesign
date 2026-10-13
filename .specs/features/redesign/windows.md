@@ -120,20 +120,60 @@ O job falhou depois em um `Select-String` com argumentos posicionais invertidos;
 a correção usa `-LiteralPath`/`-Pattern` explicitamente e `--ignore-config` para
 perfil isolado. O teste corrigido reutiliza esse artifact, sem recompilar.
 
+O [smoke corrigido 38343492003](https://github.com/SrDouglax/JuxtopposedVLC/actions/runs/38343492003)
+terminou com **success**, reutilizando o artifact da segunda execução. `win64`
+foi **skipped**, sem novo build. SHA do pacote: `93c524428590416991e9a55c1746463ce493c553`;
+SHA do workflow de verificação: `c56181b7dfa5e700ce44475f950f6734d25c33ce`.
+O [artifact nativo 11788165664](https://github.com/SrDouglax/JuxtopposedVLC/actions/runs/38343492003/artifacts/11788165664)
+tem 1.814 bytes e conserva resultado, stdout/stderr, imports e inventário das
+DLLs da raiz. Com `--ignore-config`, versão/exit 0 foram novamente comprovados.
+
 Há avisos reais `error 126` em quatro plugins: SRT de acesso/saída, x265 e GME.
-Carregamento básico com versão/exit 0 não prova que esses plugins funcionem.
-O smoke corrigido preserva stderr, conta os erros e coleta `dumpbin /DEPENDENTS`
-dos quatro DLLs, além do inventário de DLLs na raiz do pacote, para identificar
-a dependência ausente sem rebuild. Nomes específicos ainda pendentes.
+`dumpbin /DEPENDENTS` confirmou que os quatro importam `libgcc_s_seh-1.dll`.
+A raiz do pacote contém apenas `libvlc.dll` e `libvlccore.dll`; o runtime GCC não
+foi empacotado. As outras dependências listadas são bibliotecas Windows normais.
+Essa ausência explica os quatro erros de carregamento; versão/exit 0 não prova
+que esses plugins funcionem. A pendência pertence ao empacotamento do baseline,
+antes de uma distribuição Windows completa; não foi feita migração de toolchain
+ou mudança no núcleo do VLC para contorná-la.
 
 Os metadados pequenos Qt/checksum/imagem foram lidos seletivamente do arquivo
 remoto via HTTP Range (1.851 bytes de um artifact com ~87 MiB), sem baixar o ZIP
 Windows inteiro para a máquina local.
 
-Pendente: concluir o check PowerShell corrigido e identificar as dependências dos
-plugins com erro. Compilação/empacotamento foram comprovados; ainda exige smoke
-nativo Windows para janela/vídeo/áudio, fullscreen, DPI e caminhos com espaços/acentos.
-Nenhum host Windows interativo foi identificado.
+Evidência pequena persistida em `evidence/windows-build.txt` e
+`evidence/windows-native/` (resultado, stdout/stderr, imports e DLLs da raiz).
+
+Compilação, pacote e carregamento nativo básico foram comprovados. Permanecem
+pendentes o runtime GCC dos quatro plugins e smoke nativo Windows para
+janela/vídeo/áudio, fullscreen, DPI e caminhos com espaços/acentos. Nenhum host
+Windows interativo foi identificado. M0 registra esse baseline; não representa
+suporte Windows completo ou aceite visual/funcional do redesign.
+
+## Reparo delimitado do runtime
+
+Preparado o input manual booleano `repair_runtime`, combinado com
+`artifact_run_id=38341757506`. Esse caminho verifica o SHA256 do ZIP existente,
+valida seus caminhos, extrai a pasta portátil e usa a mesma imagem oficial fixada
+por digest; não executa compilação de VLC nem download/build de contrib.
+
+O helper `/.github/scripts/runtime.sh` inspeciona imports dos arquivos PE, resolve
+somente runtimes MinGW efetivamente importados com GCC `-print-file-name`, confere
+origem dentro do toolchain/target da imagem e formato PE x64, copia a dependência
+e segue seus imports para completar apenas a closure de runtimes. Caminho ausente,
+origem inesperada ou runtime existente divergente fazem o reparo falhar. Registra
+imagem, compiler path, packaging SHA e SHA256 de cada DLL. Um manifesto de todos
+os arquivos originais é validado depois da cópia, provando que não foram alterados.
+
+O novo ZIP recebe checksum novo e conserva `source_sha=93c524...` do aplicativo.
+O SHA do empacotamento e o SHA de verificação são registrados separadamente.
+Durante reparo, o job nativo baixa o artifact do run atual, exige versão/exit 0 e
+zero `plugin_load_errors`. Durante native-only, continua baixando o run de origem.
+Builds futuros também chamam o helper antes de criar o ZIP.
+
+Verificado na preparação: parse YAML, sintaxe Bash de ambos scripts e de todas
+as etapas Linux, caminhos condicionais de reuse/repair e whitespace. Execução do
+reparo e teste nativo do novo pacote ainda pendentes; não foi disparado novo build.
 
 ## Fontes
 
