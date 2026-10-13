@@ -18,7 +18,7 @@ RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.s
     && rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends qml6-module-qtqml-models \
+    && apt-get install -y --no-install-recommends qml6-module-qtqml-models libxcb-xkb-dev pulseaudio \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /work

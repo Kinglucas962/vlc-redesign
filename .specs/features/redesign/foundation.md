@@ -29,7 +29,7 @@ docker exec juxtopposed-vlc-m0-linux sh extras/juxtopposed/linux.sh
 
 `M0_JOBS` controla paralelismo; padrão 1 nesta máquina. Diretórios `build-m0/` são ignorados pelo Git. Não instalar sobre o VLC do usuário.
 
-Flags iniciais: GUI Qt e medialibrary habilitadas; skins2, NLS e módulos Rust desabilitados; C/C++ `-O0 -g0` para baseline de desenvolvimento com baixo custo de compilação. Isso não é configuração final de distribuição nem benchmark de release. Comparações futuras devem usar a mesma configuração.
+Flags iniciais: GUI Qt e medialibrary habilitadas; skins2, NLS e módulos Rust desabilitados; C/C++ solicitados com `-O0 -g0`. O configure acrescenta `-Og` ao final, portanto essa é a otimização efetiva do baseline. Isso não é configuração final de distribuição nem benchmark de release. Comparações futuras devem usar a mesma configuração.
 
 Logs completos permanecem no build; publicar resultados e recortes necessários ao diagnóstico, sem arquivos privados.
 
