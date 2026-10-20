@@ -222,6 +222,20 @@ Name: "{app}\portable"; Flags: uninsneveruninstall; Permissions: users-modify; C
 ; Plugins of a previous version that this one no longer has
 Type: filesandordirs; Name: "{app}\plugins"
 Type: files; Name: "{app}\plugins.dat"
+; A small update the app staged and never put in place: this one is newer
+Type: filesandordirs; Name: "{app}\.update"
+
+[UninstallDelete]
+; What small updates added since the install (the uninstaller only knows the
+; files it installed), and their working folder; portable\ stays
+Type: filesandordirs; Name: "{app}\.update"
+Type: filesandordirs; Name: "{app}\plugins"
+Type: filesandordirs; Name: "{app}\lua"
+Type: filesandordirs; Name: "{app}\skins"
+Type: filesandordirs; Name: "{app}\hrtfs"
+Type: filesandordirs; Name: "{app}\licenses"
+Type: filesandordirs; Name: "{app}\sdk"
+Type: files; Name: "{app}\*.dll"
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\vlc.exe"; Comment: "{cm:ShortcutComment}"
@@ -433,9 +447,10 @@ begin
   Time := ExpandConstant('{param:TIME|}');
   if Media <> '' then
   begin
+    { Not :start-time, which makes the media a clip that starts there }
     Result := '"' + Media + '"';
-    if Time <> '' then
-      Result := Result + ' :start-time=' + Time;
+    if (Time <> '') and (StrToIntDef(Time, -1) > 0) then
+      Result := '--redesign-resume-time=' + Time + ' ' + Result;
   end
   else
     Result := RunningArgs;
