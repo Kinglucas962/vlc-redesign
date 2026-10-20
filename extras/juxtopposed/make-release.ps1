@@ -28,9 +28,14 @@ if ($Version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.]+)?$') { throw "Bad versi
 Write-Host "VLC Redesign $Version"
 
 if (-not $SkipBuild) {
-    $buildArgs = @('-Out', $Package, '-Volume', 'vlc-win64-release', '-Strip')
-    if ($Quick) { $buildArgs += '-Quick' } else { $buildArgs += '-r' }
-    & "$PSScriptRoot\win64-docker.ps1" @buildArgs
+    # named parameters as a hashtable: an array would pass "-Out" as a value
+    $buildArgs = @{ Out = $Package; Volume = 'vlc-win64-release'; Strip = $true }
+    if ($Quick) {
+        & "$PSScriptRoot\win64-docker.ps1" @buildArgs -Quick
+    } else {
+        # -r goes on to build.sh: release mode
+        & "$PSScriptRoot\win64-docker.ps1" @buildArgs -r
+    }
     if ($LASTEXITCODE) { throw "Build failed ($LASTEXITCODE)" }
 }
 if (-not (Test-Path "$Package\vlc.exe")) { throw "No package in $Package" }

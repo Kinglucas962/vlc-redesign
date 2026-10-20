@@ -5,11 +5,110 @@ Changes of **VLC Redesign**, an unofficial VLC 4 build with the interface design
 For changes to VLC itself, see [NEWS](NEWS).
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Each section groups changes by
-what you see first, with the technical details after. Based on VLC `4.0.0-dev` (`392bc1d0ab`, 2026-10-12).
+what you see first, with the technical details after. Based on VLC `4.0.0-dev`, merged up to `942cdaea17` (2026-10-19).
 
-**Contents:** [0.1.0](#010--2026-10-20) · [M3](#m3--dialogs-settings-and-playback-tools--2026-10-13) ·
+**Contents:** [0.2.0](#020--2026-10-20) · [0.1.0](#010--2026-10-20) · [M3](#m3--dialogs-settings-and-playback-tools--2026-10-13) ·
 [M2](#m2--library-playlists-and-subtitles--2026-10-13) · [M1](#m1--first-native-shell-and-player--2026-10-12) ·
 [M0](#m0--baseline-and-build--2026-10-12) · [Differences from upstream VLC](#differences-from-upstream-vlc)
+
+---
+
+## [0.2.0] · 2026-10-20
+
+**Solid on every Windows PC, and it keeps itself up to date.** A full audit of every button, menu and setting,
+an installer in the redesign's look, updates from GitHub, and the latest VLC 4 fixes.
+
+### Highlights
+
+- 🚀 **Starts every time, fast**: a second copy no longer hangs on start (it used to wait forever with no window),
+  and a fresh install or unzipped copy no longer rescans its ~600 plugins on each start (≈0.4 s to the window).
+- 📦 **Installer**: per-user, no administrator rights, styled like the redesign, closes and reopens a running copy.
+- 🔄 **Updates from GitHub**: a card when a release is out; an installed copy updates itself after checking the
+  installer's SHA-256, and reopens on what was playing.
+- ℹ️ **New About window** in the redesign's style, with the design credit and links to Juxtopposed.
+- 🧹 **~80 fixes** from an audit of the whole interface, including one crash.
+- 🆙 **VLC 4 merged** up to 2026-10-19 (110 commits), and every pull request is now built automatically.
+
+### Added
+
+- **Installer** (`vlc-redesign-<version>-win64-setup.exe`, Inno Setup): installs per user by default (or for all users),
+  keeps settings, library and history across updates, regenerates the plugin cache, optional desktop shortcut and
+  *Open with* entries for video and audio files that don't change the default player; English and Hebrew.
+  A running copy is closed politely (forced after 15 s if needed) and reopened afterwards.
+- **Updates**: once a day (Settings → General → *Check for updates automatically*, option `redesign-update-check`) or
+  from About, VLC Redesign reads the latest GitHub release. A card offers *What's new*, *Skip*, and *Update now*
+  (installed copy) or *Download* (portable copy). Classic menus' *Check for Updates* opens About.
+- **About** redrawn in the redesign's style: version and update check, the CC BY 4.0 design credit with links
+  (channel, the redesign video, Figma file, website), first implementation, VideoLAN, and the classic lists behind it.
+- **Profiles**: New, Rename, Clone and Delete in *Customize Player*; the design's **Movies, Shows, Music and Work**
+  profiles for new installs.
+- **Settings**: search finds the labels you see (and matching shortcuts); an *Applies after restart* hint on the rows
+  that need it; errors are shown and a failed save no longer loses your changes; developer mode reveals the expert
+  options and *All VLC options*; process priority is a list; night mode restores the compressor it replaced.
+- **Library**: a *Recent* page with recently played videos and songs; *Playlists* shows every playlist; video grouping
+  (by name, by folder) is back in the sort menu; the back/forward arrows both work.
+- **Player**: the visualizer can be opened from the music view; the right-click *Repeat* is an Off / All / One choice;
+  the maximize button shows a restore icon when maximized; Shift+F1 opens About.
+- **Shortcuts editor**: a key is added to an action (each key has its own remove), and Escape cancels a capture.
+- **Release tooling**: `make-release.ps1` builds the zip, the installer and `SHA256SUMS.txt`; a GitHub workflow builds
+  every pull request and `main` for Windows; issue forms for bugs and suggestions; a [roadmap](ROADMAP.md).
+
+### Fixed
+
+**Startup and stability**
+- A second VLC Redesign hung on start while another one ran: pipe names collided between processes, so its preparser
+  and then its interface failed (`src/win32/filesystem.c`); the preparser now also falls back to in-process parsing.
+- An unzipped copy rescanned all plugins on every start (zip stores times in 2-second steps): release files get one
+  even-second time before the cache is made, and the installer rebuilds the cache.
+- A crash (use-after-free) in the video effects after toggling a filter.
+- With the media library off, the whole window stayed blank.
+- Playlist export no longer creates a player on the interface thread (a freeze risk): the file is written directly.
+- Download threads are cancelled and waited for when VLC quits.
+
+**Player and menus**
+- The sleep timer was cancelled at the start of each new track.
+- Q (queue) and L (library) never reached the player.
+- The Quit button did nothing; the Library button did nothing in the mini player.
+- The top bar used the video layout in the music player (⋯ and Library missing or doubled).
+- The subtitle *None* check stayed on after picking a track.
+- Repeat All came back as Repeat One after a restart (and is repaired for those affected).
+- HDR choices left VLC on the libplacebo output for good.
+- PiP hid the video where picture-in-picture isn't available; the mini queue's − removed the playing track.
+- *Open Recent* ignored *Save recently played items*; *Open Location from Clipboard* now matches Ctrl+V.
+- *Customize Player* opened from the library left the player stuck in edit mode.
+- Tooltips: "Back 15 seconds" / "Forward 15 seconds", Fullscreen naming and icon; the sleep timer and player menu in the
+  light theme.
+
+**Library and subtitles**
+- Stream and Convert were swapped in the context menus.
+- OpenSubtitles needed a second click (and a second download) to save; your account is kept for the session.
+- File names with `( ) ' ! & + , ; = @ $` missed their resume point, artwork and subtitles.
+- Creating a playlist without the media library could crash; onboarding without it came back at every start.
+- Onboarding overwrote the metadata network access setting; the suggested folder can be cleared.
+- Folder menu labels, *Frequently Visited Folders ›*, the new playlist thumbnail, network links without a scheme,
+  and search text carried between sections of the compact library.
+
+**Settings and effects**
+- Compressor, Spatializer and Stereo Widener sliders stopped after one step.
+- Saving video effects made the current crop the default for every video.
+- Effects tabs cancelled each other's preview; the dialog didn't wake up when playback started.
+- Rows that did nothing were removed or wired (*Ignore ASS/SSA styling*, error dialogs, playlist tree); the cone and
+  cast quality rows show the right labels; the web remote warns without a password; saving no longer shows a UI hidden
+  with Ctrl+H.
+- Profiles: switching to a default profile no longer reverts your theme and settings, and a profile that fails to
+  apply at startup no longer replaces your saved ones.
+- Readable error messages instead of raw option names, and typos ("kHz", "changes", the Last.fm password label).
+
+### Changed
+
+- New interface strings are listed for translation (`po/POTFILES.in`), and C++ strings use VLC's `qtr()`.
+- The default profile of new installs is named *Default*.
+- The fork's original M0 CI workflow is replaced by the Windows build workflow.
+
+### Upstream VLC
+
+- Merged 110 commits of VLC master (up to `942cdaea17`, 2026-10-19). The window buttons register themselves for Windows
+  11 snap layouts; VLC's new split button is built but the redesign keeps its own buttons.
 
 ---
 
@@ -198,7 +297,10 @@ the ones to watch when merging upstream, and the candidates to propose to VideoL
 | `modules/video_filter/{extract,gradfun,gradient,grain,invert,sepia,sharpen}.c` | Refuse differing input/output chromas |
 | `modules/text_renderer/freetype/freetype.c` | `freetype-fontsize` brought back; default text direction |
 | `bin/winvlc.c` | Portable language file read before the registry |
+| `src/win32/filesystem.c` | `vlc_pipe()` names pipes per process (`vlc-<pid>-<n>-<time>`), first instance only, no remote clients |
+| `src/preparser/preparser.c` | Falls back to the in-process preparser when the external one can't start |
 | `bin/Makefile.am`, `bin/meson.build` | Build the `vlc-waveform` helper |
 | `extras/package/win32/package.mak` | Credits, changelog and font licenses in the package |
 
+[0.2.0]: https://github.com/KuchiSofts/vlc-redesign/releases/tag/v0.2.0
 [0.1.0]: https://github.com/KuchiSofts/vlc-redesign/releases/tag/v0.1.0

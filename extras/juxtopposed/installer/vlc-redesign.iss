@@ -104,7 +104,10 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Excludes: "\portable\*,*.old-*"; Fla
 [Dirs]
 ; Its presence keeps VLC's data next to vlc.exe instead of %APPDATA%\vlc,
 ; which an installed official VLC uses
-Name: "{app}\portable"; Flags: uninsneveruninstall
+Name: "{app}\portable"; Flags: uninsneveruninstall; Check: not IsAdminInstallMode
+; Installed for all users (Program Files): its users must be able to write
+; their settings there
+Name: "{app}\portable"; Flags: uninsneveruninstall; Permissions: users-modify; Check: IsAdminInstallMode
 
 [InstallDelete]
 ; Plugins of a previous version that this one no longer has
