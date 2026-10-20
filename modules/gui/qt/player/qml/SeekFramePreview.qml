@@ -52,7 +52,7 @@ Rectangle {
         retainWhileLoading: true
         sourceSize: Qt.size(root.frameWidth * root._eDPR, 0)
         source: root.visible && Player.url.toString() !== ""
-                ? VLCThumbnail.uri(Player.url.toString(), root.position) : ""
+                ? VLCThumbnail.preview(Player.url.toString(), root.position) : ""
     }
 
     Widgets.ImageExt {

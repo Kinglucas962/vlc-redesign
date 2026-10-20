@@ -27,11 +27,14 @@
 
 #include "qt.hpp"
 
-typedef struct vlc_preparser_t vlc_preparser_t;
+class ThumbnailFrameCache;
 
 /**
  * Frames of media decoded by the thumbnailer of the preparser, for previews
  * (seek bar, files of a folder): image://vlcthumbnail/?url=<mrl>&pos=<0..1>
+ * (&seek=1 for the seek bar). The frames are kept, and those of the seek bar
+ * are decoded ahead around the pointer, so a sweep along it shows them at
+ * once.
  */
 class ThumbnailImageProvider : public QQuickAsyncImageProvider
 {
@@ -39,19 +42,21 @@ public:
     static constexpr const char *providerId = "vlcthumbnail";
 
     explicit ThumbnailImageProvider(qt_intf_t *intf);
+    ~ThumbnailImageProvider() override;
 
     QQuickImageResponse *requestImageResponse(const QString &id, const QSize &requestedSize) override;
 
     static QString uri(const QString &mrl, double position);
+    static QString previewUri(const QString &mrl, double position);
     static QString artworkUri(const QString &mrl);
 
 private:
-    std::shared_ptr<vlc_preparser_t> preparser();
+    std::shared_ptr<ThumbnailFrameCache> cache();
 
     qt_intf_t *m_intf;
     std::mutex m_lock;
-    // Created on first use, kept alive by the pending requests
-    std::shared_ptr<vlc_preparser_t> m_preparser;
+    // Created on first use
+    std::shared_ptr<ThumbnailFrameCache> m_cache;
 };
 
 class VLCThumbnail : public QObject
@@ -72,6 +77,13 @@ public:
      * @endcode
      */
     Q_INVOKABLE QString uri(const QString &mrl, double position) const;
+
+    /**
+     * Image source of the frame of @mrl at @position for the seek bar: the
+     * position snaps to 1/200 of the length, and the frames around it are
+     * decoded ahead while it is asked for.
+     */
+    Q_INVOKABLE QString preview(const QString &mrl, double position) const;
 
     /**
      * Image source of the artwork the media library has for @mrl (cover of

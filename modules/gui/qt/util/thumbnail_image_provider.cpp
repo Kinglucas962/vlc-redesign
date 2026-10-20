@@ -28,16 +28,22 @@
 #include <vlc_picture.h>
 #include <vlc_preparser.h>
 
+#include <QElapsedTimer>
+#include <QHash>
 #include <QImage>
 #include <QImageReader>
 #include <QUrl>
 #include <QUrlQuery>
+
+#include <algorithm>
+#include <vector>
 
 namespace {
 
 #define URL_KEY "url"
 #define POSITION_KEY "pos"
 #define ARTWORK_KEY "art"
+#define SEEK_KEY "seek"
 
 // The MRL is base64 encoded: kept as is, its percent encoding included
 constexpr auto mrlEncoding = QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals;
@@ -96,38 +102,351 @@ QImage toImage(vlc_object_t *obj, picture_t *picture, const QSize &requestedSize
     return image;
 }
 
-class ThumbnailResponse : public QQuickImageResponse
+} // anonymous namespace
+
+// The frame a response waits for: filled on any thread, read by Qt
+struct ThumbnailResponseState
+{
+    std::recursive_mutex lock;
+    QQuickImageResponse *response = nullptr;  // null once the response is gone
+    bool delivered = false;
+    QImage image;
+    QString error;
+
+    void deliver(const QImage &frame)
+    {
+        std::lock_guard<std::recursive_mutex> guard(lock);
+        if (!response || delivered)
+            return;
+        delivered = true;
+        image = frame;
+        if (frame.isNull())
+            error = QStringLiteral("No frame decoded");
+        // queued: the response may still be in its constructor
+        QMetaObject::invokeMethod(response, &QQuickImageResponse::finished, Qt::QueuedConnection);
+    }
+};
+
+// Frames decoded by the thumbnailer, kept for the next requests. A request
+// is never cancelled: a frame the pointer has left behind still goes to the
+// cache, where a sweep back finds it. The frames of the seek bar are on a
+// grid, and while it is asked for, the frames around the pointer are
+// decoded ahead, one at a time.
+class ThumbnailFrameCache : public std::enable_shared_from_this<ThumbnailFrameCache>
 {
 public:
-    ThumbnailResponse(std::shared_ptr<vlc_preparser_t> preparser, vlc_object_t *obj,
-                      const QString &mrl, double position, const QSize &requestedSize)
-        : m_preparser(std::move(preparser))
-        , m_state(std::make_shared<State>())
-    {
-        m_state->response = this;
-        m_state->obj = obj;
-        m_state->requestedSize = requestedSize;
+    // The seek bar's frames: multiples of 1/gridSteps of the length (the
+    // seek goes to the nearest key frame anyway)
+    static constexpr int gridSteps = 200;
 
+    explicit ThumbnailFrameCache(vlc_object_t *obj)
+        : m_obj(obj)
+    {
+        m_clock.start();
+    }
+
+    ~ThumbnailFrameCache()
+    {
         if (m_preparser)
-            m_request = submit(mrl, position);
-        if (!m_request)
+            vlc_preparser_Delete(m_preparser);
+    }
+
+    // On the owner's thread, before its reference goes: ends the requests,
+    // whose callbacks can then hold the last reference
+    void shutdown()
+    {
+        vlc_preparser_t *preparser;
         {
-            m_state->error = QStringLiteral("Cannot generate a thumbnail of %1").arg(mrl);
-            QMetaObject::invokeMethod(this, &QQuickImageResponse::finished, Qt::QueuedConnection);
+            std::lock_guard<std::mutex> guard(m_lock);
+            preparser = m_preparser;
+            m_preparser = nullptr;
+            m_closed = true;
+        }
+        if (preparser)
+            vlc_preparser_Delete(preparser);
+    }
+
+    // The frame of @mrl at @pos (0 to 1), @width pixels wide, for @state;
+    // @seek: a frame of the seek bar, on the grid
+    void request(const QString &mrl, double pos, int width, bool seek,
+                 const std::shared_ptr<ThumbnailResponseState> &state)
+    {
+        Outbox outbox;
+        {
+            std::lock_guard<std::mutex> guard(m_lock);
+            if (!preparserLocked())
+                outbox.emplace_back(state, QImage());
+            else
+            {
+                if (seek)
+                {
+                    m_seekMrl = mrl;
+                    m_seekWidth = width;
+                    m_seekCenter = qRound(pos * gridSteps);
+                    m_lastSeek = m_clock.elapsed();
+                }
+                const QString k = key(mrl, pos, width);
+                Entry &entry = m_entries[k];
+                if (entry.mrl.isEmpty())
+                {
+                    entry.mrl = mrl;
+                    entry.pos = pos;
+                    entry.width = width;
+                }
+                entry.lastUse = ++m_uses;
+                if (entry.state == Entry::Done || entry.state == Entry::Failed)
+                    outbox.emplace_back(state, entry.image);
+                else
+                {
+                    entry.waiters.push_back(state);
+                    if (entry.state == Entry::Idle)
+                        m_wanted = k;
+                }
+                pumpLocked(outbox);
+            }
+        }
+        send(outbox);
+    }
+
+    // No frame for @state any more (its decoding goes on, for the cache)
+    void forget(const std::shared_ptr<ThumbnailResponseState> &state)
+    {
+        std::lock_guard<std::mutex> guard(m_lock);
+        for (Entry &entry : m_entries)
+            entry.waiters.erase(std::remove(entry.waiters.begin(), entry.waiters.end(), state),
+                                entry.waiters.end());
+    }
+
+private:
+    struct Entry
+    {
+        enum State { Idle, Running, Done, Failed } state = Idle;
+        QString mrl;
+        double pos = 0;
+        int width = 0;
+        bool ahead = false;
+        QImage image;
+        std::vector<std::shared_ptr<ThumbnailResponseState>> waiters;
+        quint64 lastUse = 0;
+    };
+    using Outbox = std::vector<std::pair<std::shared_ptr<ThumbnailResponseState>, QImage>>;
+
+    struct CallbackData
+    {
+        std::weak_ptr<ThumbnailFrameCache> cache;
+        QString key;
+        int width;
+    };
+
+    // Frames decoding at once, at most one of them ahead of the pointer
+    static constexpr int maxRunning = 2;
+    // Frames kept: the grid of a media and some more (about 30 MB at 280 x 158)
+    static constexpr int maxFrames = 240;
+    // Decoding ahead stops when the seek bar was not asked for so long
+    static constexpr qint64 aheadIdleMs = 4000;
+
+    static QString key(const QString &mrl, double pos, int width)
+    {
+        return mrl + QLatin1Char('|') + QString::number(qRound(pos * 1000)) + QLatin1Char('|')
+               + QString::number(width);
+    }
+
+    static void send(const Outbox &outbox)
+    {
+        for (const auto &delivery : outbox)
+            delivery.first->deliver(delivery.second);
+    }
+
+    bool preparserLocked()
+    {
+        if (m_preparser || m_closed)
+            return m_preparser != nullptr;
+        struct vlc_preparser_cfg cfg = {};
+        cfg.types = VLC_PREPARSER_TYPE_THUMBNAIL;
+        cfg.max_thumbnailer_threads = maxRunning;
+        cfg.timeout = VLC_TICK_FROM_SEC(10);
+        cfg.external_process = false;
+        m_preparser = vlc_preparser_New(m_obj, &cfg);
+        return m_preparser != nullptr;
+    }
+
+    void submitLocked(const QString &k, Entry &entry, bool ahead, Outbox &outbox)
+    {
+        vlc_preparser_req *request = nullptr;
+        auto *data = new CallbackData { weak_from_this(), k, entry.width };
+        if (input_item_t *item = input_item_New(qtu(entry.mrl), nullptr))
+        {
+            struct vlc_thumbnailer_arg arg = {};
+            arg.seek.type = vlc_thumbnailer_arg::seek::VLC_THUMBNAILER_SEEK_POS;
+            arg.seek.pos = entry.pos;
+            arg.seek.speed = vlc_thumbnailer_arg::seek::VLC_THUMBNAILER_SEEK_FAST;
+            arg.hw_dec = false;
+
+            static const struct vlc_thumbnailer_cbs cbs = { &ThumbnailFrameCache::onEnded };
+            request = vlc_preparser_req_NewThumbnail(m_preparser, item, &arg, &cbs, data);
+            input_item_Release(item);
+        }
+        if (request && vlc_preparser_Submit(m_preparser, request) == VLC_SUCCESS)
+        {
+            entry.state = Entry::Running;
+            entry.ahead = ahead;
+            ++m_running;
+            if (ahead)
+                ++m_ahead;
+            return;
+        }
+        if (request)
+            vlc_preparser_req_Release(request);
+        delete data;
+        entry.state = Entry::Failed;
+        for (const auto &waiter : entry.waiters)
+            outbox.emplace_back(waiter, QImage());
+        entry.waiters.clear();
+    }
+
+    // Starts what can run: the frame asked last, other frames waited for,
+    // then one ahead of the pointer
+    void pumpLocked(Outbox &outbox)
+    {
+        if (!m_preparser)
+            return;
+        if (!m_wanted.isEmpty() && m_running < maxRunning)
+        {
+            const auto it = m_entries.find(m_wanted);
+            if (it != m_entries.end() && it->state == Entry::Idle)
+                submitLocked(it.key(), *it, false, outbox);
+            m_wanted.clear();
+        }
+        for (auto it = m_entries.begin(); it != m_entries.end() && m_running < maxRunning; ++it)
+            if (it->state == Entry::Idle && !it->waiters.empty())
+                submitLocked(it.key(), *it, false, outbox);
+
+        if (m_running >= maxRunning || m_ahead > 0 || m_seekMrl.isEmpty()
+            || m_clock.elapsed() - m_lastSeek > aheadIdleMs)
+            return;
+        // the nearest frame of the grid not decoded yet
+        const auto tryStep = [&](int step) {
+            if (step < 0 || step > gridSteps)
+                return false;
+            const double pos = double(step) / gridSteps;
+            const QString k = key(m_seekMrl, pos, m_seekWidth);
+            const auto it = m_entries.find(k);
+            if (it != m_entries.end() && it->state != Entry::Idle)
+                return false;
+            if (it == m_entries.end() && m_entries.size() >= maxFrames)
+                return false;
+            Entry &entry = m_entries[k];
+            entry.mrl = m_seekMrl;
+            entry.pos = pos;
+            entry.width = m_seekWidth;
+            entry.lastUse = ++m_uses;
+            submitLocked(k, entry, true, outbox);
+            return true;
+        };
+        for (int d = 0; d <= gridSteps; ++d)
+            if (tryStep(m_seekCenter + d) || (d > 0 && tryStep(m_seekCenter - d)))
+                break;
+    }
+
+    // The least recently asked frames go, never one decoding or waited for
+    void evictLocked()
+    {
+        while (m_entries.size() > maxFrames)
+        {
+            auto oldest = m_entries.end();
+            for (auto it = m_entries.begin(); it != m_entries.end(); ++it)
+                if (it->state != Entry::Running && it->waiters.empty()
+                    && (oldest == m_entries.end() || it->lastUse < oldest->lastUse))
+                    oldest = it;
+            if (oldest == m_entries.end())
+                break;
+            m_entries.erase(oldest);
         }
     }
 
-    ~ThumbnailResponse() override
+    void finished(const QString &k, int status, const QImage &image)
+    {
+        Outbox outbox;
+        {
+            std::lock_guard<std::mutex> guard(m_lock);
+            --m_running;
+            const auto it = m_entries.find(k);
+            if (it != m_entries.end() && it->state == Entry::Running)
+            {
+                if (it->ahead)
+                    --m_ahead;
+                if (image.isNull() && status == -EINTR)
+                    it->state = Entry::Idle;  // closing
+                else
+                {
+                    it->state = image.isNull() ? Entry::Failed : Entry::Done;
+                    it->image = image;
+                }
+                for (const auto &waiter : it->waiters)
+                    outbox.emplace_back(waiter, image);
+                it->waiters.clear();
+            }
+            evictLocked();
+            pumpLocked(outbox);
+        }
+        send(outbox);
+    }
+
+    static void onEnded(vlc_preparser_req *request, int status, picture_t *thumbnail, void *opaque)
+    {
+        std::unique_ptr<CallbackData> data(static_cast<CallbackData *>(opaque));
+        if (const std::shared_ptr<ThumbnailFrameCache> self = data->cache.lock())
+        {
+            QImage image;
+            if (thumbnail)
+                image = toImage(self->m_obj, thumbnail, QSize(data->width, 0))
+                            .convertToFormat(QImage::Format_RGB888);
+            self->finished(data->key, status, image);
+        }
+        vlc_preparser_req_Release(request);
+    }
+
+    vlc_object_t *m_obj;
+    std::mutex m_lock;
+    vlc_preparser_t *m_preparser = nullptr;
+    bool m_closed = false;
+    QHash<QString, Entry> m_entries;
+    QString m_wanted;
+    int m_running = 0;
+    int m_ahead = 0;
+    quint64 m_uses = 0;
+    QString m_seekMrl;
+    int m_seekWidth = 0;
+    int m_seekCenter = 0;
+    qint64 m_lastSeek = 0;
+    QElapsedTimer m_clock;
+};
+
+namespace {
+
+class FrameResponse : public QQuickImageResponse
+{
+public:
+    FrameResponse(const std::shared_ptr<ThumbnailFrameCache> &cache, const QString &mrl, double pos,
+                  int width, bool seek)
+        : m_cache(cache)
+        , m_state(std::make_shared<ThumbnailResponseState>())
+    {
+        m_state->response = this;
+        if (cache && !mrl.isEmpty())
+            cache->request(mrl, pos, width, seek, m_state);
+        else
+            m_state->deliver(QImage());
+    }
+
+    ~FrameResponse() override
     {
         {
             std::lock_guard<std::recursive_mutex> guard(m_state->lock);
             m_state->response = nullptr;
         }
-        if (m_request)
-        {
-            vlc_preparser_Cancel(m_preparser.get(), m_request);
-            vlc_preparser_req_Release(m_request);
-        }
+        if (const auto cache = m_cache.lock())
+            cache->forget(m_state);
     }
 
     QQuickTextureFactory *textureFactory() const override
@@ -143,72 +462,17 @@ public:
         return m_state->error;
     }
 
+    // The frame still goes to the cache; the engine needs finished() anyway
     void cancel() override
     {
-        // The end callback still runs, with no picture, and emits finished()
-        if (m_request)
-            vlc_preparser_Cancel(m_preparser.get(), m_request);
+        if (const auto cache = m_cache.lock())
+            cache->forget(m_state);
+        m_state->deliver(QImage());
     }
 
 private:
-    // Shared with the end callback, which can outlive the response
-    struct State
-    {
-        std::recursive_mutex lock;
-        ThumbnailResponse *response = nullptr;
-        vlc_object_t *obj = nullptr;
-        QSize requestedSize;
-        QImage image;
-        QString error;
-    };
-
-    vlc_preparser_req *submit(const QString &mrl, double position)
-    {
-        input_item_t *item = input_item_New(qtu(mrl), nullptr);
-        if (!item)
-            return nullptr;
-
-        struct vlc_thumbnailer_arg arg = {};
-        arg.seek.type = vlc_thumbnailer_arg::seek::VLC_THUMBNAILER_SEEK_POS;
-        arg.seek.pos = position;
-        arg.seek.speed = vlc_thumbnailer_arg::seek::VLC_THUMBNAILER_SEEK_FAST;
-        arg.hw_dec = false;
-
-        static const struct vlc_thumbnailer_cbs cbs = { &ThumbnailResponse::onEnded };
-        auto *data = new std::shared_ptr<State>(m_state);
-        vlc_preparser_req *request =
-            vlc_preparser_req_NewThumbnail(m_preparser.get(), item, &arg, &cbs, data);
-        input_item_Release(item);
-        if (request && vlc_preparser_Submit(m_preparser.get(), request) == VLC_SUCCESS)
-            return request;
-
-        if (request)
-            vlc_preparser_req_Release(request);
-        delete data;
-        return nullptr;
-    }
-
-    static void onEnded(vlc_preparser_req *, int status, picture_t *thumbnail, void *opaque)
-    {
-        std::unique_ptr<std::shared_ptr<State>> data(static_cast<std::shared_ptr<State> *>(opaque));
-        State &state = **data;
-
-        // Converted before taking the lock, the response may go meanwhile
-        QImage image = thumbnail ? toImage(state.obj, thumbnail, state.requestedSize) : QImage();
-
-        std::lock_guard<std::recursive_mutex> guard(state.lock);
-        if (!state.response)
-            return;
-        state.image = image;
-        if (image.isNull())
-            state.error = status == -EINTR ? QStringLiteral("Cancelled")
-                                           : QStringLiteral("No frame decoded");
-        emit state.response->finished();
-    }
-
-    std::shared_ptr<vlc_preparser_t> m_preparser;
-    std::shared_ptr<State> m_state;
-    vlc_preparser_req *m_request = nullptr;
+    std::weak_ptr<ThumbnailFrameCache> m_cache;
+    std::shared_ptr<ThumbnailResponseState> m_state;
 };
 
 // Artwork of the media library: looked up and read on the thread of the
@@ -287,21 +551,18 @@ ThumbnailImageProvider::ThumbnailImageProvider(qt_intf_t *intf)
 {
 }
 
-std::shared_ptr<vlc_preparser_t> ThumbnailImageProvider::preparser()
+ThumbnailImageProvider::~ThumbnailImageProvider()
+{
+    if (m_cache)
+        m_cache->shutdown();
+}
+
+std::shared_ptr<ThumbnailFrameCache> ThumbnailImageProvider::cache()
 {
     std::lock_guard<std::mutex> guard(m_lock);
-    if (!m_preparser)
-    {
-        struct vlc_preparser_cfg cfg = {};
-        cfg.types = VLC_PREPARSER_TYPE_THUMBNAIL;
-        cfg.max_thumbnailer_threads = 2;
-        cfg.timeout = VLC_TICK_FROM_SEC(10);
-        cfg.external_process = false;
-        vlc_preparser_t *preparser = vlc_preparser_New(VLC_OBJECT(m_intf), &cfg);
-        if (preparser)
-            m_preparser.reset(preparser, &vlc_preparser_Delete);
-    }
-    return m_preparser;
+    if (!m_cache)
+        m_cache = std::make_shared<ThumbnailFrameCache>(VLC_OBJECT(m_intf));
+    return m_cache;
 }
 
 QQuickImageResponse *ThumbnailImageProvider::requestImageResponse(const QString &id,
@@ -313,10 +574,11 @@ QQuickImageResponse *ThumbnailImageProvider::requestImageResponse(const QString 
         return new ArtworkResponse(VLC_OBJECT(m_intf), mrl, requestedSize);
     bool ok = false;
     const double position = query.queryItemValue(QStringLiteral(POSITION_KEY)).toDouble(&ok);
+    const bool seek = query.hasQueryItem(QStringLiteral(SEEK_KEY));
+    const int width = requestedSize.width() > 0 ? requestedSize.width() : defaultWidth;
 
-    return new ThumbnailResponse(mrl.isEmpty() || !ok ? nullptr : preparser(),
-                                 VLC_OBJECT(m_intf), mrl, qBound(0.0, position, 1.0),
-                                 requestedSize);
+    return new FrameResponse(mrl.isEmpty() || !ok ? nullptr : cache(), mrl,
+                             qBound(0.0, position, 1.0), width, seek);
 }
 
 QString ThumbnailImageProvider::uri(const QString &mrl, double position)
@@ -325,6 +587,18 @@ QString ThumbnailImageProvider::uri(const QString &mrl, double position)
     query.addQueryItem(QStringLiteral(URL_KEY), encodeMrl(mrl));
     query.addQueryItem(QStringLiteral(POSITION_KEY),
                        QString::number(qRound(qBound(0.0, position, 1.0) * 1000) / 1000.0));
+    return QStringLiteral("image://%1/?").arg(QLatin1String(providerId))
+           + query.toString(QUrl::FullyEncoded);
+}
+
+QString ThumbnailImageProvider::previewUri(const QString &mrl, double position)
+{
+    const int steps = ThumbnailFrameCache::gridSteps;
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral(URL_KEY), encodeMrl(mrl));
+    query.addQueryItem(QStringLiteral(POSITION_KEY),
+                       QString::number(qRound(qBound(0.0, position, 1.0) * steps) / double(steps)));
+    query.addQueryItem(QStringLiteral(SEEK_KEY), QStringLiteral("1"));
     return QStringLiteral("image://%1/?").arg(QLatin1String(providerId))
            + query.toString(QUrl::FullyEncoded);
 }
@@ -350,4 +624,11 @@ QString VLCThumbnail::uri(const QString &mrl, double position) const
     if (mrl.isEmpty())
         return {};
     return ThumbnailImageProvider::uri(mrl, position);
+}
+
+QString VLCThumbnail::preview(const QString &mrl, double position) const
+{
+    if (mrl.isEmpty())
+        return {};
+    return ThumbnailImageProvider::previewUri(mrl, position);
 }
