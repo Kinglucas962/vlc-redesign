@@ -548,6 +548,9 @@ static int UpdateFormat(vout_display_t *vd, const video_format_t *fmtp, vlc_vide
         return VLC_EGENERIC;
     }
 
+    const d3d_format_t *old_texture_format = sys->picQuad.generic.textureFormat;
+    const video_format_t old_quad_fmt = sys->picQuad.quad_fmt;
+
     video_format_t fmt;
     video_format_Copy(&fmt, fmtp);
     video_format_Copy(&sys->picQuad.quad_fmt, &fmt);
@@ -555,6 +558,17 @@ static int UpdateFormat(vout_display_t *vd, const video_format_t *fmtp, vlc_vide
     int err = SetupOutputFormat(vd, &fmt, vctx, &sys->picQuad.quad_fmt);
     if (err != VLC_SUCCESS)
         goto error;
+
+    if (fmt.i_chroma != fmtp->i_chroma)
+    {
+        msg_Warn(vd, "Could not update format, the display changed the "
+                     "requested chroma from %4.4s to %4.4s",
+                 (const char *)&fmtp->i_chroma, (const char *)&fmt.i_chroma);
+        sys->picQuad.generic.textureFormat = old_texture_format;
+        sys->picQuad.quad_fmt = old_quad_fmt;
+        err = VLC_EGENERIC;
+        goto error;
+    }
 
     err = UpdateDisplayFormat(vd, &sys->picQuad.quad_fmt);
     if (err != VLC_SUCCESS)

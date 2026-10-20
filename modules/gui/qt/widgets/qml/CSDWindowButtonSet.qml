@@ -60,6 +60,7 @@ Row {
 
             CSDWindowButton {
                 id: windowButton
+                csdButton: modelData
                 height: root.height
                 showHovered: modelData.showHovered
                 externalPressed: modelData.externalPressed

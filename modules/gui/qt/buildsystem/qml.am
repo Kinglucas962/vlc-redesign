@@ -88,7 +88,8 @@ libqml_module_maininterface_a_QML = \
 	maininterface/qml/Sidebar.qml \
 	maininterface/qml/PaneResizeHandle.qml \
 	maininterface/qml/SideNavigationDelegate.qml \
-	maininterface/qml/NoMedialibHome.qml
+	maininterface/qml/NoMedialibHome.qml \
+	maininterface/qml/OpenFileSplitButton.qml
 
 if UPDATE_CHECK
 libqml_module_maininterface_a_QML += maininterface/qml/UpdatePane.qml
@@ -451,6 +452,7 @@ libqml_module_widgets_a_QML = \
 	widgets/qml/PageLoader.qml \
 	widgets/qml/PageExt.qml \
 	widgets/qml/ButtonExt.qml \
+	widgets/qml/SplitButton.qml \
 	widgets/qml/TableColumns.qml \
 	widgets/qml/TextFieldExt.qml \
 	widgets/qml/TextToolButton.qml \

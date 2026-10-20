@@ -79,7 +79,8 @@ void StringListMenu::popup(const QPoint &point, const QVariantList &stringList)
 
     for (int i = 0; i != stringList.size(); ++i)
     {
-        // Entries are texts, or { text, icon } with an icon of the redesign set
+        // Entries are texts, or { text, icon } with an icon of the redesign
+        // set, or { text, icon_svg } with an SVG icon (upstream VLC)
         const QVariant entry = stringList[i];
         const QVariantMap map = entry.toMap();
         const auto str = map.isEmpty() ? entry.toString() : map.value(QStringLiteral("text")).toString();
@@ -89,8 +90,11 @@ void StringListMenu::popup(const QPoint &point, const QVariantList &stringList)
             emit selected(i, str);
         });
         const QString icon = map.value(QStringLiteral("icon")).toString();
+        const QString iconSvg = map.value(QStringLiteral("icon_svg")).toString();
         if (!icon.isEmpty())
             action->setIcon(RedesignMenuStyle::accentIcon(m_ctx, icon));
+        else if (!iconSvg.isEmpty())
+            action->setIcon(ColorizedSvgIcon::colorizedIconForWidget(iconSvg, m));
     }
 
     m->popup(point);
