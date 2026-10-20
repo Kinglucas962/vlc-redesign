@@ -97,6 +97,7 @@ frames down to the pixel on the measured screens, and no longer freezes.
 | Next / previous | | also **`<` `>`** | |
 | Next / previous frame | | also **`.` `,`** | |
 | OSD message duration | fixed | **`osd-duration`** (1000 ms) | Set from the notification duration setting |
+| Update checks (`qt-updates-notif`) | on | **off** | VideoLAN's update feed offers the official VLC, not this build |
 
 ### Fixed
 

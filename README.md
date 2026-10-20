@@ -9,7 +9,9 @@
 [Credits](CREDITS.md) ·
 [Build from source](#build-from-source)
 
-<!-- DEMO -->
+<a href="docs/media/demo.mp4"><img src="docs/media/demo.gif" alt="VLC Redesign in action: seek bar frame previews, light theme, music waveform, and the design credit in About" width="880"></a>
+
+<sub>▶ <a href="docs/media/demo.mp4">Watch the full 85-second tour (MP4)</a></sub>
 
 </div>
 
@@ -50,6 +52,9 @@ If you like how this looks, go subscribe to Juxtopposed's channel. That's where 
 > It was adapted to Qt/QML for this build, and its icons were redrawn and modified.
 > Juxtopposed does not endorse this project.
 
+<p align="center"><img src="docs/media/about-credit.png" alt="The design credit in the app's About window" width="640"><br>
+<sub>The same credit is in the app, under <b>⋯ → About VLC</b>.</sub></p>
+
 ---
 
 > [!IMPORTANT]
@@ -75,6 +80,21 @@ follows the design screen by screen, down to the pixel on the screens that were 
 
 See the full list in the **[changelog](CHANGELOG.md)**.
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Home with Continue Watching and Listen Again](docs/media/home.png) | ![Frame preview while hovering the seek bar](docs/media/player-seek-preview.png) |
+| **Home**: Continue Watching, Listen Again, Frequently Visited Folders | **Player**: framed video and frame previews on the seek bar |
+| ![Queue card](docs/media/queue.png) | ![Light theme with a blue accent](docs/media/light-theme.png) |
+| **Queue card** with Bookmarks and Chapters tabs | **Light theme**, here with a blue accent |
+| ![Music view with the waveform seek bar](docs/media/music-waveform.png) | ![Settings](docs/media/settings.png) |
+| **Music**: blurred artwork backdrop and a waveform seek bar | **Settings**, redesigned with search |
+
+The demo uses free media: *[Sintel](https://durian.blender.org/)* and *[Big Buck Bunny](https://peach.blender.org/)* trailers
+(© Blender Foundation, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/); Sintel's first second trimmed) and
+"Fluffing a Duck" and "Carefree" by [Kevin MacLeod](https://incompetech.com/) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); generated cover art added).
+
 ## Download
 
 1. Go to **[Releases](https://github.com/KuchiSofts/vlc-redesign/releases/latest)** and download `vlc-redesign-…-win64.zip`.
@@ -99,6 +119,7 @@ Requirements: Windows 10 or 11, 64-bit.
 - A few controls in the design have no VLC equivalent and were left out on purpose.
 - The waveform seek bar works on local files up to 1 GB and 8 minutes; other media get the regular seek bar.
 - HDR output offers Auto / Off / HDR10 / HLG and needs the libplacebo renderer.
+- The compact library over the player shows an empty *Home*; its folders work.
 
 The detailed status of every screen is in [`.specs/`](.specs/project/STATE.md) (in Portuguese, from the first implementation).
 
