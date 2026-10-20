@@ -39,10 +39,11 @@ Controls.Popup {
                          : two(minutes) + ":" + two(rest)
     }
 
+    // the colours of the redesign, in the light theme too (Figma "Player - Light")
     background: Rectangle {
-        color: "#1b1b1b"
+        color: VLCStyle.redesign.color("#1b1b1b", "#ababaa")
         radius: 11
-        border.color: "#303030"
+        border.color: VLCStyle.redesign.color("#303030", "#929291")
     }
 
     contentItem: Column {
@@ -50,7 +51,7 @@ Controls.Popup {
 
         Text {
             text: qsTr("Sleep timer")
-            color: "#eaeaea"
+            color: VLCStyle.redesign.color("#eaeaea", "#2e2e2e")
             font.family: VLCStyle.redesign.fontFamily
             font.pixelSize: 18
             font.weight: Font.DemiBold
@@ -59,7 +60,7 @@ Controls.Popup {
         Text {
             visible: root.timerController.active
             text: qsTr("Remaining: %1").arg(root.formatRemaining(root.timerController.remainingSeconds))
-            color: "#c6c6c6"
+            color: VLCStyle.redesign.color("#c6c6c6", "#2e2e2e")
             font.family: VLCStyle.redesign.fontFamily
             font.pixelSize: 16
         }
@@ -67,7 +68,7 @@ Controls.Popup {
         Text {
             visible: !root.timerController.active
             text: qsTr("After")
-            color: "#969696"
+            color: VLCStyle.redesign.color("#969696", "#4d4d4d")
             font.family: VLCStyle.redesign.fontFamily
             font.pixelSize: 14
         }
@@ -77,10 +78,10 @@ Controls.Popup {
             spacing: 8
             Controls.SpinBox {
                 id: durationInput
-                palette.text: "#eaeaea"
-                palette.base: "#101010"
-                palette.button: "#202020"
-                palette.buttonText: "#969696"
+                palette.text: VLCStyle.redesign.color("#eaeaea", "#2e2e2e")
+                palette.base: VLCStyle.redesign.color("#101010", "#c2c2c1")
+                palette.button: VLCStyle.redesign.color("#202020", "#9c9c9b")
+                palette.buttonText: VLCStyle.redesign.color("#969696", "#4d4d4d")
                 objectName: "sleepTimerMinutes"
                 from: 1
                 to: 720
@@ -89,8 +90,8 @@ Controls.Popup {
                 width: 110
                 Accessible.name: qsTr("Minutes until sleep timer")
                 background: Rectangle {
-                    color: "#101010"
-                    border.color: "#383838"
+                    color: VLCStyle.redesign.color("#101010", "#c2c2c1")
+                    border.color: VLCStyle.redesign.color("#383838", "#8e8e8d")
                     radius: 6
                 }
                 contentItem: TextInput {
@@ -98,7 +99,7 @@ Controls.Popup {
                     text: durationInput.textFromValue(durationInput.value, durationInput.locale)
                     font.family: VLCStyle.redesign.fontFamily
                     font.pixelSize: 15
-                    color: "#eaeaea"
+                    color: VLCStyle.redesign.color("#eaeaea", "#2e2e2e")
                     selectionColor: VLCStyle.redesign.accent
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
@@ -110,7 +111,7 @@ Controls.Popup {
             Text {
                 height: durationInput.height
                 text: qsTr("minutes")
-                color: "#969696"
+                color: VLCStyle.redesign.color("#969696", "#4d4d4d")
                 font.family: VLCStyle.redesign.fontFamily
                 font.pixelSize: 14
                 verticalAlignment: Text.AlignVCenter
@@ -133,13 +134,15 @@ Controls.Popup {
                     Accessible.name: text
                     onClicked: root.selectedAction = index
                     background: Rectangle {
-                        color: root.selectedAction === index ? "#343434" : "#121212"
-                        border.color: root.selectedAction === index ? VLCStyle.redesign.accent : "#383838"
+                        color: root.selectedAction === index ? VLCStyle.redesign.color("#343434", "#9c9c9b")
+                                                             : VLCStyle.redesign.color("#121212", "#c2c2c1")
+                        border.color: root.selectedAction === index ? VLCStyle.redesign.accent
+                                                                    : VLCStyle.redesign.color("#383838", "#8e8e8d")
                         radius: 6
                     }
                     contentItem: Text {
                         text: parent.text
-                        color: "#c6c6c6"
+                        color: VLCStyle.redesign.color("#c6c6c6", "#2e2e2e")
                         font.family: VLCStyle.redesign.fontFamily
                         font.pixelSize: 13
                         horizontalAlignment: Text.AlignHCenter
@@ -153,7 +156,7 @@ Controls.Popup {
             width: parent.width
             visible: root.timerController.error !== ""
             text: root.timerController.error
-            color: "#e57373"
+            color: VLCStyle.redesign.color("#e57373", "#c62828")
             wrapMode: Text.WordWrap
             font.family: VLCStyle.redesign.fontFamily
             font.pixelSize: 13

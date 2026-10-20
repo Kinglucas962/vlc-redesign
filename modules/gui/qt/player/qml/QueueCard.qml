@@ -90,7 +90,8 @@ T.Pane {
                 onAddRequested: DialogsProvider.simpleOpenDialog(false)
             }
 
-            // Bookmarks of the media, in the media library
+            // Bookmarks of the media, in the media library (empty and read
+            // only without it)
             ColumnLayout {
                 spacing: VLCStyle.dp(4, VLCStyle.scale)
 
@@ -98,7 +99,7 @@ T.Pane {
                     id: bookmarks
 
                     player: Player
-                    ml: MediaLib
+                    ml: MainCtx.mediaLibraryAvailable ? MediaLib : null
                 }
 
                 RowLayout {
@@ -119,14 +120,17 @@ T.Pane {
                     CardButton {
                         iconName: "remove"
                         description: qsTr("Remove the bookmark")
-                        enabled: bookmarkList.currentIndex >= 0 && bookmarkList.count > 0
+                        enabled: MainCtx.mediaLibraryAvailable && bookmarkList.currentIndex >= 0
+                                 && bookmarkList.count > 0
                         onClicked: bookmarks.removeAt(bookmarkList.currentIndex)
                     }
 
                     CardButton {
                         iconName: "add"
                         description: qsTr("Add a bookmark at the current time")
-                        enabled: Player.playingState === Player.PLAYING_STATE_PLAYING || Player.playingState === Player.PLAYING_STATE_PAUSED
+                        enabled: MainCtx.mediaLibraryAvailable
+                                 && (Player.playingState === Player.PLAYING_STATE_PLAYING
+                                     || Player.playingState === Player.PLAYING_STATE_PAUSED)
                         onClicked: bookmarks.add()
                     }
                 }
@@ -172,8 +176,8 @@ T.Pane {
                         width: parent.width - VLCStyle.dp(40, VLCStyle.scale)
                         horizontalAlignment: Text.AlignHCenter
                         wrapMode: Text.WordWrap
-                        text: MediaLib ? qsTr("No bookmarks: add one at the current time with +")
-                                       : qsTr("Bookmarks need the media library")
+                        text: MainCtx.mediaLibraryAvailable ? qsTr("No bookmarks: add one at the current time with +")
+                                                            : qsTr("Bookmarks need the media library")
                         color: VLCStyle.redesign.color(VLCStyle.redesign.textMuted, "#5a5a59")
                         font.family: VLCStyle.redesign.fontFamily
                         font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)

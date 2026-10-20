@@ -131,9 +131,12 @@ Widgets.PageExt {
               action: (dataList) => subtitleDialog.openForFolderUrl(folderMenu.folderUrl(dataList)) },
             { text: qsTr("Edit Audio Tracks"), icon: "audio",
               action: (dataList) => audioDialog.openForFolderUrl(folderMenu.folderUrl(dataList)) },
-            { text: qsTr("Resync"), icon: "sync",
-              action: () => { if (MainCtx.mediaLibraryAvailable) MainCtx.mediaLibrary.reload() } },
-            { text: qsTr("Info"), icon: "info",
+            // (the design's "Resync": the whole library is scanned again)
+            { text: qsTr("Reload Library"), icon: "sync",
+              action: () => { if (MainCtx.mediaLibraryAvailable) MainCtx.mediaLibrary.reload() },
+              visible: () => MainCtx.mediaLibraryAvailable },
+            // (the design's "Info": the folder opens in the file manager)
+            { text: qsTr("Show in File Explorer"), icon: "folder-open",
               action: (dataList) => Qt.openUrlExternally(folderMenu.folderUrl(dataList)) }
         ]
 
@@ -166,10 +169,11 @@ Widgets.PageExt {
             { text: qsTr("Remove from Favorites"), icon: "favorite",
               action: (dataList, options, indexes) => folderModel.setFavorite(fileMenu.row(indexes), false),
               visible: (dataList) => dataList.length === 1 && dataList[0].isIndexed && dataList[0].isFavorite },
+            // the 2nd argument: transcode only (Convert), not the Stream output
             { text: qsTr("Stream"), icon: "streaming",
-              action: (dataList) => DialogsProvider.streamingDialog([fileMenu.file(dataList).url], true) },
-            { text: qsTr("Convert"), icon: "swap",
               action: (dataList) => DialogsProvider.streamingDialog([fileMenu.file(dataList).url], false) },
+            { text: qsTr("Convert"), icon: "swap",
+              action: (dataList) => DialogsProvider.streamingDialog([fileMenu.file(dataList).url], true) },
             { text: qsTr("Add to Queue"), icon: "queue",
               action: (dataList) => MainPlaylistController.append([fileMenu.file(dataList).url], false) },
             { text: qsTr("Add to Playlist"), icon: "playlist",
@@ -269,14 +273,16 @@ Widgets.PageExt {
 
             readonly property bool isVideo: !model.isFolder
                 && /\.(3gp|asf|avi|flv|m2ts|m4v|mkv|mov|mp4|mpe?g|mts|ogv|ts|vob|webm|wmv)$/i.test(String(model.url))
-            // the media being played (not the one left after a stop)
+            // the media being played (not the one left after a stop); the
+            // paths compared, the same file has URLs encoded differently
             readonly property bool playing: !model.isFolder && Player.isStarted
-                                            && Player.url.toString() === String(model.url)
+                                            && Helpers.localPathFromUrl(Player.url) === Helpers.localPathFromUrl(model.url)
             readonly property real progress: model.progress ?? 0
             readonly property bool played: (model.playcount ?? 0) > 0 || progress > 0
+            // (the MRL of the library: the url as text decodes some characters)
             readonly property url previewSource: card.model.isFolder ? ""
-                                                 : card.isVideo ? VLCThumbnail.uri(String(card.model.url), 0.1)
-                                                                : VLCThumbnail.artwork(String(card.model.url))
+                                                 : card.isVideo ? VLCThumbnail.uri(card.model.mrl, 0.1)
+                                                                : VLCThumbnail.artwork(card.model.mrl)
 
             width: grid.cellWidth
             height: grid.cellHeight

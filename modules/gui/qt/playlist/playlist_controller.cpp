@@ -52,6 +52,14 @@ static QVector<RAW> toRaw(const QVector<WRAPPER> &items)
     return vec;
 }
 
+/* The core stores the repeat mode in two booleans (libvlc-module.c):
+ * "repeat" repeats the current item and "loop" the whole play queue */
+static void saveRepeatMode(vlc_playlist_playback_repeat repeat)
+{
+    config_PutInt( "repeat", repeat == VLC_PLAYLIST_PLAYBACK_REPEAT_CURRENT );
+    config_PutInt( "loop", repeat == VLC_PLAYLIST_PLAYBACK_REPEAT_ALL );
+}
+
 QVector<Media> toMediaList(const QVariantList &sources)
 {
     QVector<Media> mediaList;
@@ -403,6 +411,14 @@ PlaylistController::PlaylistController(vlc_playlist_t *playlist, QObject *parent
 
     {
         vlc_playlist_locker locker(d->m_playlist);
+        /* Repeat All used to be saved as repeat=2 (the enum), which the core
+         * reads back as Repeat One: move it to "loop" */
+        if (config_GetInt( "repeat" ) == VLC_PLAYLIST_PLAYBACK_REPEAT_ALL)
+        {
+            saveRepeatMode( VLC_PLAYLIST_PLAYBACK_REPEAT_ALL );
+            if (vlc_playlist_GetPlaybackRepeat( d->m_playlist ) == VLC_PLAYLIST_PLAYBACK_REPEAT_CURRENT)
+                vlc_playlist_SetPlaybackRepeat( d->m_playlist, VLC_PLAYLIST_PLAYBACK_REPEAT_ALL );
+        }
         d->m_listener = vlc_playlist_AddListener(d->m_playlist, &playlist_callbacks, d, true);
     }
     /*
@@ -721,7 +737,7 @@ void PlaylistController::toggleRepeatMode()
         vlc_playlist_locker lock{ d->m_playlist };
         vlc_playlist_SetPlaybackRepeat( d->m_playlist, new_repeat );
     }
-    config_PutInt( "repeat", new_repeat );
+    saveRepeatMode( new_repeat );
 }
 
 void PlaylistController::clear()
@@ -778,8 +794,12 @@ PlaylistController::PlaybackRepeat PlaylistController::getRepeatMode() const
 void PlaylistController::setRepeatMode(PlaylistController::PlaybackRepeat mode)
 {
     Q_D(const PlaylistController);
-    vlc_playlist_locker lock{ d->m_playlist };
-    vlc_playlist_SetPlaybackRepeat( d->m_playlist, static_cast<vlc_playlist_playback_repeat>(mode) );
+    const auto repeat = static_cast<vlc_playlist_playback_repeat>(mode);
+    {
+        vlc_playlist_locker lock{ d->m_playlist };
+        vlc_playlist_SetPlaybackRepeat( d->m_playlist, repeat );
+    }
+    saveRepeatMode( repeat );
 }
 
 PlaylistController::MediaStopAction PlaylistController::getMediaStopAction() const

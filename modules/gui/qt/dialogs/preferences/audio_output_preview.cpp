@@ -65,7 +65,7 @@ bool AudioOutputPreview::begin()
     if (m_aout) {
         const bool changed = m_dirty;
         releaseOutput();
-        if (changed) return fail(tr("Audio output changed; the previous device could not be restored."));
+        if (changed) return fail(qtr("Audio output changed; the previous device could not be restored."));
     }
     clearError();
     if (!m_ctx || !m_ctx->getIntf() || !m_ctx->getIntf()->p_player) return false;
@@ -104,7 +104,7 @@ int AudioOutputPreview::currentIndex() const
 bool AudioOutputPreview::preview(int index, const QString& displayedName)
 {
     if (!m_aout || !sameOutput())
-        return fail(tr("The audio output changed. Reopen Audio settings to choose a device."));
+        return fail(qtr("The audio output changed. Reopen Audio settings to choose a device."));
     char** ids = nullptr;
     char** names = nullptr;
     const int count = aout_DevicesList(m_aout, &ids, &names);
@@ -125,9 +125,9 @@ bool AudioOutputPreview::preview(int index, const QString& displayedName)
     }
     free(ids);
     free(names);
-    if (!matches) return fail(tr("The available output devices changed. Reopen Audio settings."));
+    if (!matches) return fail(qtr("The available output devices changed. Reopen Audio settings."));
     if (aout_DeviceSet(m_aout, chosenDefault ? nullptr : chosenId.constData()) != 0)
-        return fail(tr("Could not select this output device."));
+        return fail(qtr("Could not select this output device."));
     m_dirty = chosenDefault != m_originalIsDefault
               || (!chosenDefault && chosenId != m_originalDevice);
     clearError();
@@ -138,7 +138,7 @@ bool AudioOutputPreview::preview(int index, const QString& displayedName)
 bool AudioOutputPreview::canCommit()
 {
     return !m_dirty || sameOutput()
-        || fail(tr("The audio output changed; the device preview cannot be kept."));
+        || fail(qtr("The audio output changed; the device preview cannot be kept."));
 }
 
 bool AudioOutputPreview::commit()
@@ -158,8 +158,8 @@ bool AudioOutputPreview::cancel()
     if (m_dirty && same)
         result = aout_DeviceSet(m_aout, m_originalIsDefault ? nullptr : m_originalDevice.constData());
     releaseOutput();
-    if (!same) return fail(tr("Audio output changed; the previous device could not be restored."));
-    if (result != 0) return fail(tr("The previous audio device could not be restored."));
+    if (!same) return fail(qtr("Audio output changed; the previous device could not be restored."));
+    if (result != 0) return fail(qtr("The previous audio device could not be restored."));
     clearError();
     return true;
 }

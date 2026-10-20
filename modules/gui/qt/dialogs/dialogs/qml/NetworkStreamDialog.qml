@@ -24,7 +24,27 @@ Widgets.RedesignDialog {
 
     // One link per line; spaces also separate links
     readonly property var urls: urlField.text.split(/\s+/).filter(url => url.length > 0)
+                                                          .map(url => root.withScheme(url))
     readonly property bool canSavePlaylist: MainCtx.mediaLibraryAvailable
+
+    // A link typed without its scheme ("example.com/live.m3u8") names a
+    // host, not a file of the computer: https, or http for an address,
+    // localhost or a port (local servers, IPTV boxes). Links with a scheme
+    // and local paths stay as they are.
+    function withScheme(text) {
+        // a path: "/", "\\", "~", ".", or a drive ("C:\", "C:/")
+        if (/^[\/\\~.]/.test(text) || /^[A-Za-z]:([\/\\]|$)/.test(text))
+            return text
+        const host = /^(\[[0-9A-Fa-f:.]+\]|localhost|[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+)(:(\d+))?([\/?#].*)?$/.exec(text)
+        if (!host) {
+            // anything else as typed ("rtsp://...", "magnet:?...")
+            return text
+        }
+        const address = host[1].startsWith("[") || host[1] === "localhost"
+                        || /^\d{1,3}(\.\d{1,3}){3}$/.test(host[1])
+        const port = host[4] !== undefined && host[4] !== "443"
+        return ((address || port) ? "http://" : "https://") + text
+    }
 
     title: qsTr("Open Network Stream")
     // Figma: "Frame 124" fixed at 509 (room under the fields)

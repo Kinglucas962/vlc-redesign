@@ -18,7 +18,12 @@ Controls.Popup {
     width: 344
     padding: 12
     closePolicy: Controls.Popup.CloseOnEscape | Controls.Popup.CloseOnPressOutside
-    background: Rectangle { color: "#1b1b1b"; radius: 11; border.color: "#252525" }
+    // the colours of the redesign, in the light theme too (Figma "Player - Light")
+    background: Rectangle {
+        color: VLCStyle.redesign.color("#1b1b1b", "#ababaa")
+        radius: 11
+        border.color: VLCStyle.redesign.color("#252525", "#9c9c9b")
+    }
     contentItem: Column {
         spacing: 4
         PersonalizationActions {
@@ -36,10 +41,13 @@ Controls.Popup {
                 required property string modelData
                 width: root.availableWidth
                 height: 48
-                background: Rectangle { color: parent.hovered ? "#252525" : "transparent"; radius: 6 }
+                background: Rectangle {
+                    color: parent.hovered ? VLCStyle.redesign.color("#252525", "#9c9c9b") : "transparent"
+                    radius: 6
+                }
                 contentItem: Text {
                     text: modelData
-                    color: "#969696"
+                    color: VLCStyle.redesign.color("#969696", "#4d4d4d")
                     font.family: VLCStyle.redesign.fontFamily
                     font.pixelSize: 16
                     verticalAlignment: Text.AlignVCenter

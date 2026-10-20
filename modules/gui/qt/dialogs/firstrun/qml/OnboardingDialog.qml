@@ -56,8 +56,11 @@ Controls.Popup {
         step = 0
         initialAccent = VLCStyle.redesign.accent
         selectedAccent = initialAccent
-        folderUrl = controller.suggestedFolder
-        metadataNetworkAccess = controller.needsSetup ? false : controller.metadataNetworkAccess
+        // no folder without the media library (none can be added)
+        folderUrl = MainCtx.mediaLibraryAvailable ? controller.suggestedFolder : ""
+        // the setting as it is: the dialog asks nothing about it, the value
+        // changes only when the user chooses (consentRequested)
+        metadataNetworkAccess = controller.metadataNetworkAccess
         shortcuts = controller.activeShortcuts()
         previousGlobalShortcuts = MainCtx.useGlobalShortcuts
         MainCtx.useGlobalShortcuts = false
@@ -88,9 +91,11 @@ Controls.Popup {
                 anchors.fill: parent
                 visible: root.step === 0
                 folderUrl: root.folderUrl
-                folderText: controller.displayPath(root.folderUrl)
+                folderText: root.folderUrl ? controller.displayPath(root.folderUrl) : ""
+                folderAvailable: MainCtx.mediaLibraryAvailable
                 metadataNetworkAccess: root.metadataNetworkAccess
                 onConsentRequested: allowed => root.metadataNetworkAccess = allowed
+                onClearRequested: root.folderUrl = ""
                 onBrowseRequested: {
                     const chosen = filePicker.chooseFolder(qsTr("Choose a media folder"))
                     if (chosen.toString() !== "")

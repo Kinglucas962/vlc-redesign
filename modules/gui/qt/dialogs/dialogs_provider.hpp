@@ -244,6 +244,8 @@ public slots:
     void updateDialog(Mode mode = Toggle);
 #endif
     void aboutDialog();
+    // the classic About (licence, authors, thanks), behind the redesign's
+    void nativeAboutDialog();
     void gotoTimeDialog();
     void podcastConfigureDialog();
     void pluginDialog();
@@ -265,9 +267,10 @@ public slots:
     void PLOpenDir();
     void PLAppendDir();
 
-    void streamingDialog( QWindow *parent, const QStringList& mrls, bool b_stream = true,
+    // b_transcode_only: the Convert dialog (true) or the Stream output one (false)
+    void streamingDialog( QWindow *parent, const QStringList& mrls, bool b_transcode_only = true,
                           QStringList options = QStringList("") );
-    void streamingDialog( const QList<QUrl>& urls, bool b_stream = true );
+    void streamingDialog( const QList<QUrl>& urls, bool b_transcode_only = true );
     void openAndStreamingDialogs();
     void openAndTranscodingDialogs();
 
@@ -309,6 +312,7 @@ signals:
     void hdrOutputRequested();
     void shortcutsRequested();
     void networkStreamRequested();
+    void aboutRequested();
     void setupRequested();
     void effectsRequested(int page);
     void releaseMouseEvents();

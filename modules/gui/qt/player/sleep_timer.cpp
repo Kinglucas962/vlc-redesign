@@ -31,14 +31,25 @@ void SleepTimerController::setPlayer(PlayerController* player)
         return;
     cancel();
     disconnect(m_inputConnection);
+    disconnect(m_stateConnection);
     m_player = player;
     if (m_player) {
+        // inputChanged also fires each time the queue moves to the next
+        // track, so only a real end of playback (no current media, or the
+        // player reporting STOPPED) cancels the timer.
         m_inputConnection = connect(m_player, &PlayerController::inputChanged,
-                                    this, [this](bool) {
-            if (!m_active)
+                                    this, [this](bool hasInput) {
+            if (!m_active || hasInput)
                 return;
             cancel();
-            setError(tr("Sleep timer canceled because the media changed."));
+            setError(tr("Sleep timer canceled because playback ended."));
+        });
+        m_stateConnection = connect(m_player, &PlayerController::playingStateChanged,
+                                    this, [this](PlayerController::PlayingState state) {
+            if (!m_active || state != PlayerController::PLAYING_STATE_STOPPED)
+                return;
+            cancel();
+            setError(tr("Sleep timer canceled because playback ended."));
         });
     }
     emit playerChanged();

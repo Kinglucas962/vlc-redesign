@@ -110,6 +110,7 @@ moc_headers = files(
     '../../player/waveform.hpp',
     '../../player/local_folder_model.hpp',
     '../../player/sleep_timer.hpp',
+    '../../util/redesign_updater.hpp',
     '../../player/player_controller.hpp',
     '../../player/player_controlbar_model.hpp',
     '../../player/control_list_model.hpp',

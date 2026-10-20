@@ -1659,6 +1659,12 @@ void PlayerController::navigateActivate()
         vlc_player_Navigate( d->m_player, VLC_PLAYER_NAV_ACTIVATE);
 }
 
+bool PlayerController::isRecentPlaySaved() const
+{
+    Q_D(const PlayerController);
+    return var_InheritBool( d->p_intf, "save-recentplay" );
+}
+
 void PlayerController::chapterNext()
 {
     Q_D(PlayerController);

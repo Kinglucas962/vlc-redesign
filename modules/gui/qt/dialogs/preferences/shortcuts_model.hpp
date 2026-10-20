@@ -30,8 +30,11 @@ class ShortcutsModel : public QAbstractListModel
     Q_PROPERTY(QString error READ error NOTIFY errorChanged)
 
 public:
+    // Hotkey(s)Role: the keys of the action as one text ("f, Ctrl+e") and as
+    // a list, for a chip per key
     enum Role { KeyRole = Qt::UserRole + 1, ActionRole, GroupRole,
-                HotkeyRole, GlobalHotkeyRole, DirtyRole };
+                HotkeyRole, GlobalHotkeyRole, DirtyRole,
+                HotkeysRole, GlobalHotkeysRole };
     Q_ENUM(Role)
 
     explicit ShortcutsModel(QObject *parent = nullptr);
@@ -52,9 +55,12 @@ public:
     Q_INVOKABLE void cancel();
     Q_INVOKABLE void resetAll();
     Q_INVOKABLE bool apply();
+    // Adds the key pressed to the keys of the action (an action has several)
     Q_INVOKABLE QVariantMap stageKey(const QString &option, bool global,
                                     int qtKey, int modifiers, bool replaceConflict = false);
+    // Every key of the action, or one of them ("Ctrl+e" as VLC writes it)
     Q_INVOKABLE bool clearKey(const QString &option, bool global);
+    Q_INVOKABLE bool removeKey(const QString &option, bool global, const QString &key);
 
 signals:
     void ctxChanged();
@@ -68,10 +74,12 @@ private:
         QString key, globalKey, action, group;
         QString current, staged, defaults, globalCurrent, globalStaged, globalDefaults;
     };
-    struct Change { QString key, before, after; };
+    struct Change { QString key, action, before, after; bool global; };
 
     bool visible(const Entry &entry) const;
     void rebuildRows();
+    // The rows again after a change of keys, while a search may hide them
+    void refreshSearch();
     void notifyEntry(int entryIndex);
     void setError(const QString &error);
     int findEntry(const QString &key) const;

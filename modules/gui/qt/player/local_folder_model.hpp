@@ -45,6 +45,9 @@ public:
         // of the media the library knows
         IsFavoriteRole,
         IsIndexedRole,
+        // the MRL as the core and the library write it (vlc_path2uri), as
+        // text: the url (UrlRole) shown as text decodes some characters
+        MrlRole,
     };
     Q_ENUM(Roles)
 
@@ -92,6 +95,8 @@ private:
     struct Entry
     {
         QString name;
+        // the MRL of the core (vlc_path2uri) and its url
+        QString mrl;
         QUrl url;
         bool isFolder;
         qint64 modified;

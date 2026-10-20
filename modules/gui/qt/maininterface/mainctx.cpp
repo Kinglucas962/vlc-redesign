@@ -460,10 +460,13 @@ void MainCtx::loadPrefs(const bool callSignals)
             signal(this);
     };
 
-    bool minimalMode = false;
-    /* Are we in the enhanced always-video mode or not ? */
-    loadFromVLCOption(minimalMode, "qt-minimal-view", nullptr);
-    setMinimalView(minimalMode);
+    /* Are we in the enhanced always-video mode or not ? At the start and
+     * when the option changes only: reloading the preferences (every save
+     * of the settings) must not show a UI hidden with Ctrl+H again */
+    const bool minimalOption = m_minimalViewOption;
+    loadFromVLCOption(m_minimalViewOption, "qt-minimal-view", nullptr);
+    if (!callSignals || m_minimalViewOption != minimalOption)
+        setMinimalView(m_minimalViewOption);
 
     loadFromVLCOption(m_bgCone, "qt-bgcone", &MainCtx::bgConeToggled);
 

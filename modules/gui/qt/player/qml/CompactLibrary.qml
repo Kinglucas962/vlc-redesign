@@ -24,6 +24,18 @@ FocusScope {
     property var location: ({ section: "home" })
     property var _back: []
     property var _forward: []
+    // The model filtered by the search field (the place it was typed in)
+    property var _searchedModel: null
+
+    // The search belongs to the place it was typed in: another place starts
+    // without it, and the place left shows all of its items again
+    onLocationChanged: {
+        if (_searchedModel && _searchedModel.searchPattern !== undefined)
+            _searchedModel.searchPattern = ""
+        _searchedModel = null
+        searchField.visible = false
+        searchField.text = ""
+    }
 
     readonly property bool _mlAvailable: MainCtx.mediaLibraryAvailable
     readonly property var _sections: [
@@ -305,7 +317,9 @@ FocusScope {
                 Layout.leftMargin: VLCStyle.dp(10, VLCStyle.scale)
                 iconSource: "qrc:///redesign/icons/more/dim.png"
                 description: qsTr("More")
-                visible: root.location.section === "folder" || root.location.section === "playlists"
+                // playlists are created in the media library only
+                visible: root.location.section === "folder"
+                         || (root.location.section === "playlists" && root._mlAvailable)
                 onClicked: root.location.section === "folder" ? folderMenu.popup() : playlistsMenu.popup()
 
                 Widgets.RedesignMenu {
@@ -313,7 +327,7 @@ FocusScope {
                     Widgets.RedesignMenuItem {
                         text: qsTr("Create playlist")
                         iconName: "add"
-                        onTriggered: playlistCreate.open()
+                        onTriggered: root._createPlaylist()
                     }
                 }
 
@@ -385,8 +399,12 @@ FocusScope {
                 font.pixelSize: VLCStyle.redesign.fontNormal
                 placeholderText: qsTr("Search")
                 placeholderTextColor: VLCStyle.redesign.color(VLCStyle.redesign.textMuted, "#7c7c7b")
-                onTextChanged: if (root._model && root._model.searchPattern !== undefined)
-                                   root._model.searchPattern = text
+                onTextChanged: {
+                    if (root._model && root._model.searchPattern !== undefined) {
+                        root._model.searchPattern = text
+                        root._searchedModel = text !== "" ? root._model : null
+                    }
+                }
                 Keys.onEscapePressed: { text = ""; visible = false }
             }
             PanelButton {
@@ -396,7 +414,9 @@ FocusScope {
                 enabled: !!root._model
                 onClicked: sortMenu.popup()
 
-                // Figma: an order applied, the accent dot at the corner
+                // Figma: an order applied, the accent dot at the corner (not
+                // for the order of the place: folders list the unwatched
+                // media first)
                 Rectangle {
                     x: VLCStyle.dp(22, VLCStyle.scale)
                     y: -VLCStyle.dp(1, VLCStyle.scale)
@@ -404,7 +424,14 @@ FocusScope {
                     height: width
                     radius: width / 2
                     color: VLCStyle.redesign.accent
-                    visible: !!root._model && !!root._model.sortCriteria
+                    visible: {
+                        if (!root._model || !root._model.sortCriteria)
+                            return false
+                        if (root._model === folderModel)
+                            return folderModel.sortCriteria !== "unwatched"
+                                   || folderModel.sortOrder !== Qt.AscendingOrder
+                        return true
+                    }
                 }
 
                 Widgets.RedesignMenu {
@@ -435,17 +462,18 @@ FocusScope {
                 enabled: !!root._model
                 onClicked: viewMenu.popup()
 
+                // (the options of the library header: the list, the only
+                // view here, stays checked: not checkable, a click keeps it)
                 Widgets.RedesignMenu {
                     id: viewMenu
-                    Widgets.RedesignMenuItem {
+                    Widgets.RedesignOptionItem {
                         text: qsTr("Grid View")
-                        iconName: "grid"
+                        iconSource: "qrc:///redesign/icons/grid/default.png"
                         onTriggered: root.openLibraryRequested(root.location.section)
                     }
-                    Widgets.RedesignMenuItem {
+                    Widgets.RedesignOptionItem {
                         text: qsTr("List View")
-                        iconName: "list"
-                        checkable: true
+                        iconSource: "qrc:///redesign/icons/list/default.png"
                         checked: true
                     }
                 }
@@ -506,7 +534,8 @@ FocusScope {
 
             header: Loader {
                 width: list.width - list.leftMargin - list.rightMargin
-                active: root.location.section === "playlists"
+                // (playlists are created in the media library only)
+                active: root.location.section === "playlists" && root._mlAvailable
                 // a row of 32 and the gap of the list
                 height: active ? VLCStyle.dp(42, VLCStyle.scale) : 0
                 sourceComponent: Item {
@@ -534,7 +563,7 @@ FocusScope {
                     }
                 }
                 TapHandler {
-                    onTapped: playlistCreate.open()
+                    onTapped: root._createPlaylist()
                 }
             }
 
@@ -551,9 +580,11 @@ FocusScope {
                     return (root.location.section === "music" && model.main_artist)
                            ? name + " - " + model.main_artist : name
                 }
+                // the paths compared: the same file has URLs encoded differently
                 readonly property bool playing: {
                     const mrl = String(model.mrl ?? model.url ?? "")
-                    return mrl !== "" && !isFolder && Player.url.toString() === mrl
+                    return mrl !== "" && !isFolder
+                           && Helpers.localPathFromUrl(Player.url) === Helpers.localPathFromUrl(mrl)
                 }
                 // Media of the library (Figma "media"): an accent line under
                 // the thumbnail, the title dimmed once watched to the end
@@ -562,11 +593,13 @@ FocusScope {
                 // Videos of a folder show a frame, decoded on demand, songs
                 // the artwork of the library
                 readonly property string cover: {
+                    // (the MRL of the library: the url as text decodes some
+                    // characters)
                     if (root.location.section === "folder" && !model.isFolder) {
                         if (/\.(3gp|asf|avi|flv|m2ts|m4v|mkv|mov|mp4|mpe?g|mts|ogv|ts|vob|webm|wmv)$/i
                                 .test(String(model.url)))
-                            return VLCThumbnail.uri(String(model.url), 0.1)
-                        return VLCThumbnail.artwork(String(model.url))
+                            return VLCThumbnail.uri(String(model.mrl), 0.1)
+                        return VLCThumbnail.artwork(String(model.mrl))
                     }
                     // playlists show the icon of the design (Figma "playlist")
                     if (root.location.section === "playlists")
@@ -678,6 +711,12 @@ FocusScope {
     PlaylistCreateDialog {
         id: playlistCreate
         playlistModel: playlistListModel
+    }
+
+    // The model of the playlists needs the media library (it asserts it)
+    function _createPlaylist() {
+        if (root._mlAvailable)
+            playlistCreate.open()
     }
 
     function _sort(criteria, order) {

@@ -48,6 +48,14 @@ QUrl fileUrl(const QVariant& value)
         return QUrl::fromLocalFile(QFileInfo(url.toLocalFile()).absoluteFilePath());
     return {};
 }
+
+// The MRL of a local file as the core and the media library write it
+// (vlc_path2uri): QUrl::FullyEncoded leaves ( ) ' ! & + , ; = @ $ as they
+// are, the media would not be found and a second one would be created
+QByteArray coreMrl(const QUrl& url)
+{
+    return MediaLib::mrlFromUrl(url).toUtf8();
+}
 }
 
 MLSubtitleAssociations::MLSubtitleAssociations(QObject* parent) : QObject(parent) {}
@@ -447,9 +455,7 @@ void MLSubtitleAssociations::save()
         if (source.destination < 0 || source.destination >= m_destinations.size())
             continue;
         const auto& destination = m_destinations[source.destination];
-        assignments.push_back({destination.id,
-                               destination.url.toString(QUrl::FullyEncoded).toUtf8(),
-                               source.url.toString(QUrl::FullyEncoded).toUtf8()});
+        assignments.push_back({destination.id, coreMrl(destination.url), coreMrl(source.url)});
     }
 
     m_busy = true;

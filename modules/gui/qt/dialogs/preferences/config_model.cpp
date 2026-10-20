@@ -229,7 +229,7 @@ const QtSettingOption qtSettingOptions[] = {
     { "redesign/notification-duration", 'i', 3000, 0, 10000, N_("Popup duration"),
       N_("How long the popup of the track changes stays on the screen.") },
     { "redesign/process-priority", 'i', 0, -2, 2, N_("Process priority"),
-      N_("The priority of VLC among the programs: -2 lowest, 0 normal, 2 highest.") },
+      N_("How much processor time the system gives VLC compared with the other programs.") },
     { "redesign/double-click-action", 'i', 1, 0, 1, N_("Double click on the video"),
       N_("What a double click on the video does."), N_("Nothing|Toggle fullscreen") },
     { "redesign/subtitle-size-mode", 'i', 0, 0, 1, N_("Size values"),
@@ -331,9 +331,13 @@ void ConfigModel::setSearch(const QString &search)
 {
     if (m_search == search)
         return;
+    const bool wasSearching = !m_search.isEmpty();
     m_search = search;
     emit searchChanged();
-    rebuildRows();
+    // the rows only change when a search starts or ends (the rows shown
+    // again); the view matches the text without recreating every row
+    if (wasSearching != !m_search.isEmpty())
+        rebuildRows();
 }
 
 bool ConfigModel::dirty() const
@@ -376,6 +380,7 @@ QVariant ConfigModel::data(const QModelIndex &index, int role) const
     case MaximumRole: return entry.maximum;
     case ChoicesRole: return entry.choices;
     case DirtyRole: return entry.staged != entry.current;
+    case PendingRestartRole: return entry.staged != runningValue(entry);
     default: return {};
     }
 }
@@ -387,7 +392,7 @@ QHash<int, QByteArray> ConfigModel::roleNames() const
             {ValueRole, "value"}, {CurrentRole, "currentValue"},
             {DefaultRole, "defaultValue"}, {MinimumRole, "minimum"},
             {MaximumRole, "maximum"}, {ChoicesRole, "choices"},
-            {DirtyRole, "dirty"}};
+            {DirtyRole, "dirty"}, {PendingRestartRole, "pendingRestart"}};
 }
 
 QString ConfigModel::keyAt(int visibleRow) const
@@ -397,17 +402,43 @@ QString ConfigModel::keyAt(int visibleRow) const
     return m_entries[m_rows[visibleRow]].key;
 }
 
+QString ConfigModel::labelAt(int visibleRow) const
+{
+    if (visibleRow < 0 || visibleRow >= m_rows.size())
+        return {};
+    return m_entries[m_rows[visibleRow]].label;
+}
+
+QString ConfigModel::helpAt(int visibleRow) const
+{
+    if (visibleRow < 0 || visibleRow >= m_rows.size())
+        return {};
+    return m_entries[m_rows[visibleRow]].help;
+}
+
+// What VLC runs with until it restarts, for the settings read at the start
+// only (a process lives as long as its settings)
+QHash<QString, QVariant> &ConfigModel::startValues()
+{
+    static QHash<QString, QVariant> values;
+    return values;
+}
+
+QVariant ConfigModel::runningValue(const Entry &entry) const
+{
+    const auto it = startValues().constFind(entry.key);
+    return it != startValues().cend() ? it.value() : entry.current;
+}
+
 bool ConfigModel::visible(const Entry &entry) const
 {
     if (!m_category.isEmpty() && entry.category != m_category)
         return false;
-    // a search lists each setting once
-    if (!m_search.isEmpty() && entry.key.startsWith(QLatin1String(mirrorPrefix)))
-        return false;
-    return m_search.isEmpty()
-        || entry.key.contains(m_search, Qt::CaseInsensitive)
-        || entry.label.contains(m_search, Qt::CaseInsensitive)
-        || entry.help.contains(m_search, Qt::CaseInsensitive);
+    // a search lists each setting once; the view matches the text against
+    // the labels of the design (the keys and the texts of VLC are not what
+    // the page shows: "Shuffle" is "random", every key of the interface
+    // starts with "qt")
+    return m_search.isEmpty() || !entry.key.startsWith(QLatin1String(mirrorPrefix));
 }
 
 void ConfigModel::rebuildRows()
@@ -434,19 +465,22 @@ void ConfigModel::notifyEntry(int entryIndex)
     emit revisionChanged();
     const int row = m_rows.indexOf(entryIndex);
     if (row >= 0)
-        emit dataChanged(index(row), index(row), {ValueRole, DirtyRole});
+        emit dataChanged(index(row), index(row), {ValueRole, DirtyRole, PendingRestartRole});
 }
 
 QVariant ConfigModel::readValue(const Entry &entry)
 {
+    // Repeat as the core reads it at the start (PlaylistConfigureFromVariables
+    // in libvlc.c): two booleans, "repeat" (the current item: One) first,
+    // then "loop" (the whole play queue: All); the play queue writes them so
+    // (PlaylistController)
     if (entry.key == QLatin1String(repeatKey))
-        return QVariant::fromValue<int64_t>(config_GetInt("repeat") ? 1 : config_GetInt("loop") ? 2 : 0);
+        return QVariant::fromValue<int64_t>(config_GetInt("repeat") != 0 ? 1
+                                            : config_GetInt("loop") != 0 ? 2 : 0);
     if (entry.key == QLatin1String(playbackEndKey))
         return QVariant::fromValue<int64_t>(config_GetInt("play-and-exit") ? 1 : 0);
     if (entry.key == QLatin1String(seekPreciseKey))
         return config_GetInt("input-fast-seek") == 0;
-    if (entry.key == QLatin1String(ignoreAssStylingKey))
-        return config_GetInt("subsdec-formatted") == 0;
     if (entry.key == QLatin1String(postprocKey)) {
         char *filters = config_GetPsz("video-filter");
         const bool running = listHas(QString::fromUtf8(filters ? filters : ""), QStringLiteral("postproc"));
@@ -728,16 +762,39 @@ bool ConfigModel::setDerived(int index, const QVariant &value)
         return setValue(key, QVariant::fromValue<int64_t>(on ? onValue : 0));
     }
     if (entry.key == QLatin1String(nightModeKey)) {
-        // the compressor set for the night, or back to its defaults
+        // On: the compressor set for the night, what it was kept (in the
+        // settings of the interface: Night mode may be turned off in another
+        // session); off: the compressor as it was (on or off, its values),
+        // else VLC's defaults
         const std::pair<const char *, float> night[] = {
             { "compressor-ratio", nightRatio }, { "compressor-threshold", nightThreshold },
             { "compressor-makeup-gain", nightMakeupGain } };
+        const QString compressor = QStringLiteral("compressor");
+        QVariantMap previous;
+        if (m_ctx)
+            previous = m_ctx->settingValue(QLatin1String(nightPreviousKey), QVariantMap()).toMap();
+        if (on && !entry.staged.toBool() && m_ctx) {
+            previous.clear();
+            for (const auto &pair : night) {
+                const int i = indexOfKey(QLatin1String(pair.first));
+                if (i >= 0)
+                    previous.insert(QLatin1String(pair.first), m_entries[i].staged);
+            }
+            previous.insert(compressor, listHas(valueFor(QStringLiteral("audio-filter")), compressor));
+            m_ctx->setSettingValue(QLatin1String(nightPreviousKey), previous);
+        }
+        // kept while Night mode was already on (its values): nothing to put back
+        if (previous.value(QStringLiteral("compressor-ratio")).toFloat() == nightRatio
+            && previous.value(QStringLiteral("compressor-threshold")).toFloat() == nightThreshold)
+            previous.clear();
         for (const auto &[key, value] : night) {
             const int i = indexOfKey(QLatin1String(key));
-            if (i >= 0)
-                setValue(QLatin1String(key), on ? QVariant(value) : m_entries[i].original);
+            if (i < 0)
+                continue;
+            const QVariant kept = previous.value(QLatin1String(key));
+            setValue(QLatin1String(key), on ? QVariant(value) : kept.isValid() ? kept : m_entries[i].original);
         }
-        return setFilter(QStringLiteral("compressor"), on);
+        return setFilter(compressor, on || previous.value(compressor, false).toBool());
     }
     if (entry.key.startsWith(QLatin1String(mirrorPrefix))) {
         const QString mirrored = entry.proxyFor;
@@ -775,7 +832,7 @@ bool ConfigModel::setValue(const QString &key, const QVariant &value)
             return setDerived(i, value);
         QVariant normalized;
         if (!normalize(entry, value, &normalized)) {
-            setError(tr("Invalid value for %1.").arg(entry.label));
+            setError(qtr("%1: this value can not be used.").arg(displayName(key)));
             return false;
         }
         // Seek on a wheel: backwards when Reverse scroll direction is on
@@ -818,8 +875,21 @@ bool ConfigModel::setValue(const QString &key, const QVariant &value)
         setError({});
         return true;
     }
-    setError(tr("Setting %1 is unavailable.").arg(key));
+    setError(qtr("%1 is not available in this VLC installation.").arg(displayName(key)));
     return false;
+}
+
+QString ConfigModel::displayName(const QString &key) const
+{
+    // the name of the row, else the name VLC gives the option
+    const int index = indexOfKey(key);
+    if (index >= 0 && !m_entries[index].label.isEmpty())
+        return m_entries[index].label;
+    const QByteArray name = key.toUtf8();
+    const module_config_t *option = config_FindConfig(name.constData());
+    if (option && option->psz_text && *option->psz_text)
+        return qfut(option->psz_text);
+    return qtr("This setting");
 }
 
 bool ConfigModel::setDirectoryUrl(const QString &key, const QUrl &url)
@@ -829,12 +899,12 @@ bool ConfigModel::setDirectoryUrl(const QString &key, const QUrl &url)
             continue;
         if (entry.type != QLatin1String("directory") || !url.isLocalFile()
             || url.toLocalFile().isEmpty()) {
-            setError(tr("Choose a local folder for %1.").arg(entry.label));
+            setError(qtr("%1: choose a folder of this computer.").arg(displayName(key)));
             return false;
         }
         return setValue(key, url.toLocalFile());
     }
-    setError(tr("Setting %1 is unavailable.").arg(key));
+    setError(qtr("%1 is not available in this VLC installation.").arg(displayName(key)));
     return false;
 }
 
@@ -856,7 +926,7 @@ void ConfigModel::cancel()
 void ConfigModel::resetCategory()
 {
     if (m_category.isEmpty()) {
-        setError(tr("Select a category to reset."));
+        setError(qtr("Select a category to reset."));
         return;
     }
     const bool wasDirty = dirty();
@@ -917,26 +987,26 @@ void ConfigModel::addCombinedEntries()
     if (repeat >= 0 && loop >= 0)
     {
         const int first = std::min(repeat, loop);
-        m_entries[first] = combined(repeatKey, m_entries[first].category, tr("Repeat"),
-                                    tr("Repeat the current item (One) or the whole play queue (All)."),
-                                    { choice(0, tr("Off")), choice(1, tr("One")), choice(2, tr("All")) });
+        m_entries[first] = combined(repeatKey, m_entries[first].category, qtr("Repeat"),
+                                    qtr("Repeat the current item (One) or the whole play queue (All)."),
+                                    { choice(0, qtr("Off")), choice(1, qtr("One")), choice(2, qtr("All")) });
         m_entries.remove(std::max(repeat, loop));
     }
 
     const int stop = indexOf("play-and-stop");
     if (stop >= 0 && config_FindConfig("play-and-exit"))
         m_entries.insert(stop + 1, combined(playbackEndKey, m_entries[stop].category,
-                                            tr("When playback finishes"),
-                                            tr("Stop, or quit VLC at the end of the play queue."),
-                                            { choice(0, tr("Stop")), choice(1, tr("Quit VLC")) }));
+                                            qtr("When playback finishes"),
+                                            qtr("Stop, or quit VLC at the end of the play queue."),
+                                            { choice(0, qtr("Stop")), choice(1, qtr("Quit VLC")) }));
 
     // "Use a custom skin": the skins interface instead of this one (from the
     // next start)
     const int skinFile = indexOf("skins2-last");
     if (skinFile >= 0 && config_FindConfig("intf"))
     {
-        Entry entry = combined(customSkinKey, m_entries[skinFile].category, tr("Use a custom skin"),
-                               tr("Starts VLC with the skin chosen below instead of this interface."),
+        Entry entry = combined(customSkinKey, m_entries[skinFile].category, qtr("Use a custom skin"),
+                               qtr("Starts VLC with the skin chosen below instead of this interface."),
                                {});
         entry.type = QStringLiteral("boolean");
         entry.original = false;
@@ -952,8 +1022,8 @@ void ConfigModel::addCombinedEntries()
     if (recent >= 0 && position >= 0)
     {
         Entry entry = combined(rememberPositionKey, m_entries[recent].category,
-                               tr("Remember the playback position"),
-                               tr("Lets VLC continue the media where you left off."), {});
+                               qtr("Remember the playback position"),
+                               qtr("Lets VLC continue the media where you left off."), {});
         entry.type = QStringLiteral("boolean");
         entry.proxyFor = m_entries[position].key;
         entry.original = m_entries[position].original.toLongLong() != 0;
@@ -967,8 +1037,8 @@ void ConfigModel::addCombinedEntries()
     const int wheelX = indexOf("hotkeys-x-wheel-mode");
     if (wheelY >= 0 && wheelX >= 0)
     {
-        Entry entry = combined(wheelReverseKey, m_entries[wheelX].category, tr("Reverse scroll direction"),
-                               tr("The wheels that seek go backwards when turned forwards."), {});
+        Entry entry = combined(wheelReverseKey, m_entries[wheelX].category, qtr("Reverse scroll direction"),
+                               qtr("The wheels that seek go backwards when turned forwards."), {});
         entry.type = QStringLiteral("boolean");
         entry.proxyFor = m_entries[wheelY].key;
         entry.original = false;
@@ -983,8 +1053,8 @@ void ConfigModel::addCombinedEntries()
     const int extra = indexOf("extraintf");
     if (port >= 0 && extra >= 0)
     {
-        Entry entry = combined(webRemoteKey, m_entries[port].category, tr("Web remote control"),
-                               tr("Lets a web browser control VLC. Set its password in the Advanced Options."), {});
+        Entry entry = combined(webRemoteKey, m_entries[port].category, qtr("Web remote control"),
+                               qtr("Lets a web browser control VLC. Set its password in the Advanced Options."), {});
         entry.type = QStringLiteral("boolean");
         entry.proxyFor = m_entries[extra].key;
         entry.original = false;
@@ -993,28 +1063,17 @@ void ConfigModel::addCombinedEntries()
         m_entries.insert(port, entry);
     }
 
-    // "Ignore styling in ASS and SSA subtitles" after the subtitle folders
-    const int subFolders = indexOf("sub-autodetect-path");
-    if (subFolders >= 0 && config_FindConfig("subsdec-formatted"))
-    {
-        Entry entry = combined(ignoreAssStylingKey, m_entries[subFolders].category,
-                               tr("Ignore styling in ASS and SSA subtitles"),
-                               tr("Shows the text of these subtitles without their fonts, colors and positions."),
-                               {});
-        entry.type = QStringLiteral("boolean");
-        entry.original = false;
-        entry.current = readValue(entry);
-        entry.staged = entry.current;
-        m_entries.insert(subFolders + 1, entry);
-    }
+    // (No "Ignore styling in ASS and SSA subtitles": VLC has no such option
+    // any more; "subsdec-formatted" is read by the USF decoder only, libass
+    // draws the ASS and SSA subtitles with their styles)
 
     // "Video post-processing": the level of the filter, Off when it does not
     // run (the quality option alone reads "Highest")
     const int postprocQuality = indexOf("postproc-q");
     if (postprocQuality >= 0 && config_FindConfig("video-filter"))
     {
-        Entry entry = combined(postprocKey, m_entries[postprocQuality].category, tr("Video post-processing"),
-                               tr("Improves the picture of poorly encoded videos, at the cost of processing power."),
+        Entry entry = combined(postprocKey, m_entries[postprocQuality].category, qtr("Video post-processing"),
+                               qtr("Improves the picture of poorly encoded videos, at the cost of processing power."),
                                {});
         entry.choices = presetChoices(QStringLiteral("postproc-q"), entry.current);
         m_entries.insert(postprocQuality, entry);
@@ -1024,9 +1083,9 @@ void ConfigModel::addCombinedEntries()
     const int role = indexOf("role");
     if (role >= 0 && config_FindConfig("effect-width") && config_FindConfig("effect-height"))
     {
-        Entry entry = combined(visualSizeKey, m_entries[role].category, tr("Visualization size"),
-                               tr("The size the visualizations are drawn at."),
-                               { choice(0, tr("Match window")), choice(1, QStringLiteral("1280 \u00d7 720")),
+        Entry entry = combined(visualSizeKey, m_entries[role].category, qtr("Visualization size"),
+                               qtr("The size the visualizations are drawn at."),
+                               { choice(0, qtr("Match window")), choice(1, QStringLiteral("1280 \u00d7 720")),
                                  choice(2, QStringLiteral("1920 \u00d7 1080")) });
         if (entry.current.toLongLong() == int64_t(std::size(visualSizes)))
             entry.choices.append(choice(int64_t(std::size(visualSizes)),
@@ -1067,8 +1126,8 @@ void ConfigModel::addCombinedEntries()
     const int thumbnail = indexOf("qt-seek-thumbnail");
     if (thumbnail >= 0 && config_FindConfig("input-fast-seek"))
     {
-        Entry entry = combined(seekPreciseKey, m_entries[thumbnail].category, tr("Seek precisely"),
-                               tr("Seek to the exact time asked, slower than seeking to the nearest key frame."),
+        Entry entry = combined(seekPreciseKey, m_entries[thumbnail].category, qtr("Seek precisely"),
+                               qtr("Seek to the exact time asked, slower than seeking to the nearest key frame."),
                                {});
         entry.type = QStringLiteral("boolean");
         entry.original = true;
@@ -1116,9 +1175,9 @@ void ConfigModel::reload()
                     entry.original = QVariant::fromValue<int64_t>(0);
                     entry.choices = {
                         QVariantMap{{QStringLiteral("value"), QVariant::fromValue<int64_t>(0)},
-                                    {QStringLiteral("label"), tr("From the file only")}},
+                                    {QStringLiteral("label"), qtr("From the file only")}},
                         QVariantMap{{QStringLiteral("value"), QVariant::fromValue<int64_t>(1)},
-                                    {QStringLiteral("label"), tr("From the file and the internet")}} };
+                                    {QStringLiteral("label"), qtr("From the file and the internet")}} };
                     entry.current = readValue(entry);
                     entry.staged = entry.current;
                     m_entries.append(entry);
@@ -1133,9 +1192,9 @@ void ConfigModel::reload()
                         entry.original = QVariant::fromValue<int64_t>(0);
                         entry.choices = {
                             QVariantMap{{QStringLiteral("value"), QVariant::fromValue<int64_t>(0)},
-                                        {QStringLiteral("label"), tr("None")}},
+                                        {QStringLiteral("label"), qtr("None")}},
                             QVariantMap{{QStringLiteral("value"), QVariant::fromValue<int64_t>(1)},
-                                        {QStringLiteral("label"), tr("Box")}} };
+                                        {QStringLiteral("label"), qtr("Box")}} };
                     } else {
                         entry.original = true;
                     }
@@ -1190,6 +1249,17 @@ void ConfigModel::reload()
                             entry.choices.append(QVariantMap{{QStringLiteral("value"), QVariant::fromValue(value)},
                                                              {QStringLiteral("label"), labels[value]}});
                     }
+                    // Process priority: the classes of Windows by name, the
+                    // usual ones first (-2 idle ... 2 high, see MainCtx)
+                    if (entry.key == QLatin1String("redesign/process-priority")) {
+                        entry.bounded = false;
+                        const struct { int64_t value; const char *label; } priorities[] = {
+                            { 0, N_("Normal") }, { 1, N_("Above normal") }, { 2, N_("High") },
+                            { -1, N_("Below normal") }, { -2, N_("Idle") } };
+                        for (const auto &priority : priorities)
+                            entry.choices.append(QVariantMap{{QStringLiteral("value"), QVariant::fromValue(priority.value)},
+                                                             {QStringLiteral("label"), qtr(priority.label)}});
+                    }
                     entry.staged = entry.current;
                     m_entries.append(entry);
                 }
@@ -1211,8 +1281,8 @@ void ConfigModel::reload()
             }
             entry.key = QString::fromLatin1(option.name);
             entry.category = QString::fromLatin1(option.category);
-            entry.label = tr(config->psz_text);
-            entry.help = config->psz_longtext ? tr(config->psz_longtext) : QString();
+            entry.label = qfut(config->psz_text);
+            entry.help = config->psz_longtext ? qfut(config->psz_longtext) : QString();
             if (entry.type == QLatin1String("boolean")) {
                 entry.original = config->orig.i != 0;
             } else if (entry.type == QLatin1String("integer")) {
@@ -1239,7 +1309,7 @@ void ConfigModel::reload()
                 char **texts = nullptr;
                 const ssize_t count = config_GetIntChoices(option.name, &values, &texts);
                 for (ssize_t j = 0; j < count; ++j) {
-                    const QString label = texts && texts[j] ? tr(texts[j]) : QString::number(values[j]);
+                    const QString label = texts && texts[j] ? qfut(texts[j]) : QString::number(values[j]);
                     entry.choices.append(QVariantMap{{QStringLiteral("value"), QVariant::fromValue(values[j])},
                                                      {QStringLiteral("label"), label}});
                     if (texts) free(texts[j]);
@@ -1257,14 +1327,14 @@ void ConfigModel::reload()
                 const bool encoder = entry.key == QLatin1String("sout-transcode-venc");
                 for (ssize_t j = 0; j < count; ++j) {
                     const QString value = QString::fromUtf8(values[j] ? values[j] : "");
-                    QString label = texts && texts[j] ? tr(texts[j]) : value;
+                    QString label = texts && texts[j] ? qfut(texts[j]) : value;
                     if (encoder && value == QLatin1String("any")) {
                         free(values[j]);
                         if (texts) free(texts[j]);
                         continue;
                     }
                     if (encoder && value == QLatin1String("none"))
-                        label = tr("Automatic");
+                        label = qtr("Automatic");
                     entry.choices.append(QVariantMap{{QStringLiteral("value"), value},
                                                      {QStringLiteral("label"), label}});
                     free(values[j]);
@@ -1299,18 +1369,18 @@ void ConfigModel::reload()
                 // -1: the screen of the window; then the screens by number
                 entry.choices = {};
                 entry.choices.append(QVariantMap{{QStringLiteral("value"), QVariant::fromValue<int64_t>(-1)},
-                                                 {QStringLiteral("label"), tr("Current screen")}});
+                                                 {QStringLiteral("label"), qtr("Current screen")}});
                 const QList<QScreen *> screens = QGuiApplication::screens();
                 bool listed = entry.current.toLongLong() == -1;
                 for (int64_t i = 0; i < screens.size(); ++i) {
                     entry.choices.append(QVariantMap{{QStringLiteral("value"), QVariant::fromValue(i)},
-                                                     {QStringLiteral("label"), tr("Screen %1 (%2)").arg(i + 1)
+                                                     {QStringLiteral("label"), qtr("Screen %1 (%2)").arg(i + 1)
                                                                                .arg(screens[i]->name())}});
                     listed = listed || entry.current.toLongLong() == i;
                 }
                 if (!listed)
                     entry.choices.append(QVariantMap{{QStringLiteral("value"), entry.current},
-                                                     {QStringLiteral("label"), tr("Screen %1").arg(entry.current.toLongLong() + 1)}});
+                                                     {QStringLiteral("label"), qtr("Screen %1").arg(entry.current.toLongLong() + 1)}});
             }
             else if (entry.key.startsWith(QLatin1String("sout-x264-")))
                 entry.choices = x264Choices(option.name, entry.current.toString());
@@ -1318,9 +1388,9 @@ void ConfigModel::reload()
             else if (entry.key == QLatin1String("sub-autodetect-fuzzy"))
             {
                 // The levels of SUB_FUZZY_LONGTEXT
-                const QString labels[] = { tr("Off"), tr("Any subtitle file"),
-                                           tr("Files containing the title"),
-                                           tr("Title with extra characters"), tr("Exact title") };
+                const QString labels[] = { qtr("Off"), qtr("Any subtitle file"),
+                                           qtr("Files containing the title"),
+                                           qtr("Title with extra characters"), qtr("Exact title") };
                 for (int64_t level = 0; level < 5; ++level)
                     entry.choices.append(QVariantMap{{QStringLiteral("value"), QVariant::fromValue(level)},
                                                      {QStringLiteral("label"), labels[level]}});

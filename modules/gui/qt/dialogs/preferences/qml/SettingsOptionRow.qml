@@ -50,8 +50,13 @@ Item {
     // false: the field is empty while it has not the focus (the port of the
     // web remote while it is off, as the design draws it)
     property bool valueShown: true
-    // The name read out for the row (the label, unless the design misspells it)
+    // The name read out for the row
     property string accessibleLabel: label
+    // A line under the label ("Applies after restart"; a warning: the web
+    // remote without a password), as the note of the interface language
+    property string note: ""
+    property bool noteWarning: false
+    readonly property real noteHeight: noteText.visible ? noteText.implicitHeight + px(6) : 0
     readonly property bool dark: VLCStyle.palette.isDark
 
     // Sliders of the design for options of VLC without a range
@@ -139,9 +144,10 @@ Item {
     property var labelsBaseline
     readonly property bool scaleLabel: useSlider && !!sliderScale
 
-    implicitHeight: rowHeight > 0 ? px(rowHeight) : px(10) + (useStartupVolume ? px(78) : useToggle || useColor ? px(32)
-                              : useSlider ? (sliderScale ? px(57) : px(24))
-                              : px(36))
+    implicitHeight: noteHeight + (rowHeight > 0 ? px(rowHeight)
+                                  : px(10) + (useStartupVolume ? px(78) : useToggle || useColor ? px(32)
+                                              : useSlider ? (sliderScale ? px(57) : px(24))
+                                              : px(36)))
     // 30 % as the dimmed rows of the design
     opacity: available ? 1 : 0.3
     enabled: available
@@ -155,7 +161,7 @@ Item {
         // on 57 and 67 rows; centred anchors would snap it to a whole pixel)
         anchors.verticalCenter: root.scaleLabel ? undefined : valueArea.verticalCenter
         anchors.alignWhenCentered: !root.scaleLabel
-        y: (root.height - root.px(17)) / 2 + root.px(14)
+        y: (root.height - root.noteHeight - root.px(17)) / 2 + root.px(14)
            - VLCStyle.redesign.centeredBaseline(settingLabel.font.pixelSize) - height / 2
         spacing: root.px(root.infoGap)
 
@@ -201,6 +207,22 @@ Item {
         }
     }
 
+    Text {
+        id: noteText
+        visible: root.note.length > 0
+        y: root.height - root.noteHeight
+        width: Math.max(0, valueArea.x - root.px(20))
+        text: root.note
+        wrapMode: Text.WordWrap
+        maximumLineCount: 2
+        elide: Text.ElideRight
+        color: root.noteWarning ? root.c("#E4A580") : root.c("#6B6B6B")
+        font.family: VLCStyle.redesign.fontFamily
+        font.pixelSize: root.px(12)
+        Accessible.role: root.noteWarning ? Accessible.AlertMessage : Accessible.StaticText
+        Accessible.name: text
+    }
+
     ToolTip {
         parent: helpIcon.visible ? helpIcon : settingLabel
         visible: (labelHover.hovered || helpHover.hovered) && root.help.length > 0
@@ -211,7 +233,8 @@ Item {
     Item {
         id: valueArea
         anchors.right: parent.right
-        y: root.controlTop !== undefined ? root.px(root.controlTop) : Math.round((root.height - height) / 2)
+        y: root.controlTop !== undefined ? root.px(root.controlTop)
+                                         : Math.round((root.height - root.noteHeight - height) / 2)
         width: root.useToggle ? root.px(68) : Math.min(root.px(320), root.width * 0.46)
         height: root.useStartupVolume ? root.px(78) : root.useToggle || root.useColor ? root.px(32)
                 : root.useSlider && root.sliderScale ? root.px(57)

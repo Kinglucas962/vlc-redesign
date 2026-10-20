@@ -11,10 +11,11 @@ import VLC.Style
 Rectangle {
     id: root
     required property var effects
+    function c(value) { return VLCStyle.redesign.color(value, value) }
     property bool verticalLinked: false
     property bool horizontalLinked: false
     implicitHeight: content.implicitHeight + VLCStyle.dp(32, VLCStyle.scale)
-    color: "#1B1B1B"
+    color: root.c("#1B1B1B")
     radius: VLCStyle.dp(6, VLCStyle.scale)
 
     function updateCrop(side, pixels) {

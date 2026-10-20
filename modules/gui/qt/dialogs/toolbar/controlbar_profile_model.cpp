@@ -21,12 +21,15 @@
 #include <QChar>
 #include <QCoreApplication>
 
+#include <algorithm>
+
 #include "qt.hpp"
 #include "controlbar_profile.hpp"
 #include "player/control_list_model.hpp"
 #include "player/player_controlbar_model.hpp"
 #include "profile_settings.hpp"
 #include "maininterface/mainctx.hpp"
+#include "dialogs/dialogs_provider.hpp"
 
 ControlbarProfileModel::ControlbarProfileModel(QSettings* settings, QObject *parent)
     : QAbstractListModel(parent),
@@ -51,34 +54,45 @@ ControlbarProfileModel::ControlbarProfileModel(QSettings* settings, QObject *par
 
     // defer initialization reload:
     QMetaObject::invokeMethod(this, [this] () {
+        // reload() fails only when no saved profile could be read: saved
+        // profiles are never replaced by the defaults
         if (reload() == false)
-        {
-            // If initial reload fails, load the default profiles:
             insertDefaults();
-        }
     }, Qt::QueuedConnection);
 }
 
 void ControlbarProfileModel::insertDefaults()
 {
-    // Add default profiles:
-    for (const auto& i : m_defaults)
+    // The profiles of the design (Figma 6648:20666), for a fresh start
+    static const Style freshStyles[] = { Style::DEFAULT_STYLE, Style::MOVIES_STYLE,
+                                         Style::SHOWS_STYLE, Style::MUSIC_STYLE,
+                                         Style::WORK_STYLE };
+    for (const Style style : freshStyles)
     {
-        if (i.id == Style::EMPTY_STYLE)
+        const auto it = std::find_if(m_defaults.cbegin(), m_defaults.cend(),
+                                     [style](const Profile& i) { return i.id == style; });
+        if (it == m_defaults.cend())
             continue;
 
-        const auto ptrNewProfile = newProfile(qfut(i.name));
+        const auto ptrNewProfile = newProfile(qfut(it->name));
         if (!ptrNewProfile)
             continue;
 
-        ptrNewProfile->injectModel(i.modelData);
+        ptrNewProfile->injectModel(it->modelData);
         ptrNewProfile->resetDirty(); // default profiles should not be dirty initially
+        // No settings of their own yet: taken now (before the first-run
+        // setup) they would bring the theme, the accent, the preferences and
+        // the shortcuts of a fresh install back when the profile is chosen.
+        // A default profile keeps the settings in use when it is first
+        // chosen, and has its own from the first time it is left (or saved).
+        ptrNewProfile->m_settingsSnapshot.clear();
     }
 
+    m_selectedProfile = -1;
     setSelectedProfile(0);
 }
 
-QString ControlbarProfileModel::generateUniqueName(const QString &name)
+QString ControlbarProfileModel::generateUniqueName(const QString &name) const
 {
     static const auto targetNameGenerator = [](const auto& name, long count) {
         return QString("%1 (%2)").arg(name).arg(count);
@@ -89,7 +103,7 @@ QString ControlbarProfileModel::generateUniqueName(const QString &name)
     // to check only for name existence but for cases when the
     // config file is edited explicitly, using count_if might
     // be helpful.
-    static const auto sameNameCount = [this](const auto& name) {
+    const auto sameNameCount = [this](const auto& name) {
         return std::count_if(m_profiles.begin(),
                              m_profiles.end(),
                              [name](const ControlbarProfile* i) {
@@ -181,7 +195,7 @@ bool ControlbarProfileModel::insertRows(int row, int count, const QModelIndex &p
         const auto profile = generateProfileFromStyle(Style::EMPTY_STYLE);
         assert(profile);
         profile->setParent(this);
-        profile->setName(tr("Profile %1").arg(m_profiles.size()));
+        profile->setName(qtr("Profile %1").arg(m_profiles.size()));
 
         m_profiles.insert(row, profile);
     }
@@ -199,7 +213,7 @@ bool ControlbarProfileModel::removeRows(int row, int count, const QModelIndex &p
     beginRemoveRows(parent, row, row + count - 1);
 
     auto from = m_profiles.begin() + row;
-    auto to = from + count - 1;
+    auto to = from + count;
     std::for_each(from, to, [](auto* item) {
         assert(item);
         item->deleteLater();
@@ -286,19 +300,17 @@ bool ControlbarProfileModel::setSelectedProfile(int selectedProfile)
     auto *ctx = qobject_cast<MainCtx *>(parent());
     if (!m_skipNextApply && ptrProfileOld && ctx)
         ptrProfileOld->m_settingsSnapshot = ProfileSettings::capture(ctx, m_settings);
+    // an empty snapshot (a default profile never left yet): the settings in
+    // use stay
     if (!m_skipNextApply && ctx && !ptrProfileNew->m_settingsSnapshot.isEmpty()) {
         QString error;
         if (!ProfileSettings::apply(ctx, m_settings,
                                     ptrProfileNew->m_settingsSnapshot, &error)) {
-            m_lastError = error;
-            emit errorChanged();
+            setError(error);
             return false;
         }
     }
-    if (!m_lastError.isEmpty()) {
-        m_lastError.clear();
-        emit errorChanged();
-    }
+    setError({});
 
     connect(ptrProfileNew, &ControlbarProfile::controlListChanged, this, &ControlbarProfileModel::selectedProfileControlListChanged);
     connect(this, &QAbstractListModel::modelReset, ptrProfileNew, &ControlbarProfile::generateLinearControlList);
@@ -312,10 +324,36 @@ bool ControlbarProfileModel::setSelectedProfile(int selectedProfile)
     }
 
     m_selectedProfile = selectedProfile;
+    setModified(true);
 
     emit selectedProfileChanged();
 
     return true;
+}
+
+void ControlbarProfileModel::forceSelectedProfile(int index)
+{
+    const QString error = m_lastError;
+    m_skipNextApply = true;
+    setSelectedProfile(index);
+    m_skipNextApply = false;
+    setError(error);
+}
+
+void ControlbarProfileModel::setError(const QString &error)
+{
+    if (m_lastError == error)
+        return;
+    m_lastError = error;
+    emit errorChanged();
+}
+
+void ControlbarProfileModel::setModified(bool modified)
+{
+    if (m_modified == modified)
+        return;
+    m_modified = modified;
+    emit modifiedChanged();
 }
 
 std::optional<int> ControlbarProfileModel::findModel(const ControlbarProfile *profile) const
@@ -363,18 +401,11 @@ ControlbarProfile *ControlbarProfileModel::newProfile(const QString &name)
     if (name.isEmpty())
         return nullptr;
 
-    const auto ptrProfile = newProfile();
-
-    ptrProfile->setName(generateUniqueName(name));
-
-    return ptrProfile;
-}
-
-ControlbarProfile *ControlbarProfileModel::newProfile()
-{
     const auto ptrNewProfile = generateProfileFromStyle(Style::EMPTY_STYLE);
     assert(ptrNewProfile);
     ptrNewProfile->setParent(this);
+    // named before it is listed: the menus read the name when the row comes
+    ptrNewProfile->setName(generateUniqueName(name));
     ptrNewProfile->m_settingsSnapshot = ProfileSettings::capture(
         qobject_cast<MainCtx *>(parent()), m_settings);
 
@@ -387,9 +418,15 @@ ControlbarProfile *ControlbarProfileModel::newProfile()
     return ptrNewProfile;
 }
 
-ControlbarProfile *ControlbarProfileModel::cloneProfile(const ControlbarProfile *profile)
+ControlbarProfile *ControlbarProfileModel::newProfile()
 {
-    const auto ptrNewProfile = newProfile(profile->name());
+    return newProfile(qtr("Profile %1").arg(m_profiles.size() + 1));
+}
+
+ControlbarProfile *ControlbarProfileModel::cloneProfile(const ControlbarProfile *profile,
+                                                        const QString &name)
+{
+    const auto ptrNewProfile = newProfile(name.isEmpty() ? profile->name() : name);
 
     if (!ptrNewProfile)
         return nullptr;
@@ -408,49 +445,158 @@ ControlbarProfile *ControlbarProfileModel::cloneProfile(const ControlbarProfile 
     return ptrNewProfile;
 }
 
-void ControlbarProfileModel::cloneSelectedProfile(const QString &newProfileName)
+void ControlbarProfileModel::requestNewProfile()
 {
-    const auto ptrModel = currentModel();
-
-    assert(ptrModel);
-    if (!ptrModel)
-        return;
-
-    const auto ptrNewModel = cloneProfile(ptrModel);
-
-    assert(ptrNewModel);
-    if (!ptrNewModel)
-        return;
-
-    // if the newProfileName is empty or equal to the cloned profile's name
-    // don't bother changing its name since cloneProfile() will first
-    // set the new profile's name unique by assigning its name as
-    // 'clonedProfileName (n)'
-    if (!newProfileName.isEmpty() && newProfileName != ptrModel->name())
-        ptrNewModel->setName(generateUniqueName(newProfileName));
+    m_newProfileRequested = true;
+    // Customize Player asks for the name when it is open, else when it opens
+    emit newProfileRequested();
+    emit DialogsProvider::getInstance()->showToolbarEditorDialog();
 }
 
-void ControlbarProfileModel::deleteSelectedProfile()
+bool ControlbarProfileModel::takeNewProfileRequest()
+{
+    const bool requested = m_newProfileRequested;
+    m_newProfileRequested = false;
+    return requested;
+}
+
+QString ControlbarProfileModel::nameError(const QString &name, bool renaming) const
+{
+    const QString trimmed = name.trimmed();
+    if (trimmed.isEmpty())
+        return qtr("Enter a name for the profile.");
+    const ControlbarProfile *self = renaming ? currentModel() : nullptr;
+    for (const ControlbarProfile *profile : m_profiles)
+        if (profile != self && profile->name() == trimmed)
+            return qtr("A profile named \"%1\" already exists.").arg(trimmed);
+    return {};
+}
+
+QString ControlbarProfileModel::uniqueName(const QString &name) const
+{
+    return generateUniqueName(name.trimmed());
+}
+
+int ControlbarProfileModel::createProfile(const QString &name)
+{
+    const QString error = nameError(name, false);
+    if (!error.isEmpty())
+    {
+        setError(error);
+        return -1;
+    }
+
+    const auto ptrProfile = newProfile(name.trimmed());
+    if (!ptrProfile)
+        return -1;
+
+    // the layout of the Default profile, arranged from there
+    const auto it = std::find_if(m_defaults.cbegin(), m_defaults.cend(),
+                                 [](const Profile& i) { return i.id == Style::DEFAULT_STYLE; });
+    if (it != m_defaults.cend())
+        ptrProfile->injectModel(it->modelData);
+    ptrProfile->resetDirty();
+
+    const int row = m_profiles.size() - 1;
+    setModified(true);
+    if (!setSelectedProfile(row))
+        forceSelectedProfile(row);
+    return row;
+}
+
+int ControlbarProfileModel::cloneSelectedProfile(const QString &name)
+{
+    const auto ptrModel = currentModel();
+    if (!ptrModel)
+    {
+        setError(qtr("No profile is selected."));
+        return -1;
+    }
+
+    const QString error = nameError(name, false);
+    if (!error.isEmpty())
+    {
+        setError(error);
+        return -1;
+    }
+
+    if (!cloneProfile(ptrModel, name.trimmed()))
+        return -1;
+
+    const int row = m_profiles.size() - 1;
+    setModified(true);
+    if (!setSelectedProfile(row))
+        forceSelectedProfile(row);
+    return row;
+}
+
+bool ControlbarProfileModel::renameSelectedProfile(const QString &name)
+{
+    const auto ptrProfile = currentModel();
+    if (!ptrProfile)
+    {
+        setError(qtr("No profile is selected."));
+        return false;
+    }
+
+    const QString trimmed = name.trimmed();
+    if (trimmed == ptrProfile->name())
+    {
+        setError({});
+        return true;
+    }
+
+    const QString error = nameError(trimmed, true);
+    if (!error.isEmpty())
+    {
+        setError(error);
+        return false;
+    }
+
+    ptrProfile->setName(trimmed);
+    const QModelIndex row = index(m_selectedProfile);
+    emit dataChanged(row, row, { Qt::DisplayRole });
+    setModified(true);
+    setError({});
+    return true;
+}
+
+bool ControlbarProfileModel::deleteSelectedProfile()
 {
     const auto ptrSelectedProfile = getProfile(m_selectedProfile);
 
     if (!ptrSelectedProfile)
-        return;
+    {
+        setError(qtr("No profile is selected."));
+        return false;
+    }
+    if (m_profiles.size() <= 1)
+    {
+        setError(qtr("The last profile cannot be deleted."));
+        return false;
+    }
 
     const auto _selectedProfile = m_selectedProfile;
+
+    disconnect(ptrSelectedProfile, nullptr, this, nullptr);
+    disconnect(this, nullptr, ptrSelectedProfile, nullptr);
+
     beginRemoveRows(QModelIndex(), _selectedProfile, _selectedProfile);
 
+    // its settings go with it: the profile selected next brings its own
     m_selectedProfile = -1;
-
-    delete ptrSelectedProfile;
     m_profiles.removeAt(_selectedProfile);
 
     endRemoveRows();
 
-    if (getProfile(_selectedProfile - 1))
-        setSelectedProfile(_selectedProfile - 1);
-    else
-        setSelectedProfile(_selectedProfile);
+    // the views may hold it until the next profile is selected
+    ptrSelectedProfile->deleteLater();
+
+    const int next = getProfile(_selectedProfile - 1) ? _selectedProfile - 1 : _selectedProfile;
+    if (!setSelectedProfile(next))
+        forceSelectedProfile(next);
+    setModified(true);
+    return true;
 }
 
 ControlbarProfile *ControlbarProfileModel::generateProfileFromStyle(const Style style)

@@ -14,11 +14,15 @@ import VLC.Style
 Controls.MenuItem {
     font.family: VLCStyle.redesign.fontFamily
     font.pixelSize: VLCStyle.dp(16, VLCStyle.scale)
-    palette.text: VLCStyle.redesign.textSecondary
-    palette.windowText: VLCStyle.redesign.textSecondary
+    palette.text: VLCStyle.redesign.color(VLCStyle.redesign.textSecondary, "#4d4d4d")
+    palette.windowText: VLCStyle.redesign.color(VLCStyle.redesign.textSecondary, "#4d4d4d")
     objectName: "hidePlayerUIAction"
     text: MainCtx.minimalView ? qsTr("Show player UI") : qsTr("Hide player UI")
     checkable: true
     checked: MainCtx.minimalView
-    onTriggered: MainCtx.minimalView = !MainCtx.minimalView
+    onTriggered: {
+        MainCtx.minimalView = !MainCtx.minimalView
+        // a click toggles the check: follow the view again
+        checked = Qt.binding(() => MainCtx.minimalView)
+    }
 }

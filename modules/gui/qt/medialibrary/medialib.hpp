@@ -48,6 +48,10 @@ public:
 
     Q_INVOKABLE static MLItemId deserializeMlItemIdFromString(const QString& serialized_id);
 
+    // The MRL of a URL as the core and the library write it (vlc_path2uri
+    // for a local file), to find its media in the library
+    Q_INVOKABLE static QString mrlFromUrl(const QUrl& url);
+
     Q_INVOKABLE void addToPlaylist(const MLItemId &itemId, const QStringList &options = {});
     Q_INVOKABLE void addToPlaylist(const QString& mrl, const QStringList &options = {});
     Q_INVOKABLE void addToPlaylist(const QUrl& mrl, const QStringList &options = {});

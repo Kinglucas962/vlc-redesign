@@ -14,13 +14,22 @@ ColumnLayout {
     required property string filterId
     property bool expanded: false
     property var items: []
+    property int revision: 0
     spacing: VLCStyle.dp(12, VLCStyle.scale)
 
-    function refresh() { items = effects.parameters(filterId).filter(p => p.type === "float") }
+    // The options are read once: a new model would destroy the slider being
+    // dragged. Their values follow the revision.
+    function refresh() {
+        if (items.length === 0)
+            items = effects.parameters(filterId).filter(p => p.type === "float")
+    }
     Component.onCompleted: refresh()
     Connections {
         target: root.effects
-        function onStateChanged() { root.refresh() }
+        function onStateChanged() {
+            root.revision++
+            root.refresh()
+        }
     }
 
     T.Button {
@@ -31,7 +40,7 @@ ColumnLayout {
         focusPolicy: Qt.StrongFocus
         Accessible.name: root.expanded ? qsTr("Collapse settings") : qsTr("Expand settings")
         onClicked: root.expanded = !root.expanded
-        background: Rectangle { color: "#1B1B1B"; radius: VLCStyle.dp(6, VLCStyle.scale) }
+        background: Rectangle { color: VLCStyle.redesign.color("#1B1B1B", "#ababaa"); radius: VLCStyle.dp(6, VLCStyle.scale) }
         contentItem: RowLayout {
             anchors.leftMargin: VLCStyle.dp(16, VLCStyle.scale)
             anchors.rightMargin: VLCStyle.dp(16, VLCStyle.scale)
@@ -57,7 +66,7 @@ ColumnLayout {
         Layout.fillWidth: true
         implicitHeight: settings.implicitHeight + VLCStyle.dp(32, VLCStyle.scale)
         radius: VLCStyle.dp(6, VLCStyle.scale)
-        color: "#1B1B1B"
+        color: VLCStyle.redesign.color("#1B1B1B", "#ababaa")
         visible: root.expanded
         ColumnLayout {
             id: settings
@@ -74,7 +83,7 @@ ColumnLayout {
                     label: modelData.name
                     from: modelData.minimum
                     to: modelData.maximum
-                    modelValue: modelData.value
+                    modelValue: { root.revision; return Number(root.effects.parameterValue(modelData.id)) }
                     decimals: modelData.maximum <= 1 ? 2 : 1
                     onEdited: (value) => root.effects.setParameter(modelData.id, value)
                 }

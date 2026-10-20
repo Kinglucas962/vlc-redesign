@@ -31,6 +31,8 @@ class ConfigModel : public QAbstractListModel
     Q_OBJECT
     Q_PROPERTY(MainCtx *ctx READ ctx WRITE setCtx NOTIFY ctxChanged)
     Q_PROPERTY(QString category READ category WRITE setCategory NOTIFY categoryChanged)
+    // While searching, every setting is listed once (no row shown again):
+    // the view matches the text against the labels it shows
     Q_PROPERTY(QString search READ search WRITE setSearch NOTIFY searchChanged)
     Q_PROPERTY(bool dirty READ dirty NOTIFY dirtyChanged)
     Q_PROPERTY(QString error READ error NOTIFY errorChanged)
@@ -42,7 +44,10 @@ public:
     enum Role {
         KeyRole = Qt::UserRole + 1, CategoryRole, LabelRole, HelpRole,
         TypeRole, ValueRole, CurrentRole, DefaultRole, MinimumRole,
-        MaximumRole, ChoicesRole, DirtyRole
+        MaximumRole, ChoicesRole, DirtyRole,
+        // The value differs from the one VLC runs with (the settings that
+        // only apply at the next start say so)
+        PendingRestartRole
     };
     Q_ENUM(Role)
 
@@ -82,6 +87,10 @@ public:
     Q_INVOKABLE bool audioscrobblerEnabled() const;
     Q_INVOKABLE bool setAudioscrobblerEnabled(bool enabled);
     Q_INVOKABLE QString keyAt(int visibleRow) const;
+    // The text of VLC for a row (its name, its help): what the search looks
+    // in, besides the labels of the design the view shows
+    Q_INVOKABLE QString labelAt(int visibleRow) const;
+    Q_INVOKABLE QString helpAt(int visibleRow) const;
     Q_INVOKABLE bool apply();
     Q_INVOKABLE bool applyWithEffects(AudioEffects *audio, VideoEffects *video);
     Q_INVOKABLE void cancel();
@@ -129,10 +138,10 @@ private:
     // "x-mirror:<key>": the row of another entry shown again (the scroll
     // rows of the Remotes of the design)
     static constexpr const char *mirrorPrefix = "x-mirror:";
-    // Visualization size (effect-width / effect-height), Ignore styling in
-    // ASS and SSA subtitles (the inverse of subsdec-formatted)
+    // Visualization size (effect-width / effect-height)
     static constexpr const char *visualSizeKey = "x-visual-size";
-    static constexpr const char *ignoreAssStylingKey = "x-ignore-ass-styling";
+    // The compressor as it was before Night mode, put back when it is off
+    static constexpr const char *nightPreviousKey = "redesign/night-mode-previous";
     // Video post-processing: the level of the postproc filter, 0 when it
     // does not run
     static constexpr const char *postprocKey = "x-postproc";
@@ -151,6 +160,16 @@ private:
     bool visible(const Entry &entry) const;
     void rebuildRows();
     void setError(const QString &error);
+    // A setting as the user knows it (its name), for the messages
+    QString displayName(const QString &key) const;
+    // The value VLC runs with: the one it started with for a setting
+    // applied since
+    QVariant runningValue(const Entry &entry) const;
+    // The values the settings applied since the start had then (by key)
+    static QHash<QString, QVariant> &startValues();
+    // Repeat, Shuffle, Stop after each item, When playback finishes: on the
+    // play queue now (they are its state as well as its defaults)
+    void applyOrder();
     void notifyEntry(int entryIndex);
     static bool normalize(const Entry &entry, const QVariant &value, QVariant *normalized);
     static QVariant readValue(const Entry &entry);

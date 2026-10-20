@@ -9,6 +9,7 @@
 #include <vlc_plugin.h>
 #include <cstdlib>
 #include <QSet>
+#include <QSettings>
 HdrOutput::HdrOutput(QObject* parent) : QObject(parent)
 {
     QSet<int> nativeValues;
@@ -35,10 +36,40 @@ HdrOutput::HdrOutput(QObject* parent) : QObject(parent)
 }
 void HdrOutput::setCtx(MainCtx* ctx) { if (m_ctx != ctx) { m_ctx = ctx; emit changed(); } }
 MainCtx* HdrOutput::ctx() const { return m_ctx; }
+namespace {
+// The HDR formats need the libplacebo renderer; Auto and Off give the
+// renderer used before back, kept here meanwhile.
+const char previousOutputKey[] = "redesign/hdr-previous-vout";
+enum { ChoiceAuto = 0, ChoiceOff = 1 };
+QString configString(const char* name)
+{
+    char* value = config_FindConfig(name) ? config_GetPsz(name) : nullptr;
+    const QString result = QString::fromUtf8(value ? value : "");
+    free(value);
+    return result;
+}
+// the first module of a module list ("libplacebo,any")
+QString firstModule(const QString& list) { return list.section(QLatin1Char(','), 0, 0).trimmed(); }
+bool usesLibplacebo() { return firstModule(configString("vout")) == QLatin1String("libplacebo"); }
+// Direct3D 11 (picked by default on Windows) has an HDR output of its own
+bool usesD3D11()
+{
+    if (!config_FindConfig("d3d11-hdr-mode")) return false;
+    const QString vout = firstModule(configString("vout"));
+    return vout.isEmpty() || vout == QLatin1String("any") || vout == QLatin1String("direct3d11");
+}
+}
 int HdrOutput::selectedIndex() const
 {
     if (!m_available) return -1;
-    const int current = config_GetInt("pl-output-hint");
+    int current = config_GetInt("pl-output-hint");
+    if (!usesLibplacebo()) {
+        // The HDR formats are not used: Auto or Off, as the renderer in use does
+        if (usesD3D11())
+            current = configString("d3d11-hdr-mode") == QLatin1String("never") ? ChoiceOff : ChoiceAuto;
+        else if (current != ChoiceAuto)
+            current = ChoiceOff;
+    }
     for (int i = 0; i < m_choices.size(); ++i)
         if (m_choices[i].toMap().value(QStringLiteral("value")).toInt() == current) return i;
     return -1;
@@ -47,16 +78,39 @@ bool HdrOutput::select(int index)
 {
     if (!m_ctx || !m_ctx->getIntf() || index < 0 || index >= m_choices.size()
         || !m_choices[index].toMap().value(QStringLiteral("enabled")).toBool()) return false;
-    const int before = config_GetInt("pl-output-hint");
-    char* previousOutput = config_GetPsz("vout");
-    config_PutInt("pl-output-hint", m_choices[index].toMap().value(QStringLiteral("value")).toInt());
-    config_PutPsz("vout", "libplacebo");
-    const bool saved = config_SaveConfigFile(m_ctx->getIntf()) == 0;
-    if (!saved) {
-        config_PutInt("pl-output-hint", before);
-        config_PutPsz("vout", previousOutput);
+    QSettings* settings = m_ctx->getIntf()->mainSettings;
+    const int value = m_choices[index].toMap().value(QStringLiteral("value")).toInt();
+    const bool hdrFormat = value != ChoiceAuto && value != ChoiceOff;
+    const bool hasD3D11Mode = config_FindConfig("d3d11-hdr-mode") != nullptr;
+    const int beforeHint = config_GetInt("pl-output-hint");
+    const QByteArray beforeOutput = configString("vout").toUtf8();
+    const QByteArray beforeD3D11Mode = configString("d3d11-hdr-mode").toUtf8();
+    const bool wasLibplacebo = usesLibplacebo();
+
+    config_PutInt("pl-output-hint", value);
+    if (hdrFormat) {
+        if (!wasLibplacebo)
+            settings->setValue(previousOutputKey, QString::fromUtf8(beforeOutput));
+        config_PutPsz("vout", "libplacebo");
+    } else {
+        // Back to the renderer used before the HDR formats (when they changed it)
+        if (wasLibplacebo && settings->contains(previousOutputKey))
+            config_PutPsz("vout", settings->value(previousOutputKey).toString().toUtf8().constData());
+        if (hasD3D11Mode)
+            config_PutPsz("d3d11-hdr-mode", value == ChoiceOff ? "never" : "auto");
     }
-    free(previousOutput);
+    const bool saved = config_SaveConfigFile(m_ctx->getIntf()) == 0;
+    if (saved) {
+        if (!hdrFormat)
+            settings->remove(previousOutputKey);
+    } else {
+        config_PutInt("pl-output-hint", beforeHint);
+        config_PutPsz("vout", beforeOutput.constData());
+        if (hasD3D11Mode)
+            config_PutPsz("d3d11-hdr-mode", beforeD3D11Mode.constData());
+        if (hdrFormat && !wasLibplacebo)
+            settings->remove(previousOutputKey);
+    }
     m_message = saved ? tr("HDR output saved. Restart playback to use it.") : tr("Could not save HDR output. Your previous setting was kept.");
     emit changed();
     return saved;

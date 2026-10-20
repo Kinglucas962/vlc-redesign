@@ -365,9 +365,10 @@ MouseArea {
             Binding on visible {
                 delayed: true
                 when: audioControls.componentCompleted
-                // The jumps are in the control bar of the design; only the
-                // lyrics button stays, for tracks with lyrics
-                value: Player.videoTracks.count === 0 && Player.hasLyrics
+                // The jumps are in the control bar of the design; the
+                // visualizer (Figma "Visualizer") and, for tracks with
+                // lyrics, the lyrics button stay
+                value: Player.videoTracks.count === 0
                        && centerContent.height > (audioControls.y + audioControls.height)
             }
 
@@ -394,16 +395,16 @@ MouseArea {
             }
 
             Widgets.IconToolButton {
-                visible: false
                 text: VLCIcons.visualization
                 font.pixelSize: VLCStyle.icon_audioPlayerButton
                 onClicked: DialogsProvider.audioVisualizationDialog()
-                description: qsTr("Visualization")
+                description: qsTr("Visualizer")
 
                 AccessibleCompat.id: "audioVisualizationButton"
             }
 
             Widgets.IconToolButton {
+                visible: Player.hasLyrics
                 text: VLCIcons.topbar_music
                 font.pixelSize: VLCStyle.icon_audioPlayerButton
                 checked: MainCtx.lyricsMode

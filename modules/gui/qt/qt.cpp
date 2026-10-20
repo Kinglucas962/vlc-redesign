@@ -419,6 +419,8 @@ vlc_module_begin ()
     add_obsolete_string( "qt-recentplay-filter" )
     add_obsolete_integer( "qt-continue" )
 
+    add_bool( "redesign-update-check", true, N_("Check for VLC Redesign updates"),
+              N_("Look for a new release of VLC Redesign on GitHub at startup, at most once a day.") )
 #ifdef UPDATE_CHECK
     /* off: VideoLAN's update feed offers the official VLC, not this build */
     add_bool( "qt-updates-notif", false, UPDATER_TEXT,

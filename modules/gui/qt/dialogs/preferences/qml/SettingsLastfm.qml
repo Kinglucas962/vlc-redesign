@@ -101,9 +101,7 @@ Column {
         model: [
             { label: qsTr("Last.fm username"), key: "lastfm-username",
               help: qsTr("The user name of your Last.fm account.") },
-            // the design labels the password "Last.fm username" too (Figma
-            // 3062:11911); its accessible name stays the password
-            { label: qsTr("Last.fm username"), key: "lastfm-password", accessible: qsTr("Last.fm password"),
+            { label: qsTr("Last.fm password"), key: "lastfm-password",
               help: qsTr("The password of your Last.fm account.") },
             { label: qsTr("Last.fm submission URL"), key: "scrobbler-url",
               help: qsTr("The address the played tracks are sent to.") }

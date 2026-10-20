@@ -12,6 +12,7 @@ ColumnLayout {
     id: root
     required property var effects
     property bool expanded: false
+    function c(value) { return VLCStyle.redesign.color(value, value) }
     spacing: VLCStyle.dp(12, VLCStyle.scale)
 
     T.Button {
@@ -23,14 +24,14 @@ ColumnLayout {
         focusPolicy: Qt.StrongFocus
         Accessible.name: root.expanded ? qsTr("Collapse equalizer settings") : qsTr("Expand equalizer settings")
         onClicked: root.expanded = !root.expanded
-        background: Rectangle { color: "#1B1B1B"; radius: VLCStyle.dp(6, VLCStyle.scale) }
+        background: Rectangle { color: root.c("#1B1B1B"); radius: VLCStyle.dp(6, VLCStyle.scale) }
         contentItem: RowLayout {
             anchors.leftMargin: VLCStyle.dp(16, VLCStyle.scale)
             anchors.rightMargin: VLCStyle.dp(16, VLCStyle.scale)
             Text {
                 Layout.fillWidth: true
                 text: root.expanded ? qsTr("Collapse Settings") : qsTr("Expand Settings")
-                color: VLCStyle.redesign.textMuted
+                color: root.c(VLCStyle.redesign.textMuted)
                 font.family: VLCStyle.redesign.fontFamily
                 font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
             }
@@ -49,7 +50,7 @@ ColumnLayout {
         Layout.fillWidth: true
         implicitHeight: settings.implicitHeight + VLCStyle.dp(32, VLCStyle.scale)
         radius: VLCStyle.dp(6, VLCStyle.scale)
-        color: "#1B1B1B"
+        color: root.c("#1B1B1B")
         visible: root.expanded
 
         ColumnLayout {
@@ -69,7 +70,7 @@ ColumnLayout {
                 focusPolicy: Qt.StrongFocus
                 Accessible.name: qsTr("Equalizer preset")
                 onClicked: presetsPopup.open()
-                background: Rectangle { color: "#0E0E0E"; radius: VLCStyle.dp(5, VLCStyle.scale) }
+                background: Rectangle { color: root.c("#0E0E0E"); radius: VLCStyle.dp(5, VLCStyle.scale) }
                 contentItem: RowLayout {
                     anchors.leftMargin: VLCStyle.dp(12, VLCStyle.scale)
                     anchors.rightMargin: VLCStyle.dp(12, VLCStyle.scale)
@@ -80,7 +81,7 @@ ColumnLayout {
                             const match = root.effects.presets.find(p => p.id === root.effects.preset)
                             return match ? match.name : root.effects.preset
                         }
-                        color: VLCStyle.redesign.textSecondary
+                        color: root.c(VLCStyle.redesign.textSecondary)
                         font.family: VLCStyle.redesign.fontFamily
                         font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
                     }
@@ -138,8 +139,8 @@ ColumnLayout {
                         implicitWidth: VLCStyle.dp(18, VLCStyle.scale)
                         implicitHeight: implicitWidth
                         radius: VLCStyle.dp(3, VLCStyle.scale)
-                        color: twoPass.checked ? VLCStyle.redesign.accent : "#0E0E0E"
-                        border.color: twoPass.checked ? VLCStyle.redesign.accent : VLCStyle.redesign.border
+                        color: twoPass.checked ? VLCStyle.redesign.accent : root.c("#0E0E0E")
+                        border.color: twoPass.checked ? VLCStyle.redesign.accent : root.c(VLCStyle.redesign.border)
                         Image {
                             anchors.centerIn: parent
                             source: "qrc:///redesign/icons/check/selected.png"
@@ -173,7 +174,7 @@ ColumnLayout {
         height: Math.min(VLCStyle.dp(350, VLCStyle.scale), presetList.implicitHeight)
         padding: VLCStyle.dp(8, VLCStyle.scale)
         closePolicy: T.Popup.CloseOnEscape | T.Popup.CloseOnPressOutside
-        background: Rectangle { color: "#1B1B1B"; radius: VLCStyle.dp(6, VLCStyle.scale) }
+        background: Rectangle { color: root.c("#1B1B1B"); radius: VLCStyle.dp(6, VLCStyle.scale) }
         contentItem: ListView {
             id: presetList
             implicitHeight: contentHeight
@@ -190,14 +191,14 @@ ColumnLayout {
                     if (root.effects.setPreset(modelData.id)) presetsPopup.close()
                 }
                 background: Rectangle {
-                    color: parent.hovered ? VLCStyle.redesign.controlHoverBackground : "transparent"
+                    color: parent.hovered ? root.c(VLCStyle.redesign.controlHoverBackground) : "transparent"
                     radius: VLCStyle.dp(4, VLCStyle.scale)
                 }
                 contentItem: RowLayout {
                     Text {
                         Layout.fillWidth: true
                         text: presetChoice.text
-                        color: VLCStyle.redesign.textSecondary
+                        color: root.c(VLCStyle.redesign.textSecondary)
                         font.family: VLCStyle.redesign.fontFamily
                         font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
                         elide: Text.ElideRight
@@ -223,7 +224,7 @@ ColumnLayout {
                             y: Math.round(curve.height / 2)
                             width: curve.width
                             height: 1
-                            color: VLCStyle.redesign.border
+                            color: root.c(VLCStyle.redesign.border)
                         }
 
                         Repeater {

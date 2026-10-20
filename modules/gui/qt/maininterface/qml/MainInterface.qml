@@ -54,6 +54,14 @@ Item {
 
     SetupDialogs { anchors.fill: parent; z: 20 }
 
+    RedesignUpdateBanner {
+        z: 19
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.rightMargin: VLCStyle.dp(16, VLCStyle.scale)
+        anchors.bottomMargin: VLCStyle.dp(16, VLCStyle.scale) + MainCtx.windowExtendedMargin
+    }
+
     Item {
         id: g_mainInterface
 

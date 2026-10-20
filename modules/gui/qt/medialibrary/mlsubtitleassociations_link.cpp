@@ -14,6 +14,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
+#include <QSignalBlocker>
 #include <QStandardPaths>
 
 #include <vlc_input_item.h>
@@ -72,8 +73,9 @@ void MLSubtitleAssociations::addLinkWithName(const QUrl& url, const QString& fil
     httpRequestAsync(this, request, [this, revision, url, name](const HttpResponse& reply) {
         if (revision != m_revision)
             return;
+        // changed() is emitted once the file is added and matched (or with
+        // the error): the dialog saves on the first change that is not busy
         m_busy = false;
-        emit changed();
 
         const QByteArray& payload = reply.body;
         if (payload.size() > maxSubtitleBytes)
@@ -107,7 +109,12 @@ void MLSubtitleAssociations::addLinkWithName(const QUrl& url, const QString& fil
         }
 
         const QUrl local = QUrl::fromLocalFile(path);
-        addFiles({local});
+        {
+            // the file is matched under its name (not the hash), then the
+            // change is signalled
+            const QSignalBlocker blocker(this);
+            addFiles({local});
+        }
         for (auto& source : m_sources)
             if (source.url == local)
                 source.label = name;

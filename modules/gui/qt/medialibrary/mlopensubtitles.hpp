@@ -7,6 +7,7 @@
 
 #include <QObject>
 #include <QVariantList>
+#include <QVariantMap>
 #include <QUrl>
 
 #include "util/http_request.hpp"
@@ -28,6 +29,12 @@ public:
     Q_INVOKABLE void download(int index, const QString& apiKey,
                               const QString& username, const QString& password);
     Q_INVOKABLE void cancel();
+
+    // The account entered last ({ apiKey, username, password }), kept in
+    // memory for the session only: it is never written to disk
+    Q_INVOKABLE void rememberAccount(const QString& apiKey, const QString& username,
+                                     const QString& password);
+    Q_INVOKABLE QVariantMap rememberedAccount() const;
 
 signals:
     void changed();

@@ -10,6 +10,10 @@
 #include "dialogs/extended/audio_effects.hpp"
 #include "dialogs/extended/video_effects.hpp"
 #include "maininterface/mainctx.hpp"
+#include "playlist/playlist_controller.hpp"
+#include "qt.hpp"
+
+#include <vlc_configuration.h>
 
 #include <iterator>
 
@@ -40,9 +44,6 @@ bool ConfigModel::combinedValues(const Entry &entry, QHash<QString, QVariant> *v
         }
         values->insert(QStringLiteral("video-filter"), filters.join(':'));
         keys.append(QStringLiteral("video-filter"));
-    } else if (entry.key == QLatin1String(ignoreAssStylingKey)) {
-        values->insert(QStringLiteral("subsdec-formatted"), !entry.staged.toBool());
-        keys = { QStringLiteral("subsdec-formatted") };
     } else if (entry.key == QLatin1String(visualSizeKey)) {
         // the size of the user stays while it is chosen
         if (mode < 0 || mode >= qlonglong(std::size(visualSizes)))
@@ -73,12 +74,12 @@ bool ConfigModel::applyWithEffects(AudioEffects *audio, VideoEffects *video)
         return restored;
     };
     if (!m_ctx || !m_ctx->getIntf()) {
-        setError(tr("VLC preferences are unavailable."));
+        setError(qtr("VLC preferences are unavailable."));
         cancelPreview();
         return false;
     }
     if ((audio && audio->ctx() != m_ctx) || (video && video->ctx() != m_ctx)) {
-        setError(tr("The effect preview belongs to another VLC window."));
+        setError(qtr("The effect preview belongs to another VLC window."));
         cancelPreview();
         return false;
     }
@@ -96,7 +97,8 @@ bool ConfigModel::applyWithEffects(AudioEffects *audio, VideoEffects *video)
         if (!entry.proxyFor.isEmpty())
             continue;
         if (readValue(entry) != entry.current) {
-            setError(tr("%1 changed outside this dialog. Cancel and reopen preferences.").arg(entry.label));
+            setError(qtr("%1 changed outside the settings. Discard your changes to see its new value.")
+                         .arg(displayName(entry.key)));
             cancelPreview();
             return false;
         }
@@ -121,12 +123,15 @@ bool ConfigModel::applyWithEffects(AudioEffects *audio, VideoEffects *video)
     int result = 0;
     if (!ConfigValues::commit(m_ctx->getIntf(), values, expected, &conflict, &result)) {
         const bool restored = cancelPreview();
+        QString preview;
+        if (!restored)
+            preview = QStringLiteral(" ") + qtr("The playback preview could not be restored.");
         if (result)
-            setError(tr("Could not save VLC preferences (error %1). Configuration was restored in memory; verify the file.").arg(result)
-                     + (restored ? QString() : tr(" The playback preview could not be restored.")));
+            setError(qtr("Could not save the settings of VLC (error %1). Check that its configuration file can be written.")
+                         .arg(result) + preview);
         else
-            setError(tr("%1 changed outside this dialog or is unavailable. Changes were not saved.").arg(conflict)
-                     + (restored ? QString() : tr(" The playback preview could not be restored.")));
+            setError(qtr("%1 changed outside the settings or is unavailable. Your changes were not saved.")
+                         .arg(displayName(conflict)) + preview);
         return false;
     }
     if (audio) audio->finalizeConfiguration();
@@ -134,11 +139,32 @@ bool ConfigModel::applyWithEffects(AudioEffects *audio, VideoEffects *video)
     for (int i : changedQt)
         m_ctx->setSettingValue(m_entries[i].key, m_entries[i].staged);
     changed += changedQt;
+    // the values VLC runs with until it restarts (the first change of each
+    // setting): the rows of the settings read at the start say they wait
+    // for it; the rows standing for other options as well (after syncDerived)
+    QVector<QVariant> before;
+    before.reserve(m_entries.size());
+    for (const Entry &entry : m_entries)
+        before.append(entry.current);
     for (int i : changed) {
         m_entries[i].current = m_entries[i].staged;
         notifyEntry(i);
     }
     syncDerived();
+    bool orderChanged = false;
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (m_entries[i].current == before[i])
+            continue;
+        if (!startValues().contains(m_entries[i].key))
+            startValues().insert(m_entries[i].key, before[i]);
+        orderChanged = orderChanged || m_entries[i].key == QLatin1String(repeatKey)
+                       || m_entries[i].key == QLatin1String(playbackEndKey)
+                       || m_entries[i].key == QLatin1String("random")
+                       || m_entries[i].key == QLatin1String("play-and-stop");
+        notifyEntry(i);
+    }
+    if (orderChanged)
+        applyOrder();
     if (!changed.isEmpty()) {
         // Interface options (pinned controls, seek thumbnail...) apply now
         m_ctx->reloadPrefs();
@@ -146,4 +172,20 @@ bool ConfigModel::applyWithEffects(AudioEffects *audio, VideoEffects *video)
     }
     setError({});
     return true;
+}
+
+void ConfigModel::applyOrder()
+{
+    using vlc::playlist::PlaylistController;
+    if (!m_ctx || !m_ctx->getIntf() || !m_ctx->getIntf()->p_mainPlaylistController)
+        return;
+    PlaylistController *playlist = m_ctx->getIntf()->p_mainPlaylistController;
+    // as the core reads the options at the start (libvlc.c)
+    playlist->setRandom(config_GetInt("random") != 0);
+    playlist->setRepeatMode(config_GetInt("repeat") ? PlaylistController::PLAYBACK_REPEAT_CURRENT
+                            : config_GetInt("loop") ? PlaylistController::PLAYBACK_REPEAT_ALL
+                                                    : PlaylistController::PLAYBACK_REPEAT_NONE);
+    playlist->setMediaStopAction(config_GetInt("play-and-exit") ? PlaylistController::MEDIA_STOPPED_EXIT
+                                 : config_GetInt("play-and-stop") ? PlaylistController::MEDIA_STOPPED_STOP
+                                                                  : PlaylistController::MEDIA_STOPPED_CONTINUE);
 }

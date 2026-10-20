@@ -23,8 +23,8 @@ Item {
     signal preampEdited(real preamp)
 
     readonly property var names: [qsTr("Preamp"), qsTr("60 Hz"), qsTr("170 Hz"), qsTr("310 Hz"),
-                                  qsTr("600 Hz"), qsTr("1 KHz"), qsTr("3 KHz"), qsTr("6 KHz"),
-                                  qsTr("12 KHz"), qsTr("14 KHz"), qsTr("16 KHz")]
+                                  qsTr("600 Hz"), qsTr("1 kHz"), qsTr("3 kHz"), qsTr("6 kHz"),
+                                  qsTr("12 kHz"), qsTr("14 kHz"), qsTr("16 kHz")]
 
     function px(value) { return VLCStyle.dp(value, VLCStyle.scale) }
     function c(value) { return VLCStyle.redesign.color(value, value) }

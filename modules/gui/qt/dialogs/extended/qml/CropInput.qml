@@ -12,10 +12,11 @@ Rectangle {
     required property var effects
     required property string side
     property string label
+    function c(value) { return VLCStyle.redesign.color(value, value) }
     signal edited(int pixels)
     implicitHeight: VLCStyle.dp(36, VLCStyle.scale)
     radius: VLCStyle.dp(5, VLCStyle.scale)
-    color: "#0E0E0E"
+    color: root.c("#0E0E0E")
     objectName: "crop-" + side
 
     RowLayout {
@@ -26,7 +27,7 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             text: root.label
-            color: VLCStyle.redesign.textMuted
+            color: root.c(VLCStyle.redesign.textMuted)
             font.family: VLCStyle.redesign.fontFamily
             font.pixelSize: VLCStyle.dp(13, VLCStyle.scale)
         }
@@ -34,7 +35,7 @@ Rectangle {
             id: pixelsInput
             Layout.preferredWidth: VLCStyle.dp(58, VLCStyle.scale)
             horizontalAlignment: TextInput.AlignRight
-            color: VLCStyle.redesign.textSecondary
+            color: root.c(VLCStyle.redesign.textSecondary)
             font.family: VLCStyle.redesign.fontFamily
             font.pixelSize: VLCStyle.dp(13, VLCStyle.scale)
             validator: IntValidator { bottom: 0; top: 2147483647 }
@@ -56,7 +57,7 @@ Rectangle {
         }
         Text {
             text: qsTr("px")
-            color: VLCStyle.redesign.textMuted
+            color: root.c(VLCStyle.redesign.textMuted)
             font.family: VLCStyle.redesign.fontFamily
             font.pixelSize: VLCStyle.dp(12, VLCStyle.scale)
         }

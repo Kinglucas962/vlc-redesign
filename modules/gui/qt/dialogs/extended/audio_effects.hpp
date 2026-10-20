@@ -98,6 +98,7 @@ private:
     quintptr m_snapshotAout = 0;
     QHash<QString, QVariant> m_snapshotValues;
     QHash<QString, QVariant> m_configSnapshot;
+    QHash<QString, QVariant> m_stagedConfig;
 };
 
 #endif

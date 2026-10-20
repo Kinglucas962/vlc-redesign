@@ -30,7 +30,7 @@ Widgets.IconToolButton {
 
     text: VLCIcons.skip_back
     onClicked: Player.jumpBy(-15)
-    description: qsTr("Step back")
+    description: qsTr("Back 15 seconds")
 
     // Figma "Player - Music": jumps of 15 s, frames of 30 x 28 like Previous
     implicitWidth: VLCStyle.dp(30, VLCStyle.scale)

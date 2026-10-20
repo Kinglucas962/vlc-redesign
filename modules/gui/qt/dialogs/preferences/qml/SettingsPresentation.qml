@@ -13,53 +13,58 @@ QtObject {
    The table is built once: entry() is called for every row of a page (and
    for the rows before it), a table per call made the long pages slow. */
 readonly property var items: ({
-        "verbose": [qsTr("Diagnostics"), qsTr("Show minor warnings"), "inttoggle", null, { advanced: true, info: true }],
+        // restart: read when VLC starts (the loggers...): "Applies after
+        // restart" under the row once it is changed
+        "verbose": [qsTr("Diagnostics"), qsTr("Show minor warnings"), "inttoggle", null, { advanced: true, info: true, restart: true }],
         "logmode": [qsTr("Diagnostics"), qsTr("Log format"), "", { "text": qsTr("Plain text"), "html": qsTr("HTML") },
-                    { advanced: true, info: true }],
-        "qt-error-dialogs": [qsTr("Startup"), qsTr("Show confirmation and error dialogs"), "", null, { info: true }],
-        "qt-updates-notif": [qsTr("Startup"), qsTr("Check for updates automatically"), "", null, { info: true }],
-        "file-logging": [qsTr("Diagnostics"), qsTr("Save a log"), "", null, { info: true }],
-        "logfile": [qsTr("Diagnostics"), qsTr("Log file"), "savefile", null, { info: true }],
+                    { advanced: true, info: true, restart: true }],
+        "redesign-update-check": [qsTr("Startup"), qsTr("Check for updates automatically"), "", null, { info: true }],
+        "file-logging": [qsTr("Diagnostics"), qsTr("Save a log"), "", null, { info: true, restart: true }],
+        "logfile": [qsTr("Diagnostics"), qsTr("Log file"), "savefile", null, { info: true, restart: true }],
         "log-verbose": [qsTr("Diagnostics"), qsTr("Log details"), "",
                         { "-1": qsTr("Default"), 0: qsTr("Information"), 1: qsTr("Errors only"),
-                          2: qsTr("Errors and warnings"), 3: qsTr("Everything (debug)") }, { info: true }],
+                          2: qsTr("Errors and warnings"), 3: qsTr("Everything (debug)") }, { info: true, restart: true }],
         "stats": [qsTr("Diagnostics"), qsTr("Collect playback statistics"), "", null, { advanced: true, info: true }],
-        "syslog": [qsTr("Developer Options"), qsTr("Write to the system log"), "", null, { advanced: true, heading: true, info: true }],
+        "syslog": [qsTr("Developer Options"), qsTr("Write to the system log"), "", null,
+                   { advanced: true, heading: true, info: true, restart: true }],
         "syslog-debug": [qsTr("Developer Options"), qsTr("Include debug messages in the system log"), "", null,
-                         { advanced: true, heading: true, info: true }],
-        "syslog-ident": [qsTr("Developer Options"), qsTr("System log identity"), "", null, { advanced: true, heading: true, info: true }],
-        "syslog-facility": [qsTr("Developer Options"), qsTr("System log facility"), "", null, { advanced: true, heading: true, info: true }],
+                         { advanced: true, heading: true, info: true, restart: true }],
+        "syslog-ident": [qsTr("Developer Options"), qsTr("System log identity"), "", null,
+                         { advanced: true, heading: true, info: true, restart: true }],
+        "syslog-facility": [qsTr("Developer Options"), qsTr("System log facility"), "", null,
+                            { advanced: true, heading: true, info: true, restart: true }],
         // Interface page of the design
-        "x-custom-skin": [qsTr("Skin"), qsTr("Use a custom skin"), "", null, { info: true }],
-        "skins2-last": [qsTr("Skin"), qsTr("Skin file"), "openfile", null, { info: true }],
+        "x-custom-skin": [qsTr("Skin"), qsTr("Use a custom skin"), "", null, { info: true, restart: true }],
+        "skins2-last": [qsTr("Skin"), qsTr("Skin file"), "openfile", null, { info: true, restart: true }],
+        // the skins read it (their fullscreen controller), not this interface
+        "qt-fs-controller": [qsTr("Skin"), qsTr("Show the fullscreen controls of the skin"), "", null, { info: true, restart: true }],
         "embedded-video": [qsTr("Window"), qsTr("Play video inside main window"), "", null, { info: true }],
         "qt-video-autoresize": [qsTr("Window"), qsTr("Resize window to fit video"), "boolchoice",
-                                { false: qsTr("Never"), true: qsTr("Always") }, { info: true }],
+                                { false: qsTr("Never"), true: qsTr("Always") }, { info: true, restart: true }],
         "redesign/remember-window-geometry": [qsTr("Window"), qsTr("Remember window size and position"), "", null, { info: false }],
         "video-on-top": [qsTr("Window"), qsTr("Keep window above other windows"), "", null, { info: true }],
         "qt-titlebar": [qsTr("Window"), qsTr("Show window decorations"), "", null, { info: true }],
-        "qt-name-in-title": [qsTr("Window"), qsTr("Show the file name in the title bar"), "", null, { info: true }],
+        "qt-name-in-title": [qsTr("Window"), qsTr("Show the file name in the title bar"), "", null, { info: true, restart: true }],
         "qt-fullscreen-screennumber": [qsTr("Window"), qsTr("Open fullscreen on"), "", null, { info: true }],
         "qt-minimal-view": [qsTr("Playback Controls"), qsTr("Start in compact mode"), "", null, { info: true }],
         "qt-pin-controls": [qsTr("Playback Controls"), qsTr("Auto-hide the controls"), "boolchoice",
                             { false: qsTr("Always"), true: qsTr("In fullscreen only") }, { info: true }],
         "mouse-hide-timeout": [qsTr("Playback Controls"), qsTr("Hide after"), "slider", null, { info: false, labelsBaseline: 44, rowHeight: 57, controlTop: 1 }],
-        "qt-fs-controller": [qsTr("Playback Controls"), qsTr("Show controls in fullscreen"), "", null, { info: true }],
-        "qt-system-tray": [qsTr("Notifications and System Tray"), qsTr("Show a system tray icon"), "", null, { info: true }],
+        "qt-system-tray": [qsTr("Notifications and System Tray"), qsTr("Show a system tray icon"), "", null, { info: true, restart: true }],
         "qt-start-minimized": [qsTr("Notifications and System Tray"), qsTr("Start minimized to the tray"), "", null, { info: true }],
-        // the design writes "changew" (Figma 3062:11558)
-        "qt-notification": [qsTr("Notifications and System Tray"), qsTr("Show a popup when the track changew"), "", null,
-                            { info: true, accessible: qsTr("Show a popup when the track changes") }],
+        "qt-notification": [qsTr("Notifications and System Tray"), qsTr("Show a popup when the track changes"), "", null,
+                            { info: true, restart: true }],
         "redesign/notification-duration": [qsTr("Notifications and System Tray"), qsTr("Popup duration"), "slider", null,
                                            { info: false, labelsBaseline: 44, rowHeight: 57, controlTop: 1 }],
-        "playlist-tree": [qsTr("Playlist"), qsTr("Show the playlist as a tree"), "", null, { info: true }],
         "qt-opacity": [qsTr("Window"), qsTr("Window opacity"), "opacity10", null,
-                       { advanced: true, info: false, labelsBaseline: 44, rowHeight: 57, controlTop: 1 }],
-        "qt-pause-minimized": [qsTr("Window"), qsTr("Pause video when window is minimized"), "", null, { advanced: true, info: false }],
+                       { advanced: true, info: false, labelsBaseline: 44, rowHeight: 57, controlTop: 1, restart: true }],
+        "qt-pause-minimized": [qsTr("Window"), qsTr("Pause video when window is minimized"), "", null,
+                               { advanced: true, info: false, restart: true }],
         "qt-auto-raise": [qsTr("Window"), qsTr("Bring VLC to the front when playback starts"), "",
                           { 0: qsTr("Never"), 1: qsTr("Video"), 2: qsTr("Audio"), 3: qsTr("Audio and video") },
                           { advanced: true, info: true }],
-        "qt-bgcone": [qsTr("Window"), qsTr("Show cover art in the window when playing audio"), "", null, { advanced: true, info: false }],
+        // the cone of the compact view while nothing shows a video
+        "qt-bgcone": [qsTr("Window"), qsTr("Show the VLC cone when there is no video"), "", null, { advanced: true, info: false }],
         "qt-embedded-open": [qsTr("Window"), qsTr("Show the file browser inside the open dialog"), "", null, { advanced: true, info: false }],
         "qt-icon-change": [qsTr("Window"), qsTr("Allow the app icon to change"), "", null, { advanced: true, info: false }],
         // one frame in the design: 5 above, 5 between, 5 below
@@ -81,7 +86,8 @@ readonly property var items: ({
         "restore-playback-pos": [qsTr("Startup"), qsTr("Continue where you left off"), "",
                                  { 0: qsTr("Never"), 1: qsTr("Ask"), 2: qsTr("Always") }, { info: true }],
         "playlist-autostart": [qsTr("Startup"), qsTr("Start playing as soon as a file opens"), "", null, { info: true }],
-        "rate": [qsTr("Startup"), qsTr("Default playback speed"), "slider", null, { info: false }],
+        // the speed of the player, read when VLC starts
+        "rate": [qsTr("Startup"), qsTr("Default playback speed"), "slider", null, { info: false, restart: true }],
         "playlist-cork": [qsTr("Startup"), qsTr("Pause when another app uses audio"), "", null, { info: true }],
         "preferred-resolution": [qsTr("Tracks"), qsTr("Preferred video quality"), "",
                                  { "-1": qsTr("Best available"), 1080: qsTr("Full HD (1080p)"), 720: qsTr("HD (720p)"),
@@ -106,9 +112,12 @@ readonly property var items: ({
                                  { advanced: true, info: true, rowHeight: 42, fieldHeight: 32 }],
         "input-timeshift-granularity": [qsTr("Time-shift"), qsTr("Time-shift buffer size"), "", null,
                                         { advanced: true, info: true }],
-        "start-paused": [qsTr("Order"), qsTr("Start paused"), "", null, { advanced: true, hidden: true }],
-        "play-and-pause": [qsTr("Order"), qsTr("Pause on the last frame of each item"), "", null, { advanced: true, hidden: true }],
-        "restore-playback-states": [qsTr("Startup"), qsTr("Resume the last playback states (tracks, speed...)"), "", null, { advanced: true, hidden: true }],
+        // expert: options the design leaves out, under Advanced Options in
+        // Developer mode
+        "start-paused": [qsTr("Order"), qsTr("Start paused"), "", null, { advanced: true, expert: true }],
+        "play-and-pause": [qsTr("Order"), qsTr("Pause on the last frame of each item"), "", null, { advanced: true, expert: true }],
+        "restore-playback-states": [qsTr("Startup"), qsTr("Resume the last playback states (tracks, speed...)"), "", null,
+                                    { advanced: true, expert: true }],
         // Video page of the design
         "video": [qsTr("Output"), qsTr("Enable video"), "", null, { info: true }],
         "fullscreen": [qsTr("Output"), qsTr("Start videos in fullscreen"), "", null, { info: true }],
@@ -136,9 +145,9 @@ readonly property var items: ({
                                { advanced: true, info: true, rowHeight: 42, fieldHeight: 32 }],
         "monitor-par": [qsTr("Framing"), qsTr("Monitor pixel aspect ratio"), "", null,
                         { advanced: true, info: true, rowHeight: 42, fieldHeight: 32, placeholder: "1:1" }],
-        "vout": [qsTr("Output"), qsTr("Video output module"), "", null, { advanced: true, hidden: true }],
-        "snapshot-height": [qsTr("Snapshots"), qsTr("Snapshot height (-1: proportional)"), "", null, { advanced: true, hidden: true }],
-        "deinterlace-filter": [qsTr("Deinterlacing"), qsTr("Deinterlacing filter"), "", null, { advanced: true, hidden: true }],
+        "vout": [qsTr("Output"), qsTr("Video output module"), "", null, { advanced: true, expert: true }],
+        "snapshot-height": [qsTr("Snapshots"), qsTr("Snapshot height (-1: proportional)"), "", null, { advanced: true, expert: true }],
+        "deinterlace-filter": [qsTr("Deinterlacing"), qsTr("Deinterlacing filter"), "", null, { advanced: true, expert: true }],
         // Audio page of the design
         "audio": [qsTr("Output"), qsTr("Enable audio"), "", null, { info: true }],
         "mmdevice-audio-device": [qsTr("Output"), qsTr("Output device"), "", { "": qsTr("System default") }, { info: true }],
@@ -181,9 +190,9 @@ readonly property var items: ({
                                    { advanced: true, info: true }],
         "role": [qsTr("Output"), qsTr("Media role"), "", null, { advanced: true, info: true }],
         "x-visual-size": [qsTr("Visualization"), qsTr("Visualization size"), "", null, { advanced: true, info: true }],
-        "aout": [qsTr("Output"), qsTr("Audio output module"), "", null, { advanced: true, hidden: true }],
-        "gain": [qsTr("Volume"), qsTr("Output gain"), "slider", null, { advanced: true, hidden: true }],
-        "audio-time-stretch": [qsTr("Effects"), qsTr("Keep the pitch when changing the speed"), "", null, { advanced: true, hidden: true }],
+        "aout": [qsTr("Output"), qsTr("Audio output module"), "", null, { advanced: true, expert: true }],
+        "gain": [qsTr("Volume"), qsTr("Output gain"), "slider", null, { advanced: true, expert: true }],
+        "audio-time-stretch": [qsTr("Effects"), qsTr("Keep the pitch when changing the speed"), "", null, { advanced: true, expert: true }],
         "equalizer-preamp": [qsTr("Effects"), qsTr("Equalizer preamp"), "", null, { hidden: true }],
         "audio-filter": [qsTr("Effects"), qsTr("Audio filters"), "", null, { hidden: true }],
         "compressor-ratio": [qsTr("Effects"), qsTr("Compressor ratio"), "", null, { hidden: true }],
@@ -225,18 +234,16 @@ readonly property var items: ({
         // Advanced Options of the design (Figma 6536:14229): fields of 36 in rows of 48
         "sub-autodetect-path": [qsTr("Loading Subtitles"), qsTr("Load subtitles from these folders"), "", null,
                                 { advanced: true, info: true, rowHeight: 48 }],
-        "x-ignore-ass-styling": [qsTr("Loading Subtitles"), qsTr("Ignore styling in ASS and SSA subtitles"), "", null,
-                                 { advanced: true, info: true }],
         "freetype-shadow-angle": [qsTr("Appearance"), qsTr("Shadow angle"), "", null, { advanced: true, info: true, rowHeight: 48 }],
         "freetype-text-direction": [qsTr("Appearance"), qsTr("Text direction"), "",
                                     { 0: qsTr("Left to right"), 1: qsTr("Right to left"), 2: qsTr("Automatic") },
                                     { advanced: true, info: true }],
-        "freetype-outline-opacity": [qsTr("Appearance"), qsTr("Outline opacity"), "opacity", null, { advanced: true, hidden: true }],
-        "freetype-shadow-opacity": [qsTr("Appearance"), qsTr("Shadow opacity"), "opacity", null, { advanced: true, hidden: true }],
+        "freetype-outline-opacity": [qsTr("Appearance"), qsTr("Outline opacity"), "opacity", null, { advanced: true, expert: true }],
+        "freetype-shadow-opacity": [qsTr("Appearance"), qsTr("Shadow opacity"), "opacity", null, { advanced: true, expert: true }],
         "freetype-monofont": [qsTr("Appearance"), qsTr("Monospace font"), "", null,
                               { advanced: true, info: true, rowHeight: 48, defaultDisplay: qsTr("System monospace") }],
-        "subsdec-align": [qsTr("Appearance"), qsTr("Text alignment"), "", null, { advanced: true, hidden: true }],
-        "video-title-position": [qsTr("On-Screen Messages"), qsTr("Position of the filename"), "", null, { advanced: true, hidden: true }],
+        "subsdec-align": [qsTr("Appearance"), qsTr("Text alignment"), "", null, { advanced: true, expert: true }],
+        "video-title-position": [qsTr("On-Screen Messages"), qsTr("Position of the filename"), "", null, { advanced: true, expert: true }],
         // Controls page of the design
         "extrashort-jump-size": [qsTr("Skip Amounts"), qsTr("Very short skip"), "", null, { info: false, unit: qsTr("s"), rowHeight: 48 }],
         "short-jump-size": [qsTr("Skip Amounts"), qsTr("Short skip"), "", null, { info: false, unit: qsTr("s"), rowHeight: 48 }],
@@ -249,11 +256,12 @@ readonly property var items: ({
         "hotkeys-y-wheel-mode": [qsTr("Mouse"), qsTr("Scroll wheel"), "", null, { info: false }],
         "hotkeys-x-wheel-mode": [qsTr("Mouse"), qsTr("Horizontal scroll"), "", null, { info: false }],
         "x-wheel-reverse": [qsTr("Mouse"), qsTr("Reverse scroll direction"), "", null, { info: false }],
-        "x-web-remote": [qsTr("Remotes"), qsTr("Web remote control"), "", null, { info: false }],
-        "http-port": [qsTr("Remotes"), qsTr("Port"), "", null, { info: false, rowHeight: 48 }],
+        // the web interface starts with VLC
+        "x-web-remote": [qsTr("Remotes"), qsTr("Web remote control"), "", null, { info: false, restart: true }],
+        "http-port": [qsTr("Remotes"), qsTr("Port"), "", null, { info: false, rowHeight: 48, restart: true }],
         "mouse-events": [qsTr("Mouse"), qsTr("Handle mouse clicks in the video"), "", null, { advanced: true }],
-        "http-password": [qsTr("Remotes"), qsTr("Web remote password"), "password", null, { advanced: true }],
-        "http-host": [qsTr("Remotes"), qsTr("Web remote address"), "", null, { advanced: true }],
+        "http-password": [qsTr("Remotes"), qsTr("Web remote password"), "password", null, { advanced: true, restart: true }],
+        "http-host": [qsTr("Remotes"), qsTr("Web remote address"), "", null, { advanced: true, restart: true }],
         "qt-disable-volume-keys": [qsTr("Mouse"), qsTr("Ignore the volume keys of the keyboard"), "", null, { advanced: true }],
         // Library page of the design
         "one-instance": [qsTr("Opening Files"), qsTr("Only allow one VLC window"), "", null, { info: true }],
@@ -264,7 +272,7 @@ readonly property var items: ({
                         "expand": qsTr("Include and expand subfolders") }, { info: true }],
         "show-hiddenfiles": [qsTr("Opening Files"), qsTr("Show hidden files"), "", null, { info: true }],
         "x-fetch-metadata": [qsTr("Metadata & Artwork"), qsTr("Fetch titles and artwork"), "", null, { info: true }],
-        "media-library-enabled": [qsTr("Metadata & Artwork"), qsTr("Use the media library"), "", null, { info: true }],
+        "media-library-enabled": [qsTr("Metadata & Artwork"), qsTr("Use the media library"), "", null, { info: true, restart: true }],
         "auto-preparse": [qsTr("Metadata & Artwork"), qsTr("Read media information automatically"), "", null, { advanced: true }],
         "ignore-filetypes": [qsTr("Opening Files"), qsTr("Ignored file extensions"), "", null, { advanced: true }],
         // Network page of the design
@@ -303,15 +311,15 @@ readonly property var items: ({
         "input-record-path": [qsTr("Recording"), qsTr("Save recordings to"), "directory", null, { info: true, rowHeight: 48 }],
         "input-record-native": [qsTr("Recording"), qsTr("Record without re-encoding when possible"), "", null, { info: false }],
         "redesign/discover-cast-devices": [qsTr("Casting"), qsTr("Discover cast devices"), "", null, { info: false }],
+        // VLC's default is one of them (Medium, Low on ARM): an "Automatic"
+        // choice would stand for that value and hide its name
         "sout-chromecast-conversion-quality": [qsTr("Casting"), qsTr("Cast quality"), "",
                                                { 0: qsTr("High"), 1: qsTr("Medium"), 2: qsTr("Low"), 3: qsTr("Low CPU") },
-                                               // VLC's default depends on the platform (Low on ARM)
-                                               { info: true, defaultChoice: qsTr("Automatic") }],
+                                               { info: true }],
         "sout-display": [qsTr("Streaming"), qsTr("Play locally while streaming"), "", null, { info: false }],
         "sout-audio": [qsTr("Streaming"), qsTr("Include audio"), "", null, { info: false }],
         "sout-video": [qsTr("Streaming"), qsTr("Include video"), "", null, { info: false }],
-        // lowercase as the design writes it
-        "sout-spu": [qsTr("Streaming"), qsTr("include subtitles"), "", null, { info: false }],
+        "sout-spu": [qsTr("Streaming"), qsTr("Include subtitles"), "", null, { info: false }],
         "sout-x264-preset": [qsTr("Streaming"), qsTr("Encoding preset"), "", null, { info: true }],
         "sout-x264-tune": [qsTr("Streaming"), qsTr("Tuning"), "", null, { info: true }],
         "sout-chromecast-audio-passthrough": [qsTr("Casting"), qsTr("Send Dolby audio as is"), "", null, { advanced: true }],
@@ -343,10 +351,12 @@ function makeEntry(key, fallback) {
     const advanced = key === "verbose" || key === "stats"
     const hidden = ["lastfm-username", "lastfm-password", "scrobbler-url", "extraintf", "control"].includes(key)
     // item[4]: { info: shows the (i) of the design, unit: after the value,
-    // advanced: under Advanced Options, hidden }
+    // advanced: under Advanced Options, hidden, expert: shown in Developer
+    // mode only, restart: read when VLC starts }
     const extra = item && item[4] ? item[4] : {}
     return item ? { section: item[0], label: item[1], editor: item[2] || "", choiceLabels: item[3] || null,
                     advanced: advanced || !!extra.advanced, hidden: hidden || !!extra.hidden,
+                    expert: !!extra.expert, restart: !!extra.restart,
                     info: extra.info, unit: extra.unit || "", decimals: extra.decimals,
                     placeholder: extra.placeholder || "", heading: !!extra.heading,
                     rowHeight: extra.rowHeight || 0, controlTop: extra.controlTop, infoGap: extra.infoGap,
@@ -354,7 +364,7 @@ function makeEntry(key, fallback) {
                     defaultDisplay: extra.defaultDisplay || "", defaultChoice: extra.defaultChoice || "",
                     labelsBaseline: extra.labelsBaseline }
                 : { section: qsTr("More options"), label: fallback, editor: "", choiceLabels: null,
-                    advanced: false, hidden: false }
+                    advanced: false, hidden: false, expert: false, restart: false }
 }
 
 }

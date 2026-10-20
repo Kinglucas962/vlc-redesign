@@ -14,25 +14,28 @@
 namespace PrefsCatalog
 {
 static const Option entries[] = {
-    {"general", "qt-error-dialogs"}, {"general", "qt-updates-notif"},
+    // (no "qt-error-dialogs": nothing reads it any more)
+    {"general", "redesign-update-check"},
     {"general", "file-logging"}, {"general", "logfile"},
     {"general", "log-verbose"},
     {"general", "verbose"}, {"general", "logmode"}, {"general", "stats"},
     {"general", "syslog"}, {"general", "syslog-debug"}, {"general", "syslog-ident"},
     {"general", "syslog-facility"},
     // Interface page of the design: Skin, Window, Playback Controls,
-    // Notifications and System Tray, Playlist, then Advanced Options
+    // Notifications and System Tray, then Advanced Options
     {"interface", "skins2-last"},
+    // read by the fullscreen controller of the skins only (Skin section)
+    {"interface", "qt-fs-controller"},
     {"interface", "embedded-video"}, {"interface", "qt-video-autoresize"},
     {"interface", "qt:redesign/remember-window-geometry"},
     {"interface", "video-on-top"},
     {"interface", "qt-titlebar"}, {"interface", "qt-name-in-title"},
     {"interface", "qt-fullscreen-screennumber"},
     {"interface", "qt-minimal-view"}, {"interface", "qt-pin-controls"},
-    {"interface", "mouse-hide-timeout"}, {"interface", "qt-fs-controller"},
+    {"interface", "mouse-hide-timeout"},
     {"interface", "qt-system-tray"}, {"interface", "qt-start-minimized"},
     {"interface", "qt-notification"}, {"interface", "qt:redesign/notification-duration"},
-    {"interface", "playlist-tree"},
+    // (no "playlist-tree": nothing reads it in VLC 4)
     {"interface", "qt-opacity"}, {"interface", "qt-pause-minimized"},
     {"interface", "qt-auto-raise"}, {"interface", "qt-bgcone"},
     {"interface", "qt-embedded-open"}, {"interface", "qt-icon-change"},

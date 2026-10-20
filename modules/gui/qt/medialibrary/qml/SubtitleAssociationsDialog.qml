@@ -108,12 +108,19 @@ Widgets.RedesignDialog {
         }
     }
 
+    // The OpenSubtitles account stays for the session (in memory, shared by
+    // the dialogs; never written to disk)
+    onAboutToShow: {
+        const account = service.rememberedAccount()
+        apiKeyField.text = account.apiKey
+        usernameField.text = account.username
+        passwordField.text = account.password
+    }
+
     onClosed: {
         associations.cancel()
         service.cancel()
-        apiKeyField.clear()
-        usernameField.clear()
-        passwordField.clear()
+        service.rememberAccount(apiKeyField.text, usernameField.text, passwordField.text)
         onlineSelection = -1
         _saveAfterDownload = false
     }

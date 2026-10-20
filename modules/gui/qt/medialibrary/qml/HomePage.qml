@@ -368,11 +368,13 @@ Widgets.PageExt {
                 text: qsTr("Frequently Visited Folders")
                 view: foldersRow
                 // The design shows the chevron of every section: the folders
-                // open the browsing of the folders
+                // open the folders view of the library (the videos grouped by
+                // folder, as "Group by folder" of the Videos page)
                 seeAllButton.visible: true
 
                 onSeeAllButtonClicked: function (reason) {
-                    History.push(["network"], reason)
+                    MainCtx.grouping = MainCtx.GROUPING_FOLDER
+                    History.push(["video", "all"], reason)
                 }
             }
 

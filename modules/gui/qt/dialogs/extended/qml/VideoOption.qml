@@ -16,7 +16,19 @@ ColumnLayout {
         effects.revision
         return effects.parameterValue(option.id)
     }
+    readonly property var choiceList: option.type === "choice" ? effects.choices(option.id) : []
     spacing: VLCStyle.dp(8, VLCStyle.scale)
+
+    function c(value) { return VLCStyle.redesign.color(value, value) }
+
+    // The label of a value of the list; an integer outside it is an RGB mask
+    // (the component to extract)
+    function choiceName(value) {
+        const match = root.choiceList.find(choice => String(choice.id) === String(value))
+        if (match) return match.name
+        return typeof value === "number" ? "#" + value.toString(16).padStart(6, "0").toUpperCase()
+                                         : String(value)
+    }
 
     ValueSlider {
         Layout.fillWidth: true
@@ -37,7 +49,7 @@ ColumnLayout {
         Text {
             Layout.fillWidth: true
             text: root.option.name
-            color: VLCStyle.redesign.textMuted
+            color: root.c(VLCStyle.redesign.textMuted)
             font.family: VLCStyle.redesign.fontFamily
             font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
             elide: Text.ElideRight
@@ -46,13 +58,13 @@ ColumnLayout {
             width: VLCStyle.dp(116, VLCStyle.scale)
             height: VLCStyle.dp(32, VLCStyle.scale)
             radius: VLCStyle.dp(4, VLCStyle.scale)
-            color: "#0E0E0E"
+            color: root.c("#0E0E0E")
             TextInput {
                 id: unboundedInput
                 anchors.fill: parent
                 anchors.leftMargin: VLCStyle.dp(10, VLCStyle.scale)
                 verticalAlignment: TextInput.AlignVCenter
-                color: VLCStyle.redesign.textSecondary
+                color: root.c(VLCStyle.redesign.textSecondary)
                 font.family: VLCStyle.redesign.fontFamily
                 font.pixelSize: VLCStyle.dp(13, VLCStyle.scale)
                 selectByMouse: true
@@ -87,8 +99,8 @@ ColumnLayout {
             implicitWidth: VLCStyle.dp(18, VLCStyle.scale)
             implicitHeight: implicitWidth
             radius: VLCStyle.dp(3, VLCStyle.scale)
-            color: boolOption.checked ? VLCStyle.redesign.accent : "#0E0E0E"
-            border.color: boolOption.checked ? VLCStyle.redesign.accent : VLCStyle.redesign.border
+            color: boolOption.checked ? VLCStyle.redesign.accent : root.c("#0E0E0E")
+            border.color: boolOption.checked ? VLCStyle.redesign.accent : root.c(VLCStyle.redesign.border)
             Image {
                 anchors.centerIn: parent
                 source: "qrc:///redesign/icons/check/selected.png"
@@ -105,7 +117,7 @@ ColumnLayout {
         Text {
             text: root.option.name
             Layout.fillWidth: true
-            color: VLCStyle.redesign.textMuted
+            color: root.c(VLCStyle.redesign.textMuted)
             font.family: VLCStyle.redesign.fontFamily
             font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
         }
@@ -113,7 +125,7 @@ ColumnLayout {
             width: VLCStyle.dp(130, VLCStyle.scale)
             height: VLCStyle.dp(32, VLCStyle.scale)
             radius: VLCStyle.dp(4, VLCStyle.scale)
-            color: "#0E0E0E"
+            color: root.c("#0E0E0E")
             RowLayout {
                 anchors.fill: parent
                 anchors.margins: VLCStyle.dp(6, VLCStyle.scale)
@@ -121,7 +133,7 @@ ColumnLayout {
                     id: colorInput
                     Layout.fillWidth: true
                     text: "#" + Number(root.currentValue).toString(16).padStart(6, "0").toUpperCase()
-                    color: VLCStyle.redesign.textSecondary
+                    color: root.c(VLCStyle.redesign.textSecondary)
                     font.family: VLCStyle.redesign.fontFamily
                     font.pixelSize: VLCStyle.dp(13, VLCStyle.scale)
                     selectByMouse: true
@@ -151,12 +163,12 @@ ColumnLayout {
         rightPadding: VLCStyle.dp(12, VLCStyle.scale)
         onClicked: choicePopup.open()
         Accessible.name: root.option.name
-        background: Rectangle { color: "#0E0E0E"; radius: VLCStyle.dp(5, VLCStyle.scale) }
+        background: Rectangle { color: root.c("#0E0E0E"); radius: VLCStyle.dp(5, VLCStyle.scale) }
         contentItem: RowLayout {
             Text {
                 Layout.fillWidth: true
-                text: root.option.name + ": " + root.currentValue
-                color: VLCStyle.redesign.textSecondary
+                text: root.option.name + ": " + root.choiceName(root.currentValue)
+                color: root.c(VLCStyle.redesign.textSecondary)
                 font.family: VLCStyle.redesign.fontFamily
                 font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
             }
@@ -175,10 +187,10 @@ ColumnLayout {
             width: choiceButton.width
             padding: VLCStyle.dp(6, VLCStyle.scale)
             closePolicy: T.Popup.CloseOnEscape | T.Popup.CloseOnPressOutside
-            background: Rectangle { color: "#1B1B1B"; radius: VLCStyle.dp(6, VLCStyle.scale) }
+            background: Rectangle { color: root.c("#1B1B1B"); radius: VLCStyle.dp(6, VLCStyle.scale) }
             contentItem: ColumnLayout {
                 Repeater {
-                    model: root.effects.choices(root.option.id)
+                    model: root.choiceList
                     delegate: T.Button {
                         required property var modelData
                         Layout.fillWidth: true
@@ -187,10 +199,10 @@ ColumnLayout {
                         onClicked: {
                             if (root.effects.setParameter(root.option.id, modelData.id)) choicePopup.close()
                         }
-                        background: Rectangle { color: parent.hovered ? VLCStyle.redesign.controlHoverBackground : "transparent" }
+                        background: Rectangle { color: parent.hovered ? root.c(VLCStyle.redesign.controlHoverBackground) : "transparent" }
                         contentItem: Text {
                             text: parent.text
-                            color: VLCStyle.redesign.textSecondary
+                            color: root.c(VLCStyle.redesign.textSecondary)
                             font.family: VLCStyle.redesign.fontFamily
                             font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
                         }

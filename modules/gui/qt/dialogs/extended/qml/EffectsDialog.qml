@@ -8,6 +8,7 @@ import QtQuick.Layouts
 import QtQuick.Templates as T
 import VLC.Dialogs
 import VLC.MainInterface
+import VLC.Player
 import VLC.Style
 import VLC.Widgets as Widgets
 
@@ -31,17 +32,49 @@ T.Popup {
         DialogsProvider.nativeEffectsDialog(page)
     }
 
+    function c(value) { return VLCStyle.redesign.color(value, value) }
+
+    // The preview of each tab stays until Save or Cancel of the dialog
     function switchTab(index) {
         if (currentTab === index) return
-        if (currentTab === 0 && audioBridge.transactionActive && !audioBridge.cancel()) return
-        if (currentTab === 1 && videoEffects.transactionActive && !videoEffects.cancel()) return
         currentTab = index
-        if (index === 0) audioBridge.begin()
+        beginCurrentTab()
+    }
+
+    function beginCurrentTab() {
+        if (currentTab === 0) audioBridge.begin()
         else videoEffects.begin()
+    }
+
+    function saveEffects() {
+        if (audioBridge.transactionActive && !audioBridge.save()) { currentTab = 0; return false }
+        if (videoEffects.transactionActive && !videoEffects.save()) { currentTab = 1; return false }
+        return true
+    }
+
+    function cancelEffects() {
+        const audioRestored = audioBridge.cancel()
+        const videoRestored = videoEffects.cancel()
+        return audioRestored && videoRestored
     }
 
     AudioEffects { id: audioBridge; ctx: MainCtx }
     VideoEffects { id: videoEffects; ctx: MainCtx }
+
+    // Opened before playback (or before its video): the preview starts with
+    // the output, or follows a new one
+    Connections {
+        target: Player
+        enabled: root.opened
+        function onPlayingStateChanged() {
+            if (root.currentTab === 0 ? audioBridge.activeAudio : videoEffects.activeVideo)
+                root.beginCurrentTab()
+        }
+        function onHasVideoOutputChanged() {
+            if (root.currentTab === 1 && videoEffects.activeVideo)
+                root.beginCurrentTab()
+        }
+    }
 
     width: Math.min(VLCStyle.dp(400, VLCStyle.scale), parent ? parent.width : VLCStyle.dp(400, VLCStyle.scale))
     height: Math.min(VLCStyle.dp(780, VLCStyle.scale), parent ? Math.max(0, parent.height - VLCStyle.dp(48, VLCStyle.scale)) : VLCStyle.dp(780, VLCStyle.scale))
@@ -55,8 +88,7 @@ T.Popup {
         profileError = ""
         previousGlobalShortcuts = MainCtx.useGlobalShortcuts
         MainCtx.useGlobalShortcuts = false
-        if (currentTab === 0) audioBridge.begin()
-        else videoEffects.begin()
+        beginCurrentTab()
         tabs.itemAt(currentTab).forceActiveFocus()
     }
     onClosed: {
@@ -66,9 +98,9 @@ T.Popup {
     }
 
     background: Rectangle {
-        color: VLCStyle.redesign.windowBackground
+        color: root.c(VLCStyle.redesign.windowBackground)
         radius: VLCStyle.dp(6, VLCStyle.scale)
-        border.color: VLCStyle.redesign.separator
+        border.color: root.c(VLCStyle.redesign.separator)
     }
 
     contentItem: ColumnLayout {
@@ -82,7 +114,7 @@ T.Popup {
             Text {
                 text: qsTr("Effects")
                 Layout.fillWidth: true
-                color: VLCStyle.redesign.textPrimary
+                color: root.c(VLCStyle.redesign.textPrimary)
                 font.family: VLCStyle.redesign.fontFamily
                 font.pixelSize: VLCStyle.dp(18, VLCStyle.scale)
                 font.weight: Font.Medium
@@ -95,7 +127,7 @@ T.Popup {
                 onClicked: root.close()
                 contentItem: Text {
                     text: parent.text
-                    color: VLCStyle.redesign.textSecondary
+                    color: root.c(VLCStyle.redesign.textSecondary)
                     font.family: VLCStyle.redesign.fontFamily
                     font.pixelSize: VLCStyle.dp(13, VLCStyle.scale)
                 }
@@ -119,7 +151,7 @@ T.Popup {
                     focusPolicy: Qt.StrongFocus
                     onClicked: root.switchTab(index)
                     background: Rectangle {
-                        color: tabButton.hovered ? VLCStyle.redesign.controlHoverBackground : "transparent"
+                        color: tabButton.hovered ? root.c(VLCStyle.redesign.controlHoverBackground) : "transparent"
                         Rectangle {
                             anchors.bottom: parent.bottom
                             anchors.horizontalCenter: parent.horizontalCenter
@@ -130,7 +162,7 @@ T.Popup {
                     }
                     contentItem: Text {
                         text: tabButton.modelData
-                        color: root.currentTab === index ? VLCStyle.redesign.accent : VLCStyle.redesign.textMuted
+                        color: root.currentTab === index ? VLCStyle.redesign.accent : root.c(VLCStyle.redesign.textMuted)
                         font.family: VLCStyle.redesign.fontFamily
                         font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
                         horizontalAlignment: Text.AlignHCenter
@@ -140,7 +172,7 @@ T.Popup {
             }
         }
 
-        Rectangle { Layout.fillWidth: true; height: 1; color: VLCStyle.redesign.separator }
+        Rectangle { Layout.fillWidth: true; height: 1; color: root.c(VLCStyle.redesign.separator) }
 
         Flickable {
             id: scroll
@@ -163,7 +195,7 @@ T.Popup {
                     Layout.fillWidth: true
                     visible: root.currentTab === 0 && !audioBridge.activeAudio
                     text: audioBridge.lastError || qsTr("Play audio to preview and edit audio effects.")
-                    color: VLCStyle.redesign.textSecondary
+                    color: root.c(VLCStyle.redesign.textSecondary)
                     font.family: VLCStyle.redesign.fontFamily
                     font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
                     wrapMode: Text.WordWrap
@@ -184,7 +216,7 @@ T.Popup {
                     Layout.fillWidth: true
                     visible: root.currentTab === 1 && !videoEffects.activeVideo
                     text: videoEffects.lastError || qsTr("Play video to preview and edit effects.")
-                    color: VLCStyle.redesign.textSecondary
+                    color: root.c(VLCStyle.redesign.textSecondary)
                     font.family: VLCStyle.redesign.fontFamily
                     font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
                     wrapMode: Text.WordWrap
@@ -205,10 +237,10 @@ T.Popup {
                         Layout.fillWidth: true
                         implicitHeight: VLCStyle.dp(42, VLCStyle.scale)
                         onClicked: root.openNative(2)
-                        background: Rectangle { color: VLCStyle.redesign.controlBackground; radius: VLCStyle.dp(6, VLCStyle.scale) }
+                        background: Rectangle { color: root.c(VLCStyle.redesign.controlBackground); radius: VLCStyle.dp(6, VLCStyle.scale) }
                         contentItem: Text {
                             text: parent.text
-                            color: VLCStyle.redesign.textPrimary
+                            color: root.c(VLCStyle.redesign.textPrimary)
                             font.family: VLCStyle.redesign.fontFamily
                             font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
                             horizontalAlignment: Text.AlignHCenter
@@ -227,14 +259,14 @@ T.Popup {
                      || (root.currentTab === 0 ? audioBridge.lastError.length > 0 && audioBridge.transactionActive
                                                : videoEffects.lastError.length > 0 && videoEffects.transactionActive)
             text: root.profileError || (root.currentTab === 0 ? audioBridge.lastError : videoEffects.lastError)
-            color: "#FF8989"
+            color: VLCStyle.redesign.color("#FF8989", "#B3261E")
             font.family: VLCStyle.redesign.fontFamily
             font.pixelSize: VLCStyle.dp(12, VLCStyle.scale)
             wrapMode: Text.WordWrap
             Accessible.role: Accessible.AlertMessage
         }
 
-        Rectangle { Layout.fillWidth: true; height: 1; color: VLCStyle.redesign.separator }
+        Rectangle { Layout.fillWidth: true; height: 1; color: root.c(VLCStyle.redesign.separator) }
         RowLayout {
             Layout.fillWidth: true
             Layout.preferredHeight: VLCStyle.dp(60, VLCStyle.scale)
@@ -246,12 +278,12 @@ T.Popup {
                 Layout.fillWidth: true
                 implicitHeight: VLCStyle.dp(36, VLCStyle.scale)
                 onClicked: {
-                    if (root.currentTab === 0 ? audioBridge.cancel() : videoEffects.cancel()) root.close()
+                    if (root.cancelEffects()) root.close()
                 }
-                background: Rectangle { color: VLCStyle.redesign.controlBackground; radius: VLCStyle.dp(5, VLCStyle.scale) }
+                background: Rectangle { color: root.c(VLCStyle.redesign.controlBackground); radius: VLCStyle.dp(5, VLCStyle.scale) }
                 contentItem: Text {
                     text: parent.text
-                    color: VLCStyle.redesign.textSecondary
+                    color: root.c(VLCStyle.redesign.textSecondary)
                     font.family: VLCStyle.redesign.fontFamily
                     font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
                     horizontalAlignment: Text.AlignHCenter
@@ -262,9 +294,9 @@ T.Popup {
                 text: qsTr("Save")
                 Layout.fillWidth: true
                 implicitHeight: VLCStyle.dp(36, VLCStyle.scale)
-                enabled: !!root.profileError || (root.currentTab === 0 ? audioBridge.transactionActive : videoEffects.transactionActive)
+                enabled: !!root.profileError || audioBridge.transactionActive || videoEffects.transactionActive
                 onClicked: {
-                    if (!root.profileError && !(root.currentTab === 0 ? audioBridge.save() : videoEffects.save()))
+                    if (!root.profileError && !root.saveEffects())
                         return
                     if (!MainCtx.controlbarProfileModel.save()) {
                         root.profileError = MainCtx.controlbarProfileModel.lastError
@@ -273,10 +305,10 @@ T.Popup {
                     root.profileError = ""
                     root.close()
                 }
-                background: Rectangle { color: parent.enabled ? VLCStyle.redesign.accent : VLCStyle.redesign.controlBackground; radius: VLCStyle.dp(5, VLCStyle.scale) }
+                background: Rectangle { color: parent.enabled ? VLCStyle.redesign.accent : root.c(VLCStyle.redesign.controlBackground); radius: VLCStyle.dp(5, VLCStyle.scale) }
                 contentItem: Text {
                     text: parent.text
-                    color: parent.enabled ? "#0E0E0E" : VLCStyle.redesign.textDisabled
+                    color: parent.enabled ? "#0E0E0E" : root.c(VLCStyle.redesign.textDisabled)
                     font.family: VLCStyle.redesign.fontFamily
                     font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
                     font.weight: Font.Medium

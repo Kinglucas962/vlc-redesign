@@ -99,12 +99,13 @@ NativeMenu {
         }, {
             "text": qsTr("Stream"),
             "icon": "streaming",
-            "action": function(dataList) { DialogsProvider.streamingDialog(_urlList(dataList), true) },
+            // the 2nd argument: transcode only (Convert), not the Stream output
+            "action": function(dataList) { DialogsProvider.streamingDialog(_urlList(dataList), false) },
             "visible": _hasUrls
         }, {
             "text": qsTr("Convert"),
             "icon": "swap",
-            "action": function(dataList) { DialogsProvider.streamingDialog(_urlList(dataList), false) },
+            "action": function(dataList) { DialogsProvider.streamingDialog(_urlList(dataList), true) },
             "visible": _hasUrls
         }, {
             "text": qsTr("Add to Queue"),
@@ -144,7 +145,18 @@ NativeMenu {
                     root.subtitleDialog = root.subtitleDialogComponent.createObject(g_mainDisplay)
                 root.subtitleDialog.openFor(dataList[0][root.idDataRole])
             },
-            "visible": function(dataList) { return root.showPlayAsAudioAction && dataList.length === 1 }
+            // a media, a folder or a playlist: MLSubtitleAssociations can not
+            // open groups (the "Group by" of the videos)
+            "visible": function(dataList) {
+                if (!root.showPlayAsAudioAction || dataList.length !== 1)
+                    return false
+                const id = dataList[0][root.idDataRole]
+                if (!id || !id.hasParent())
+                    return !!id
+                const serialized = id.toString()
+                return serialized.startsWith("VLC_ML_PARENT_FOLDER")
+                       || serialized.startsWith("VLC_ML_PARENT_PLAYLIST")
+            }
         }, {
             "text": qsTr("Properties & Metadata"),
             "icon": "info",

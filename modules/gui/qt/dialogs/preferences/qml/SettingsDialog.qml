@@ -13,7 +13,8 @@ import VLC.Widgets as Widgets
 // Settings of the design (Figma "Settings - *", 1048 x 865): the 50 px header
 // (search, page title, close), the 200 px sidebar in an 8 px margin, and the
 // page (24 px sides, 20 px top, 20 px between sections). No footer: the
-// changes are kept when the dialog closes.
+// changes are kept when the dialog closes; when VLC refuses them, the dialog
+// stays open with what went wrong.
 Dialog {
     id: root
     objectName: "redesignSettingsDialog"
@@ -22,7 +23,8 @@ Dialog {
     padding: 0
     topPadding: 0
     bottomPadding: 0
-    closePolicy: Popup.CloseOnEscape
+    // Escape and the close button keep the changes first (requestClose)
+    closePolicy: Popup.NoAutoClose
     width: Math.min(px(1048), parent ? parent.width - px(32) : px(1048))
     height: Math.min(px(865), parent ? parent.height - px(32) : px(865))
     // Centred on whole pixels: at half a pixel every edge and text blurs
@@ -33,8 +35,11 @@ Dialog {
 
     property string selectedCategory: "general"
     property bool saved: false
+    // The last attempt to keep the changes failed (Discard changes shows)
+    property bool applyFailed: false
     property bool previousGlobalShortcuts: true
     property bool advancedExpanded: false
+    readonly property string searchText: searchField.text
     // Advanced Options start closed on every page
     onSelectedCategoryChanged: advancedExpanded = false
     readonly property bool dark: VLCStyle.palette.isDark
@@ -59,24 +64,56 @@ Dialog {
         open()
     }
 
-    // Keeps every change (the design has no Apply button)
+    // The search holds one of these texts (labels shown outside the lists
+    // of options)
+    function searchMatches(texts) {
+        const text = searchField.text.toLowerCase()
+        return text.length > 0 && texts.some(label => String(label).toLowerCase().includes(text))
+    }
+
+    // Keeps every change (the design has no Apply button); false when VLC
+    // refused them: they stay as they were chosen and the error shows
     function commit() {
         if (saved)
-            return
-        saved = true
+            return true
         const audioOutputReady = audioOutput.canApply()
-        if (config.applyWithEffects(inlineEffects.audioForSave(), inlineEffects.videoForSave())) {
-            if (audioOutputReady)
-                audioOutput.apply()
+        if (!config.applyWithEffects(inlineEffects.audioForSave(), inlineEffects.videoForSave())) {
+            applyFailed = true
+            // the preview of the effects was put back: start it again
+            inlineEffects.cancel()
+            inlineEffects.beginForCurrentCategory()
+            return false
         }
+        saved = true
+        applyFailed = false
+        if (audioOutputReady)
+            audioOutput.apply()
         inlineEffects.clearDirty()
         appearance.save()
         developerMode.save()
         MainCtx.controlbarProfileModel.save()
+        return true
+    }
+
+    // Closes once the changes are kept
+    function requestClose() {
+        if (!commit())
+            return false
+        close()
+        return true
+    }
+
+    // Leaves without the changes of the options VLC refused (the theme, the
+    // accent and Developer mode are kept)
+    function discardAndClose() {
+        config.cancel()
+        inlineEffects.cancel()
+        requestClose()
     }
 
     onOpened: {
         saved = false
+        applyFailed = false
         previousGlobalShortcuts = MainCtx.useGlobalShortcuts
         MainCtx.useGlobalShortcuts = false
         config.reload()
@@ -87,12 +124,21 @@ Dialog {
         inlineEffects.beginForCurrentCategory()
     }
     onClosed: {
+        // closed another way than requestClose: keep what can be kept
         commit()
         inlineEffects.cancel()
         audioOutput.cancel()
         MainCtx.useGlobalShortcuts = previousGlobalShortcuts
     }
     ShortcutsDialog { id: shortcutsDialog; parent: root.parent }
+
+    // The keyboard shortcuts a search finds (by the name of their action)
+    ShortcutsModel {
+        id: shortcutSearch
+        ctx: root.searchText.length > 0 ? MainCtx : null
+        search: root.searchText
+        searchField: "action"
+    }
 
     ConfigModel {
         id: config
@@ -109,6 +155,13 @@ Dialog {
     }
 
     contentItem: Item {
+        // Escape closes as the close button does (once the changes are kept)
+        focus: true
+        Keys.onEscapePressed: (event) => {
+            event.accepted = true
+            root.requestClose()
+        }
+
         // Header: #090909, 50 px, search at 8 px, title at 240 px, close at 14 px
         Rectangle {
             id: topbar
@@ -149,6 +202,7 @@ Dialog {
                     id: searchField
                     objectName: "settingsSearch"
                     anchors.fill: parent
+                    implicitHeight: root.px(34)
                     leftPadding: root.px(8 + 24 + 10)
                     rightPadding: root.px(8)
                     placeholderText: qsTr("Search")
@@ -195,7 +249,7 @@ Dialog {
                 padding: root.px(4)
                 // the Basic style adds 2 px to the sides otherwise
                 horizontalPadding: root.px(4)
-                onClicked: root.close()
+                onClicked: root.requestClose()
                 Accessible.name: qsTr("Close")
                 background: Rectangle {
                     radius: root.px(4)
@@ -282,25 +336,63 @@ Dialog {
                 SettingsAppearance {
                     id: appearance
                     width: parent.width
-                    visible: root.selectedCategory === "general"
-                             && (searchField.text.length === 0
-                                 || qsTr("appearance theme accent language").toLowerCase()
-                                       .includes(searchField.text.toLowerCase()))
+                    visible: searchField.text.length === 0
+                             ? root.selectedCategory === "general"
+                             : root.searchMatches([qsTr("Appearance"), qsTr("Theme"), qsTr("Accent color"),
+                                                   qsTr("Interface language"), qsTr("Dark"), qsTr("Light"),
+                                                   qsTr("System")])
                 }
 
+                // Keyboard Shortcuts of the controls page; in a search, with
+                // the shortcuts whose action matches
                 SettingsSectionTitle {
-                    visible: root.selectedCategory === "controls" && !searchField.text.length
+                    id: shortcutsSection
+                    readonly property bool searching: searchField.text.length > 0
+                    readonly property bool labelsMatch: root.searchMatches([qsTr("Keyboard Shortcuts"),
+                                                                            qsTr("Edit Keyboard Shortcuts"),
+                                                                            qsTr("Reset all shortcuts")])
+                    // the results listed, the others behind "more"
+                    readonly property int shown: 8
+                    visible: searching ? labelsMatch || shortcutResults.count > 0
+                                       : root.selectedCategory === "controls"
                     text: qsTr("Keyboard Shortcuts")
 
                     SettingsActionRow {
+                        visible: !shortcutsSection.searching || shortcutsSection.labelsMatch
                         label: qsTr("Defaults")
                         buttonText: qsTr("Edit Keyboard Shortcuts")
                         onClicked: shortcutsDialog.open()
                     }
                     SettingsActionRow {
+                        visible: !shortcutsSection.searching || shortcutsSection.labelsMatch
                         label: qsTr("Reset all shortcuts")
                         buttonText: qsTr("Reset")
                         onClicked: shortcutsDialog.openReset()
+                    }
+                    Repeater {
+                        id: shortcutResults
+                        model: shortcutsSection.searching ? shortcutSearch : null
+                        delegate: SettingsActionRow {
+                            required property int index
+                            required property string key
+                            required property string action
+                            required property string hotkey
+                            visible: index < shortcutsSection.shown
+                            width: shortcutsSection.width
+                            // the names of the design for the actions it shows
+                            label: shortcutsDialog.actionLabels[key] ?? action
+                            buttonText: hotkey.length ? shortcutsDialog.displayKeys(hotkey.split(", ")[0])
+                                                      : qsTr("Set a shortcut")
+                            buttonWidth: root.px(200)
+                            onClicked: shortcutsDialog.openWithSearch(action)
+                        }
+                    }
+                    SettingsActionRow {
+                        visible: shortcutsSection.searching && shortcutResults.count > shortcutsSection.shown
+                        label: qsTr("%1 more matching shortcuts").arg(shortcutResults.count - shortcutsSection.shown)
+                        buttonText: qsTr("Show all")
+                        buttonWidth: root.px(200)
+                        onClicked: shortcutsDialog.openWithSearch(searchField.text)
                     }
                 }
 
@@ -324,6 +416,7 @@ Dialog {
                         category: root.selectedCategory
                         search: searchField.text
                         filterMode: searchField.text.length ? "all" : "basic"
+                        showExpert: developerMode.selected
                         sectionFilter: root.selectedCategory === "video" && !searchField.text.length
                                        ? qsTr("Output")
                                        : root.selectedCategory === "general" && !searchField.text.length
@@ -335,18 +428,17 @@ Dialog {
                         width: parent.width
                         settingsModel: config
                         visible: (!searchField.text.length && root.selectedCategory === "privacy")
-                                 || (searchField.text.length > 0
-                                     && qsTr("last.fm lastfm username password scrobbler")
-                                        .includes(searchField.text.toLowerCase()))
+                                 || root.searchMatches(["Last.fm", "lastfm", qsTr("Submit played tracks to last.fm"),
+                                                        qsTr("Last.fm username"), qsTr("Last.fm password"),
+                                                        qsTr("Last.fm submission URL")])
                     }
                 }
 
                 Column {
                     width: parent.width
-                    visible: root.selectedCategory === "general"
-                             && (!searchField.text.length
-                                 || qsTr("developer mode diagnostics")
-                                    .includes(searchField.text.toLowerCase()))
+                    visible: searchField.text.length === 0
+                             ? root.selectedCategory === "general"
+                             : root.searchMatches([qsTr("Diagnostics"), qsTr("Developer mode")])
                     SettingsDeveloperMode {
                         id: developerMode
                         width: parent.width
@@ -358,6 +450,7 @@ Dialog {
                         settingsModel: config
                         category: root.selectedCategory
                         filterMode: "basic"
+                        showExpert: developerMode.selected
                         excludedSection: qsTr("Startup")
                         hideSectionHeadings: true
                     }
@@ -385,13 +478,14 @@ Dialog {
                     settingsModel: config
                     category: root.selectedCategory
                     filterMode: "basic"
+                    showExpert: developerMode.selected
                     excludedSection: qsTr("Output")
                 }
 
                 Text {
                     visible: optionList.availableCount === 0 && !appearance.visible
                              && !developerMode.visible
-                             && !lastfm.visible
+                             && !lastfm.visible && !shortcutsSection.visible
                              && !inlineEffects.visible && !extensions.visible
                     text: searchField.text.length > 0
                           ? qsTr("No matching settings")
@@ -451,6 +545,7 @@ Dialog {
                     settingsModel: config
                     category: root.selectedCategory
                     filterMode: "advanced"
+                    showExpert: developerMode.selected
                 }
 
 
@@ -505,7 +600,24 @@ Dialog {
                     width: parent.width
                     label: qsTr("Welcome setup")
                     buttonText: qsTr("Open")
-                    onClicked: { root.close(); DialogsProvider.firstRunDialog() }
+                    onClicked: {
+                        if (root.requestClose())
+                            DialogsProvider.firstRunDialog()
+                    }
+                }
+
+                // Developer mode: every option of VLC and its modules (the
+                // classic preferences, with their Expert view)
+                SettingsActionRow {
+                    visible: advancedButton.visible && root.advancedExpanded
+                             && root.selectedCategory === "general" && developerMode.selected
+                    width: parent.width
+                    label: qsTr("All VLC options")
+                    buttonText: qsTr("Open")
+                    onClicked: {
+                        if (root.requestClose())
+                            DialogsProvider.nativePrefsDialog()
+                    }
                 }
             }
         }
@@ -533,6 +645,56 @@ Dialog {
             color: root.c("#8F8F8F")
             font.family: VLCStyle.redesign.fontFamily
             font.pixelSize: root.px(14)
+        }
+    }
+
+    // What went wrong keeping a change (VLC refused it, a folder could not
+    // be opened...): over the bottom of the page, the dialog stays open.
+    // #191919 as the Advanced Options bar, the error colour of the redesign
+    Rectangle {
+        id: errorBar
+        objectName: "settingsError"
+        parent: root.contentItem
+        z: 1
+        readonly property string message: config.error || audioOutput.error || inlineEffects.error
+        visible: message.length > 0
+        x: root.px(216 + 24)
+        width: parent ? parent.width - x - root.px(24) : 0
+        y: parent ? parent.height - height - root.px(16) : 0
+        height: Math.max(root.px(48), errorText.implicitHeight + root.px(24))
+        radius: root.px(6)
+        color: root.c("#191919")
+        border.width: 1
+        border.color: root.c("#2C2C2C")
+
+        Text {
+            id: errorText
+            anchors.left: parent.left
+            anchors.leftMargin: root.px(16)
+            anchors.right: discardButton.visible ? discardButton.left : parent.right
+            anchors.rightMargin: root.px(16)
+            anchors.verticalCenter: parent.verticalCenter
+            text: errorBar.message
+            wrapMode: Text.WordWrap
+            maximumLineCount: 3
+            elide: Text.ElideRight
+            color: root.c("#E4A580")
+            font.family: VLCStyle.redesign.fontFamily
+            font.pixelSize: root.px(14)
+            Accessible.role: Accessible.AlertMessage
+            Accessible.name: text
+        }
+        // the changes VLC refused, given up to leave
+        SettingsButton {
+            id: discardButton
+            objectName: "settingsDiscardChanges"
+            visible: root.applyFailed
+            anchors.right: parent.right
+            anchors.rightMargin: root.px(8)
+            anchors.verticalCenter: parent.verticalCenter
+            width: root.px(150)
+            text: qsTr("Discard changes")
+            onClicked: root.discardAndClose()
         }
     }
 

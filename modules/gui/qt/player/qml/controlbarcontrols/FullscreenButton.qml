@@ -18,18 +18,19 @@
 import QtQuick
 
 
-import VLC.Widgets as Widgets
 import VLC.Style
 import VLC.Player
 import VLC.Util
 
-Widgets.IconToolButton {
+// the icon of the redesign set, in the accent while in fullscreen
+RedesignIconButton {
     id: fullScreenBtn
 
     enabled: Player.hasVideoOutput
-    text: Player.fullscreen ? VLCIcons.defullscreen :VLCIcons.fullscreen
+    iconSource: "qrc:///redesign/icons/fullscreen/default.png"
+    checked: Player.fullscreen
     onClicked: Player.fullscreen = !Player.fullscreen
-    description: qsTr("fullscreen")
+    description: Player.fullscreen ? qsTr("Exit Fullscreen") : qsTr("Fullscreen")
 
     AccessibleCompat.id: "fullscreenButton"
 }

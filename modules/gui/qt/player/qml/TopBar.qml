@@ -75,10 +75,14 @@ FocusScope{
     // 187:328), not a folder (the folder button, Figma "Player - Light")
     property bool libraryActive: libraryVisible
 
+    // the layout of the control bar shown under it (video or music player)
+    property int barIdentifier: Player.hasVideoOutput ? PlayerControlbarModel.Videoplayer
+                                                      : PlayerControlbarModel.Audioplayer
+
     // Figma "Player - customize": the items moved into the control bar of
     // the player leave the top bar
     readonly property PlayerControlbarModel _barModel: MainCtx.controlbarProfileModel.currentModel
-        ? MainCtx.controlbarProfileModel.currentModel.getModel(PlayerControlbarModel.Videoplayer) : null
+        ? MainCtx.controlbarProfileModel.currentModel.getModel(root.barIdentifier) : null
     readonly property int _barRevision: _barModel ? _barModel.left.count + 100 * _barModel.center.count
                                                     + 10000 * _barModel.right.count : 0
     function _inBar(control) {

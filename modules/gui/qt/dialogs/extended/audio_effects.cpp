@@ -39,6 +39,9 @@ const QStringList widener = {"stereowiden-delay", "stereowiden-feedback",
                              "stereowiden-crossfeed", "stereowiden-dry-mix"};
 const QStringList equalizer = {"equalizer-preset", "equalizer-bands", "equalizer-preamp",
                                "equalizer-2pass", "equalizer-vlcfreqs"};
+// Read by the equalizer when it starts only: kept for the save, never set on
+// the output (the running bands would no longer match their frequencies)
+const QStringList configOnly = {"equalizer-vlcfreqs"};
 
 QString fromVlc(char* value)
 {
@@ -59,6 +62,14 @@ QString presetBands(int index)
         items << QLocale::c().toString(eqz_preset_10b[index].f_amp[i], 'f', 7);
     return items.join(' ');
 }
+
+// The name of a setting as the preferences show it
+QString settingName(const QString& name)
+{
+    const QByteArray id = name.toUtf8();
+    const module_config_t* option = config_FindConfig(id.constData());
+    return option && option->psz_text ? qtr(option->psz_text) : name;
+}
 }
 
 AudioEffects::AudioEffects(QObject* parent) : QObject(parent) {}
@@ -78,6 +89,7 @@ void AudioEffects::setCtx(MainCtx* ctx)
     m_transactionActive = false;
     m_snapshotValues.clear();
     m_configSnapshot.clear();
+    m_stagedConfig.clear();
     emit ctxChanged(ctx);
     emit stateChanged();
 }
@@ -293,6 +305,7 @@ bool AudioEffects::begin()
     m_snapshotAout = aoutToken();
     m_snapshotValues.clear();
     m_configSnapshot.clear();
+    m_stagedConfig.clear();
     for (const QString& filter : filters)
         for (const QString& name : optionNames(filter))
             m_snapshotValues.insert(name, readValue(name));
@@ -408,6 +421,10 @@ bool AudioEffects::resetDefaults(const QString& filter)
     }
     for (const QString& name : optionNames(filter)) {
         if (filter == "equalizer" && (name == "equalizer-preset" || name == "equalizer-bands")) continue;
+        if (configOnly.contains(name)) {
+            m_stagedConfig.insert(name, defaultValue(name));
+            continue;
+        }
         if (!writeValue(name, defaultValue(name))) return false;
     }
     return true;
@@ -420,12 +437,14 @@ bool AudioEffects::cancel()
         m_transactionActive = false;
         m_snapshotValues.clear();
         m_configSnapshot.clear();
+        m_stagedConfig.clear();
         emit stateChanged();
         return fail(tr("Audio output changed; the previous preview can no longer be restored."));
     }
     // Restore the original effect values before restoring the original chain.
     for (const QString& filter : filters)
         for (const QString& name : optionNames(filter)) {
+            if (configOnly.contains(name)) continue;
             const QVariant value = m_snapshotValues.value(name);
             if (value.isValid() && !writeValue(name, value)) return false;
         }
@@ -438,6 +457,7 @@ bool AudioEffects::cancel()
     m_transactionActive = false;
     m_snapshotValues.clear();
     m_configSnapshot.clear();
+    m_stagedConfig.clear();
     clearError();
     emit stateChanged();
     return true;
@@ -448,7 +468,9 @@ bool AudioEffects::prepareConfiguration(QHash<QString, QVariant>& values,
 {
     if (!requirePreview()) return false;
     for (auto it = m_configSnapshot.cbegin(); it != m_configSnapshot.cend(); ++it) {
-        const QVariant value = it.key() == "audio-filter" ? QVariant(chain()) : readValue(it.key());
+        const QVariant value = it.key() == "audio-filter" ? QVariant(chain())
+                             : m_stagedConfig.contains(it.key()) ? m_stagedConfig.value(it.key())
+                                                                 : readValue(it.key());
         if (!value.isValid()) return fail(tr("An audio effect value is unavailable."));
         values.insert(it.key(), value);
         expected.insert(it.key(), it.value());
@@ -461,6 +483,7 @@ void AudioEffects::finalizeConfiguration()
     m_transactionActive = false;
     m_snapshotValues.clear();
     m_configSnapshot.clear();
+    m_stagedConfig.clear();
     clearError();
     emit stateChanged();
 }
@@ -473,7 +496,7 @@ bool AudioEffects::save()
     int result = 0;
     if (!ConfigValues::commit(m_ctx->getIntf(), values, expected, &conflict, &result))
         return fail(result ? tr("Audio effect settings could not be saved (error %1).").arg(result)
-                           : tr("Audio effect setting %1 changed outside this dialog.").arg(conflict));
+                           : tr("The setting \"%1\" changed outside this dialog.").arg(settingName(conflict)));
     finalizeConfiguration();
     return true;
 }

@@ -59,7 +59,11 @@
 #include "dialogs/firstrun/firstrunwizard.hpp"
 
 #include <vlc_url.h>
+#include <vlc_fs.h>
+#include <vlc_charset.h>
+#include <vlc_strings.h>
 
+#include <cerrno>
 #include <vector>
 
 #include <QEvent>
@@ -70,6 +74,8 @@
 #include <QInputDialog>
 #include <QPointer>
 #include <QMessageBox>
+#include <QRegularExpression>
+#include <QThreadPool>
 
 #define I_OP_DIR_WINTITLE I_DIR_OR_FOLDER( N_("Open Directory"), \
                                            N_("Open Folder") )
@@ -316,6 +322,16 @@ void DialogsProvider::updateDialog(Mode mode)
 #endif
 
 void DialogsProvider::aboutDialog()
+{
+    // The redesign's About lives in the main interface; a skin keeps the
+    // classic one
+    if( p_intf->p_mi )
+        emit aboutRequested();
+    else
+        nativeAboutDialog();
+}
+
+void DialogsProvider::nativeAboutDialog()
 {
     toggleDialogVisible(m_aboutDialog);
 }
@@ -620,6 +636,31 @@ void DialogsProvider::simpleOpenDialog(bool start)
         THEMPL->append(medias, start);
 }
 
+/* A link typed without its scheme ("example.com/live.m3u8") names a host,
+ * not a file of the computer: it gets https, or http for an address,
+ * localhost or a port (local servers, IPTV boxes); as NetworkStreamDialog.
+ * Returns an empty string for anything else (paths stay paths). */
+static QString hostLinkWithScheme( const QString& text )
+{
+    static const QRegularExpression path( QStringLiteral( "^([/\\\\~.]|[A-Za-z]:([/\\\\]|$))" ) );
+    static const QRegularExpression host( QStringLiteral(
+        "^(\\[[0-9A-Fa-f:.]+\\]|localhost|[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+)(:(\\d+))?([/?#].*)?$" ) );
+    static const QRegularExpression ipv4( QStringLiteral( "^\\d{1,3}(\\.\\d{1,3}){3}$" ) );
+
+    if( path.match( text ).hasMatch() )
+        return {};
+    const QRegularExpressionMatch match = host.match( text );
+    if( !match.hasMatch() )
+        return {};
+    const QString name = match.captured( 1 );
+    const bool address = name.startsWith( QLatin1Char( '[' ) )
+                      || name == QLatin1String( "localhost" )
+                      || ipv4.match( name ).hasMatch();
+    const QString portNumber = match.captured( 4 );
+    const bool port = !portNumber.isEmpty() && portNumber != QLatin1String( "443" );
+    return ( ( address || port ) ? QStringLiteral( "http://" ) : QStringLiteral( "https://" ) ) + text;
+}
+
 /* Url & Clipboard */
 /**
  * Open a MRL.
@@ -631,9 +672,16 @@ void DialogsProvider::openUrlDialog()
     if( oud.exec() != QDialog::Accepted )
         return;
 
-    QString url = oud.url();
+    QString url = oud.url().trimmed();
     if( url.isEmpty() )
         return;
+
+    if( !url.contains( qfu( "://" ) ) )
+    {
+        const QString link = hostLinkWithScheme( url );
+        if( !link.isEmpty() )
+            url = link;
+    }
 
     char *uri;
     if( !url.contains( qfu( "://" ) ) )
@@ -793,9 +841,229 @@ void DialogsProvider::savePlayingToPlaylist()
     vlc_playlist_Unlock( p_intf->p_playlist  );
 }
 
+namespace {
+
+/* The formats of askPlaylistFile written from a list of media, as the
+ * "playlist export" modules (modules/misc/playlist) write them: these need a
+ * vlc_playlist_t, that is a player and its audio output */
+
+char *xmlEncoded( char *text )
+{
+    if( !text )
+        return nullptr;
+    char *encoded = vlc_xml_encode( text );
+    free( text );
+    return encoded;
+}
+
+void writeM3U( FILE *file, const char *baseUrl, const QVector<vlc::playlist::Media>& medias,
+               int (*printText)( FILE *, const char *, ... ) )
+{
+    /* relative addresses for the media next to the playlist or below it */
+    size_t prefixLength = 0;
+    if( baseUrl )
+        if( const char *slash = strrchr( baseUrl, '/' ) )
+            prefixLength = ( slash + 1 ) - baseUrl;
+
+    fputs( "#EXTM3U\n", file );
+    for( const auto& media : medias )
+    {
+        input_item_t *item = media.raw();
+        char *uri = input_item_GetURI( item );
+        if( !uri )
+            continue;
+
+        char *name = input_item_GetName( item );
+        if( name && strcmp( uri, name ) )
+        {
+            char *artist = input_item_GetArtist( item );
+            const vlc_tick_t duration = input_item_GetDuration( item );
+            const long long seconds = duration > 0 ? SEC_FROM_VLC_TICK( duration ) : -1;
+            if( artist && *artist )
+                printText( file, "#EXTINF:%lld,%s - %s\n", seconds, artist, name );
+            else
+                printText( file, "#EXTINF:%lld,%s\n", seconds, name );
+            free( artist );
+        }
+        free( name );
+
+        vlc_mutex_lock( &item->lock );
+        for( int i = 0; i < item->i_options; i++ )
+        {
+            const char *option = item->ppsz_options[i];
+            printText( file, "#EXTVLCOPT:%s\n", option[0] == ':' ? option + 1 : option );
+        }
+        vlc_mutex_unlock( &item->lock );
+
+        const size_t skip = prefixLength > 0 && !strncmp( baseUrl, uri, prefixLength )
+                          ? prefixLength : 0;
+        fprintf( file, "%s\n", uri + skip );
+        free( uri );
+    }
+}
+
+void writeXSPF( FILE *file, const QVector<vlc::playlist::Media>& medias )
+{
+    fputs( "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+           "<playlist xmlns=\"http://xspf.org/ns/0/\" "
+           "xmlns:vlc=\"http://www.videolan.org/vlc/playlist/ns/0/\" version=\"1\">\n"
+           "\t<trackList>\n", file );
+
+    unsigned long long id = 0;
+    for( const auto& media : medias )
+    {
+        input_item_t *item = media.raw();
+        fputs( "\t\t<track>\n", file );
+
+        char *uri = xmlEncoded( input_item_GetURI( item ) );
+        if( uri && *uri )
+            fprintf( file, "\t\t\t<location>%s</location>\n", uri );
+        char *title = xmlEncoded( input_item_GetTitle( item ) );
+        if( title && ( !uri || strcmp( uri, title ) ) )
+            fprintf( file, "\t\t\t<title>%s</title>\n", title );
+        free( title );
+        free( uri );
+
+        const struct
+        {
+            char *(*get)( input_item_t * );
+            const char *tag;
+        } metas[] = {
+            { input_item_GetArtist, "creator" },
+            { input_item_GetAlbum, "album" },
+            { input_item_GetDescription, "annotation" },
+            { input_item_GetURL, "info" },
+            { input_item_GetArtURL, "image" },
+        };
+        for( const auto& meta : metas )
+        {
+            char *value = xmlEncoded( meta.get( item ) );
+            if( value && *value )
+                fprintf( file, "\t\t\t<%s>%s</%s>\n", meta.tag, value, meta.tag );
+            free( value );
+        }
+        if( char *trackNumber = input_item_GetTrackNum( item ) )
+        {
+            const int number = atoi( trackNumber );
+            free( trackNumber );
+            if( number > 0 )
+                fprintf( file, "\t\t\t<trackNum>%d</trackNum>\n", number );
+        }
+
+        const vlc_tick_t duration = input_item_GetDuration( item );
+        if( duration > 0 )
+            fprintf( file, "\t\t\t<duration>%lld</duration>\n",
+                     static_cast<long long>( MS_FROM_VLC_TICK( duration ) ) );
+
+        /* the id and the options of the media (bookmarks...) */
+        fputs( "\t\t\t<extension application=\"http://www.videolan.org/vlc/playlist/0\">\n", file );
+        fprintf( file, "\t\t\t\t<vlc:id>%llu</vlc:id>\n", id++ );
+        vlc_mutex_lock( &item->lock );
+        for( int i = 0; i < item->i_options; i++ )
+        {
+            const char *option = item->ppsz_options[i];
+            char *encoded = vlc_xml_encode( option[0] == ':' ? option + 1 : option );
+            if( encoded )
+                fprintf( file, "\t\t\t\t<vlc:option>%s</vlc:option>\n", encoded );
+            free( encoded );
+        }
+        vlc_mutex_unlock( &item->lock );
+        fputs( "\t\t\t</extension>\n"
+               "\t\t</track>\n", file );
+    }
+
+    fputs( "\t</trackList>\n"
+           "</playlist>\n", file );
+}
+
+void writeHTML( FILE *file, const QVector<vlc::playlist::Media>& medias )
+{
+    fputs( "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n"
+           "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">\n"
+           "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\">\n"
+           "<head>\n"
+           "  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\n"
+           "  <meta name=\"Generator\" content=\"VLC media player\" />\n"
+           "  <meta name=\"Author\" content=\"VLC, http://www.videolan.org/vlc/\" />\n"
+           "  <title>VLC generated playlist</title>\n"
+           "  <style type=\"text/css\">\n"
+           "    body {\n"
+           "      background-color: #E4F3FF;\n"
+           "      font-family: sans-serif, Helvetica, Arial;\n"
+           "      font-size: 13px;\n"
+           "    }\n"
+           "    h1 {\n"
+           "      color: #2D58AE;\n"
+           "      font-size: 25px;\n"
+           "    }\n"
+           "    hr {\n"
+           "      color: #555555;\n"
+           "    }\n"
+           "  </style>\n"
+           "</head>\n\n"
+           "<body>\n"
+           "  <h1>Playlist</h1>\n"
+           "  <hr />\n"
+           "  <ol>\n", file );
+
+    for( const auto& media : medias )
+    {
+        input_item_t *item = media.raw();
+        char *name = xmlEncoded( input_item_GetName( item ) );
+        if( !name )
+            continue;
+        char *artist = xmlEncoded( input_item_GetArtist( item ) );
+        const vlc_tick_t duration = input_item_GetDuration( item );
+        const long long seconds = duration > 0 ? SEC_FROM_VLC_TICK( duration ) : 0;
+        const int minutes = int( seconds / 60 ), rest = int( seconds % 60 );
+        if( artist && *artist )
+            fprintf( file, "    <li>%s - %s (%02d:%02d)</li>\n", artist, name, minutes, rest );
+        else
+            fprintf( file, "    <li>%s (%02d:%02d)</li>\n", name, minutes, rest );
+        free( artist );
+        free( name );
+    }
+
+    fputs( "  </ol>\n"
+           "  <hr />\n"
+           "</body>\n"
+           "</html>", file );
+}
+
+/* Returns an error message, empty on success */
+QString writePlaylistFile( const QString& path, const QByteArray& module,
+                           const QVector<vlc::playlist::Media>& medias )
+{
+    const QByteArray filename = path.toUtf8();
+    FILE *file = vlc_fopen( filename.constData(), "wt" );
+    if( !file )
+        return QString::fromUtf8( vlc_strerror_c( errno ) );
+
+    if( module == "export-m3u" || module == "export-m3u8" )
+    {
+        char *baseUrl = vlc_path2uri( filename.constData(), nullptr );
+        writeM3U( file, baseUrl, medias, module == "export-m3u" ? utf8_fprintf : fprintf );
+        free( baseUrl );
+    }
+    else if( module == "export-xspf" )
+        writeXSPF( file, medias );
+    else
+        writeHTML( file, medias );
+
+    QString error;
+    if( ferror( file ) )
+        error = QString::fromUtf8( vlc_strerror_c( errno ) );
+    if( fclose( file ) != 0 && error.isEmpty() )
+        error = QString::fromUtf8( vlc_strerror_c( errno ) );
+    return error;
+}
+
+} // anonymous namespace
+
 /* The media of a library playlist written to a playlist file (Figma "Export
- * Playlist"): the export modules write a playlist, so a playlist of these
- * media only, without preparsing, is exported */
+ * Playlist"). The file is written from the media themselves on a worker
+ * thread: the export modules would need a playlist, with its player and
+ * audio output, created on the UI thread. */
 void DialogsProvider::saveMediaToPlaylistFile( const QVector<vlc::playlist::Media>& medias )
 {
     if ( medias.isEmpty() )
@@ -804,18 +1072,20 @@ void DialogsProvider::saveMediaToPlaylistFile( const QVector<vlc::playlist::Medi
     const QString file = askPlaylistFile( qtr( "Export playlist as..." ), &module );
     if ( file.isEmpty() )
         return;
-    vlc_playlist_t *playlist = vlc_playlist_New( VLC_OBJECT( p_intf ), VLC_PLAYLIST_PREPARSING_DISABLED, 1, 0 );
-    if ( !playlist )
-        return;
-    std::vector<input_item_t *> items;
-    items.reserve( medias.size() );
-    for ( const auto& media : medias )
-        items.push_back( media.raw() );
-    vlc_playlist_Lock( playlist );
-    if ( vlc_playlist_Append( playlist, items.data(), items.size() ) == VLC_SUCCESS )
-        vlc_playlist_Export( playlist, qtu( toNativeSeparators( file ) ), module );
-    vlc_playlist_Unlock( playlist );
-    vlc_playlist_Delete( playlist );
+
+    const QString path = toNativeSeparators( file );
+    const QByteArray moduleName( module );
+    QPointer<DialogsProvider> provider( this );
+    QThreadPool::globalInstance()->start( [provider, path, moduleName, medias]() {
+        const QString error = writePlaylistFile( path, moduleName, medias );
+        if( error.isEmpty() )
+            return;
+        QMetaObject::invokeMethod( qApp, [provider, path, error]() {
+            if( provider )
+                msg_Err( provider->p_intf, "Could not export the playlist to %s: %s",
+                         qtu( path ), qtu( error ) );
+        }, Qt::QueuedConnection );
+    });
 }
 
 /****************************************************************************
@@ -877,7 +1147,7 @@ void DialogsProvider::streamingDialog( QWindow *parent,
         THEMPL->append(outputMedias, true);
 }
 
-void DialogsProvider::streamingDialog(const QList<QUrl> &urls, bool b_stream )
+void DialogsProvider::streamingDialog(const QList<QUrl> &urls, bool b_transcode_only )
 {
     if(urls.isEmpty())
         return;
@@ -888,7 +1158,7 @@ void DialogsProvider::streamingDialog(const QList<QUrl> &urls, bool b_stream )
                    std::back_inserter(_urls),
                    [](const QUrl& url){ return url.toString(); });
 
-    streamingDialog(nullptr, _urls, b_stream);
+    streamingDialog(nullptr, _urls, b_transcode_only);
 }
 
 void DialogsProvider::openAndStreamingDialogs()

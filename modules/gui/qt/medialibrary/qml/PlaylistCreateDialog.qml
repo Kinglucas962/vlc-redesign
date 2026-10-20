@@ -97,18 +97,25 @@ Widgets.RedesignDialog {
             }
         }
 
-        // "Frame 326" (112 x 112): the thumbnail, from the media (the
-        // frame of the first video), else the add button
+        // "Frame 326" (112 x 112): the thumbnail of the first file (the
+        // frame of a video, the artwork the library has for the others),
+        // else the add button
         T.Button {
             id: thumbnail
 
-            readonly property string firstVideo: {
-                for (const file of root.files) {
-                    const url = String(file)
-                    if (/\.(3gp|avi|flv|m2ts|m4v|mkv|mov|mp4|mpe?g|mts|ogv|ts|webm|wmv)$/i.test(url))
-                        return url
-                }
-                return ""
+            // the MRL of the library (vlc_path2uri), which its artwork has
+            readonly property string firstMrl: {
+                if (root.files.length === 0)
+                    return ""
+                const ml = root.playlistModel.ml
+                return ml ? ml.mrlFromUrl(root.files[0]) : String(root.files[0])
+            }
+            readonly property string imageSource: {
+                if (firstMrl === "")
+                    return ""
+                if (/\.(3gp|avi|flv|m2ts|m4v|mkv|mov|mp4|mpe?g|mts|ogv|ts|webm|wmv)$/i.test(firstMrl))
+                    return VLCThumbnail.uri(firstMrl, 0.1)
+                return VLCThumbnail.artwork(firstMrl)
             }
 
             Layout.preferredWidth: VLCStyle.dp(112, VLCStyle.scale)
@@ -125,19 +132,21 @@ Widgets.RedesignDialog {
             }
             contentItem: Item {
                 Image {
+                    id: thumbnailImage
                     anchors.fill: parent
                     anchors.margins: VLCStyle.dp(2, VLCStyle.scale)
                     visible: status === Image.Ready
-                    source: thumbnail.firstVideo !== "" ? VLCThumbnail.uri(thumbnail.firstVideo, 0.1) : ""
+                    source: thumbnail.imageSource
                     sourceSize: Qt.size(width * 2, height * 2)
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                 }
+                // until the thumbnail is there, or without one
                 AddWrapper {
                     anchors.centerIn: parent
                     width: VLCStyle.dp(30, VLCStyle.scale)
                     height: VLCStyle.dp(30, VLCStyle.scale)
-                    visible: thumbnail.firstVideo === ""
+                    visible: thumbnailImage.status !== Image.Ready
                     hovered: thumbnail.hovered
                 }
             }

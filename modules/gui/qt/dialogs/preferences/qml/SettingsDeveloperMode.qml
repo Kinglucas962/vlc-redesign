@@ -9,7 +9,10 @@ import VLC.Style
 import VLC.Util
 
 // Diagnostics section of the design: Developer mode first (the rows of the
-// log follow in the page)
+// log follow in the page). Developer mode shows the expert options under the
+// Advanced Options of each page (the options of VLC the design leaves out:
+// output modules, gain...) and, on this page, every option of VLC (the
+// classic preferences)
 SettingsSectionTitle {
     id: root
     text: qsTr("Diagnostics")
@@ -56,7 +59,7 @@ SettingsSectionTitle {
                 source: SVGColorImage.colorize("qrc:///redesign/duo/info-small.svg").color1(root.c("#404040")).uri()
                 HoverHandler { id: developerHelpHover }
                 ToolTip.visible: developerHelpHover.hovered
-                ToolTip.text: qsTr("Shows the advanced options of diagnostics and logging.")
+                ToolTip.text: qsTr("Shows expert options under the Advanced Options of each page, and all the options of VLC.")
                 ToolTip.delay: 650
             }
         }

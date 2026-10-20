@@ -47,6 +47,7 @@ libqml_module_dialogs_a_QML = \
 	player/qml/SleepTimerMenu.qml \
 	dialogs/dialogs/qml/SetupDialogs.qml \
 	dialogs/dialogs/qml/NetworkStreamDialog.qml \
+	dialogs/dialogs/qml/RedesignAboutDialog.qml \
 	dialogs/extended/qml/VideoOption.qml \
 	dialogs/extended/qml/VideoFilterSection.qml \
 	dialogs/extended/qml/CropInput.qml \
@@ -82,6 +83,7 @@ libqml_module_maininterface_a_QML = \
 	maininterface/qml/MenuTopbar.qml \
 	maininterface/qml/LocalTopbar.qml \
 	maininterface/qml/MainInterface.qml \
+	maininterface/qml/RedesignUpdateBanner.qml \
 	maininterface/qml/MainViewLoader.qml \
 	maininterface/qml/MainDisplay.qml \
 	maininterface/qml/SideNavigationPane.qml \
@@ -406,6 +408,7 @@ libqml_module_widgets_a_QML = \
 	widgets/qml/CustomizeDragArea.qml \
 	widgets/qml/RedesignMenuSeparator.qml \
 	widgets/qml/RedesignDialog.qml \
+	widgets/qml/RedesignButton.qml \
 	widgets/qml/RedesignDialogHeading.qml \
 	widgets/qml/RedesignTextArea.qml \
 	widgets/qml/CSDMouseStealer.qml \

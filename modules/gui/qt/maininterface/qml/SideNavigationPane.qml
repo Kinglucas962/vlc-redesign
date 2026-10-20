@@ -65,8 +65,10 @@ T.Pane {
                 rows.push({title: entry[1], uri: ["music", entry[0]], icon: "", asset: "", library: true, depth: 1})
         }
         rows.push({title: qsTr("Network"), uri: ["network"], icon: VLCIcons.topbar_network, asset: "network"})
+        // every playlist (the page lists songs ones too, see VideoPlaylistsDisplay)
         rows.push({title: qsTr("Playlists"), uri: ["video", "playlists"], icon: VLCIcons.playlist, asset: "playlists", library: true})
-        rows.push({title: qsTr("Recent"), uri: ["home", "continueWatching"], icon: VLCIcons.history, asset: "recent", library: true})
+        // the media played last, videos and songs
+        rows.push({title: qsTr("Recent"), uri: ["home", "recent"], icon: VLCIcons.history, asset: "recent", library: true})
         return rows
     }
 

@@ -23,7 +23,7 @@ import VLC.Util
 RedesignIconButton {
     iconSource: "qrc:///redesign/player/settings.png"
     text: VLCIcons.settings
-    description: qsTr("Player settings")
+    description: qsTr("VLC Settings")
     AccessibleCompat.id: "playerSettingsButton"
     onClicked: DialogsProvider.playerMenuDialog()
 }

@@ -51,6 +51,7 @@
 #include "util/vlcaccess_image_provider.hpp"
 #include "util/thumbnail_image_provider.hpp"
 #include "util/redesign_icon_provider.hpp"
+#include "util/redesign_updater.hpp"
 #include "util/csdbuttonmodel.hpp"
 #include "util/vlctick.hpp"
 #include "util/list_selection_model.hpp"
@@ -254,6 +255,8 @@ void MainUI::registerQMLTypes()
         qmlRegisterTypesAndRevisions<CSDMenu>( uri, versionMajor);
         qmlRegisterUncreatableType<NavigationAttached>( uri, versionMajor, versionMinor, "Navigation", "Navigation is only available via attached properties");
         qmlRegisterTypesAndRevisions<AboutModel>( uri, versionMajor );
+        qmlRegisterSingletonInstance<RedesignUpdater>(uri, versionMajor, versionMinor, "RedesignUpdater",
+                                                      new RedesignUpdater(m_intf, this));
 #ifdef UPDATE_CHECK
         qmlRegisterSingletonInstance<UpdateModel>( uri, versionMajor, versionMinor, "UpdateModel", m_mainCtx->getUpdateModel() );
 #endif
@@ -477,6 +480,29 @@ void MainUI::registerQMLTypes()
 
         qmlRegisterType<PlaylistListContextMenu>( uri, versionMajor, versionMinor, "PlaylistListContextMenu" );
         qmlRegisterType<PlaylistMediaContextMenu>( uri, versionMajor, versionMinor, "PlaylistMediaContextMenu" );
+
+        qmlRegisterModule(uri, versionMajor, versionMinor);
+        qmlProtectModule(uri, versionMajor);
+    }
+    else
+    {
+        const char* uri = "VLC.MediaLibrary";
+        const int versionMajor = 1;
+        const int versionMinor = 0;
+
+        // @uri VLC.MediaLibrary
+        // Without the media library, the models that views always loaded
+        // (player, menus, network stream dialog) declare must still exist
+        // for these views to load: they stay without `ml` and empty. The
+        // MediaLib singleton and the other types remain unavailable.
+        qmlRegisterUncreatableType<MLItemId>( uri, versionMajor, versionMinor, "mediaId", "");
+        qmlRegisterUncreatableType<MLBaseModel>( uri, versionMajor, versionMinor, "MLBaseModel", "ML Base Model is uncreatable." );
+        qmlRegisterType<MLAudioModel>( uri, versionMajor, versionMinor, "MLAudioModel" );
+        qmlRegisterType<MLVideoModel>( uri, versionMajor, versionMinor, "MLVideoModel" );
+        qmlRegisterType<MLPlaylistListModel>( uri, versionMajor, versionMinor, "MLPlaylistListModel" );
+        qmlRegisterType<MLPlaylistModel>( uri, versionMajor, versionMinor, "MLPlaylistModel" );
+        qmlRegisterType<MLBookmarkModel>( uri, versionMajor, versionMinor, "MLBookmarkModel" );
+        qmlRegisterType<MLRecentMediaModel>( uri, versionMajor, versionMinor, "MLRecentMediaModel" );
 
         qmlRegisterModule(uri, versionMajor, versionMinor);
         qmlProtectModule(uri, versionMajor);

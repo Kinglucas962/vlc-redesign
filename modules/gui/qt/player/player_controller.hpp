@@ -267,6 +267,9 @@ public slots:
     Q_INVOKABLE void navigateRight( );
     Q_INVOKABLE void navigateActivate( );
 
+    // "save-recentplay": the history of played media may be shown
+    Q_INVOKABLE bool isRecentPlaySaved() const;
+
     //vout properties
     void toggleFullscreen();
 

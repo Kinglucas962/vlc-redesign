@@ -40,6 +40,27 @@ const QSet<QString>& mediaSuffixes()
     }();
     return suffixes;
 }
+
+// The MRL of a local path as the core writes it (vlc_path2uri), the one the
+// media library stores: QUrl::fromLocalFile leaves ( ) ' ! & + , ; = @ $
+// as they are, the media would not be found (resume, artwork, subtitles)
+// and played under another MRL, a second media of the library
+QString coreMrl(const QString& path)
+{
+    return MediaLib::mrlFromUrl(QUrl::fromLocalFile(path));
+}
+
+// Its url: the encoding of the MRL is kept (QUrl leaves the encoded
+// delimiters as they are, QUrl::FullyEncoded gives the MRL back)
+QUrl coreUrl(const QString& path, const QString& mrl)
+{
+    return mrl.isEmpty() ? QUrl::fromLocalFile(path) : QUrl::fromEncoded(mrl.toUtf8());
+}
+
+QUrl coreUrl(const QString& path)
+{
+    return coreUrl(path, coreMrl(path));
+}
 }
 
 LocalFolderModel::LocalFolderModel(QObject* parent)
@@ -63,7 +84,7 @@ QUrl LocalFolderModel::parentFolder() const
     QDir dir(m_folder.toLocalFile());
     if (!dir.cdUp())
         return {};
-    return QUrl::fromLocalFile(dir.absolutePath());
+    return coreUrl(dir.absolutePath());
 }
 
 QString LocalFolderModel::folderName() const
@@ -107,7 +128,7 @@ QUrl LocalFolderModel::folderOf(const QUrl& media)
 {
     if (!media.isLocalFile())
         return {};
-    return QUrl::fromLocalFile(QFileInfo(media.toLocalFile()).absolutePath());
+    return coreUrl(QFileInfo(media.toLocalFile()).absolutePath());
 }
 
 void LocalFolderModel::reload()
@@ -126,7 +147,9 @@ void LocalFolderModel::reload()
                 continue;
             if (!m_searchPattern.isEmpty() && !info.fileName().contains(m_searchPattern, Qt::CaseInsensitive))
                 continue;
-            m_entries.push_back({ info.fileName(), QUrl::fromLocalFile(info.absoluteFilePath()), isFolder,
+            const QString path = info.absoluteFilePath();
+            const QString mrl = coreMrl(path);
+            m_entries.push_back({ info.fileName(), mrl, coreUrl(path, mrl), isFolder,
                                   info.lastModified().toMSecsSinceEpoch() });
         }
         sortEntries();
@@ -176,14 +199,9 @@ void LocalFolderModel::loadLibraryData()
     std::vector<std::pair<int, QByteArray>> mrls;
     for (int i = 0; i < m_entries.size(); ++i)
     {
-        if (m_entries[i].isFolder)
+        if (m_entries[i].isFolder || m_entries[i].mrl.isEmpty())
             continue;
-        const QByteArray path = QDir::toNativeSeparators(m_entries[i].url.toLocalFile()).toUtf8();
-        char* mrl = vlc_path2uri(path.constData(), "file");
-        if (!mrl)
-            continue;
-        mrls.emplace_back(i, QByteArray(mrl));
-        free(mrl);
+        mrls.emplace_back(i, m_entries[i].mrl.toUtf8());
     }
     if (mrls.empty())
         return;
@@ -258,6 +276,8 @@ QVariant LocalFolderModel::data(const QModelIndex& index, int role) const
         return entry.name;
     case UrlRole:
         return entry.url;
+    case MrlRole:
+        return entry.mrl.isEmpty() ? entry.url.toString(QUrl::FullyEncoded) : entry.mrl;
     case IsFolderRole:
         return entry.isFolder;
     case ProgressRole:
@@ -318,5 +338,6 @@ QHash<int, QByteArray> LocalFolderModel::roleNames() const
         { PlayCountRole, "playcount" },
         { IsFavoriteRole, "isFavorite" },
         { IsIndexedRole, "isIndexed" },
+        { MrlRole, "mrl" },
     };
 }

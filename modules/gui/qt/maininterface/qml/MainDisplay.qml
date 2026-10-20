@@ -64,7 +64,49 @@ FocusScope {
     property bool _showCSD: MainCtx.clientSideDecoration
         && !(MainCtx.intfMainWindow.visibility === Window.FullScreen)
 
+    // The pages left with "Previous", for "Next" (the arrows of the library
+    // header, the mouse buttons): History keeps the pages before only. Any
+    // other navigation drops them.
+    property var _historyForward: []
+    property bool _historyMoving: false
+    readonly property bool historyForwardEmpty: _historyForward.length === 0
+
     // functions
+
+    function historyBack(focusReason) {
+        if (History.previousEmpty)
+            return
+        const current = { path: History.viewPath, properties: {} }
+        const properties = History.viewProp
+        if (properties) {
+            for (const key of properties.keys()) {
+                if (properties[key] !== undefined)
+                    current.properties[key] = properties[key]
+            }
+        }
+        _historyMoving = true
+        History.previous(focusReason ?? Qt.OtherFocusReason)
+        _historyMoving = false
+        _historyForward = _historyForward.concat([current])
+    }
+
+    function historyForward(focusReason) {
+        if (_historyForward.length === 0)
+            return
+        const next = _historyForward[_historyForward.length - 1]
+        _historyForward = _historyForward.slice(0, -1)
+        _historyMoving = true
+        History.push(next.path, next.properties, focusReason ?? Qt.OtherFocusReason)
+        _historyMoving = false
+    }
+
+    Connections {
+        target: History
+        function onNavigate() {
+            if (!g_mainDisplay._historyMoving)
+                g_mainDisplay._historyForward = []
+        }
+    }
 
     //MainDisplay behave as a PageLoader
     function loadView(path, properties, focusReason) {
@@ -96,7 +138,7 @@ FocusScope {
     }
 
     Navigation.cancelAction: function() {
-        History.previous(Qt.BacktabFocusReason)
+        g_mainDisplay.historyBack(Qt.BacktabFocusReason)
     }
 
     Keys.onPressed: (event) => {
@@ -650,7 +692,9 @@ FocusScope {
         anchors.right: parent.right
         anchors.bottom: miniPlayer.visible ? miniPlayer.top : parent.bottom
 
-        readonly property bool updateModelIsAvailable: (typeof UpdateModel !== 'undefined')
+        // VideoLAN's feed offers the official VLC: RedesignUpdateBanner
+        // tells about this build's releases instead
+        readonly property bool updateModelIsAvailable: false
 
         active: updateModelIsAvailable && (shouldShow || height > 0.0)
 
@@ -935,8 +979,13 @@ FocusScope {
         /// handles mouse navigation buttons
         z:9
         anchors.fill: parent
-        acceptedButtons: Qt.BackButton
+        acceptedButtons: Qt.BackButton | Qt.ForwardButton
         cursorShape: undefined
-        onClicked: History.previous()
+        onClicked: (mouse) => {
+            if (mouse.button === Qt.ForwardButton)
+                g_mainDisplay.historyForward()
+            else
+                g_mainDisplay.historyBack()
+        }
     }
 }

@@ -223,7 +223,10 @@ bool OnboardingController::finish(const QVariantList& folderUrls, bool metadataN
         return false;
     setError({});
     QList<QUrl> folders;
-    if (!validateFolders(folderUrls, &folders))
+    // Without the media library (disabled or failed), the setup finishes
+    // without a folder: it would not end otherwise and come back each start
+    const QVariantList requested = m_ctx->getMediaLibrary() ? folderUrls : QVariantList();
+    if (!validateFolders(requested, &folders))
         return false;
 
     m_metadataNetworkAccess = metadataNetworkAccess;
@@ -292,7 +295,9 @@ bool OnboardingController::commit()
         return false;
     }
 
-    config_PutInt("metadata-network-access", m_metadataNetworkAccess ? 1 : 0);
+    // written only when chosen otherwise: the existing value stays as it is
+    if (m_metadataNetworkAccess != (oldMetadata != 0))
+        config_PutInt("metadata-network-access", m_metadataNetworkAccess ? 1 : 0);
     config_PutInt("qt-privacy-ask", 0);
     if (config_SaveConfigFile(intf) != 0) {
         config_PutInt("metadata-network-access", oldMetadata);

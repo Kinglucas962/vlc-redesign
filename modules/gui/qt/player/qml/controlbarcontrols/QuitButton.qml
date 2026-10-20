@@ -17,13 +17,13 @@
  *****************************************************************************/
 import QtQuick
 
-import VLC.MainInterface
+import VLC.Dialogs
 import VLC.Util
 
 RedesignIconButton {
     id: quitBtn
     iconSource: "qrc:///redesign/icons/quit/default.png"
-    onClicked: MainCtx.close()
+    onClicked: DialogsProvider.quit()
     description: qsTr("Quit VLC")
     AccessibleCompat.id: "quitButton"
 }

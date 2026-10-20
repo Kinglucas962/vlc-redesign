@@ -15,6 +15,7 @@
 
 #include "shortcuts_model.hpp"
 #include "maininterface/mainctx.hpp"
+#include "qt.hpp"
 #include "util/vlchotkeyconverter.hpp"
 
 #include <vlc_configuration.h>
@@ -26,6 +27,14 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
+
+namespace {
+// VLC keeps the keys of an action in one string, a tab between them
+QStringList splitKeys(const QString &keys)
+{
+    return keys.split(QLatin1Char('\t'), Qt::SkipEmptyParts);
+}
+}
 
 ShortcutsModel::ShortcutsModel(QObject *parent) : QAbstractListModel(parent) {}
 
@@ -83,6 +92,8 @@ QVariant ShortcutsModel::data(const QModelIndex &index, int role) const
     case HotkeyRole: return QString(entry.staged).replace(QLatin1Char('\t'), QStringLiteral(", "));
     case GlobalHotkeyRole: return QString(entry.globalStaged).replace(QLatin1Char('\t'), QStringLiteral(", "));
     case DirtyRole: return entry.staged != entry.current || entry.globalStaged != entry.globalCurrent;
+    case HotkeysRole: return splitKeys(entry.staged);
+    case GlobalHotkeysRole: return splitKeys(entry.globalStaged);
     default: return {};
     }
 }
@@ -91,7 +102,8 @@ QHash<int, QByteArray> ShortcutsModel::roleNames() const
 {
     return {{KeyRole, "key"}, {ActionRole, "action"}, {GroupRole, "group"},
             {HotkeyRole, "hotkey"}, {GlobalHotkeyRole, "globalHotkey"},
-            {DirtyRole, "dirty"}};
+            {DirtyRole, "dirty"}, {HotkeysRole, "hotkeys"},
+            {GlobalHotkeysRole, "globalHotkeys"}};
 }
 
 bool ShortcutsModel::visible(const Entry &entry) const
@@ -120,11 +132,19 @@ void ShortcutsModel::rebuildRows()
     endResetModel();
 }
 
+void ShortcutsModel::refreshSearch()
+{
+    // without a search every row stays: no reset (the list keeps its place)
+    if (!m_search.isEmpty())
+        rebuildRows();
+}
+
 void ShortcutsModel::notifyEntry(int entryIndex)
 {
     const int row = m_rows.indexOf(entryIndex);
     if (row >= 0)
-        emit dataChanged(index(row), index(row), {HotkeyRole, GlobalHotkeyRole, DirtyRole});
+        emit dataChanged(index(row), index(row), {HotkeyRole, GlobalHotkeyRole, DirtyRole,
+                                                  HotkeysRole, GlobalHotkeysRole});
 }
 
 void ShortcutsModel::setError(const QString &error)
@@ -165,27 +185,27 @@ QString ShortcutsModel::groupFor(const QString &key)
         || key == QLatin1String("key-leave-fullscreen")
         || key == QLatin1String("key-position")
         || key == QLatin1String("key-intf-show"))
-        return tr("Basic");
+        return qtr("Basic");
     if (key.contains(QLatin1String("vol-")) || key.contains(QLatin1String("audio")))
-        return tr("Audio");
+        return qtr("Audio");
     if (key.contains(QLatin1String("sub")) || key.contains(QLatin1String("caption")))
-        return tr("Subtitles");
+        return qtr("Subtitles");
     if (key.contains(QLatin1String("nav-")) || key.contains(QLatin1String("disc-")))
-        return tr("Navigation");
+        return qtr("Navigation");
     if (key.contains(QLatin1String("crop")) || key.contains(QLatin1String("zoom"))
         || key.contains(QLatin1String("aspect")) || key.contains(QLatin1String("deinterlace"))
         || key.contains(QLatin1String("snapshot")))
-        return tr("Video");
-    return tr("Playback");
+        return qtr("Video");
+    return qtr("Playback");
 }
 
 int ShortcutsModel::groupOrder(const QString &group)
 {
-    if (group == tr("Basic")) return 0;
-    if (group == tr("Playback")) return 1;
-    if (group == tr("Audio")) return 2;
-    if (group == tr("Video")) return 3;
-    if (group == tr("Subtitles")) return 4;
+    if (group == qtr("Basic")) return 0;
+    if (group == qtr("Playback")) return 1;
+    if (group == qtr("Audio")) return 2;
+    if (group == qtr("Video")) return 3;
+    if (group == qtr("Subtitles")) return 4;
     return 5;
 }
 
@@ -212,7 +232,7 @@ void ShortcutsModel::reload()
                     entry.globalKey = QStringLiteral("global-") + entry.key;
                     if (!config_FindConfig(entry.globalKey.toUtf8().constData()))
                         entry.globalKey.clear();
-                    entry.action = tr(item.psz_text);
+                    entry.action = qfut(item.psz_text);
                     entry.group = groupFor(entry.key);
                     entry.current = readKey(entry.key);
                     entry.staged = entry.current;
@@ -292,7 +312,7 @@ QVariantMap ShortcutsModel::stageKey(const QString &option, bool global,
 {
     const int target = findEntry(option);
     if (target < 0 || (global && m_entries[target].globalKey.isEmpty())) {
-        setError(tr("This shortcut is unavailable."));
+        setError(qtr("This shortcut is unavailable."));
         return {{QStringLiteral("ok"), false}};
     }
     if (qtKey == Qt::Key_Tab || qtKey == Qt::Key_Shift || qtKey == Qt::Key_Control
@@ -303,7 +323,7 @@ QVariantMap ShortcutsModel::stageKey(const QString &option, bool global,
     const int vlcKey = qtEventToVLCKey(&event);
     const QString canonical = VLCKeyToString(vlcKey, false);
     if (vlcKey == 0 || canonical.isEmpty()) {
-        setError(tr("This key combination cannot be used by VLC."));
+        setError(qtr("This key combination cannot be used by VLC."));
         return {{QStringLiteral("ok"), false}};
     }
     setError({});
@@ -312,7 +332,7 @@ QVariantMap ShortcutsModel::stageKey(const QString &option, bool global,
         if (i == target)
             continue;
         const QString &keys = global ? m_entries[i].globalStaged : m_entries[i].staged;
-        if (keys.split(QLatin1Char('\t')).contains(canonical))
+        if (splitKeys(keys).contains(canonical))
             conflicts.append(i);
     }
     if (!conflicts.isEmpty() && !replaceConflict)
@@ -324,18 +344,22 @@ QVariantMap ShortcutsModel::stageKey(const QString &option, bool global,
     const bool wasDirty = dirty();
     for (int i : conflicts) {
         QString &keys = global ? m_entries[i].globalStaged : m_entries[i].staged;
-        QStringList parts = keys.split(QLatin1Char('\t'), Qt::SkipEmptyParts);
+        QStringList parts = splitKeys(keys);
         parts.removeAll(canonical);
         keys = parts.join(QLatin1Char('\t'));
         notifyEntry(i);
     }
+    // added after the keys the action has (pressed again: nothing changes)
     QString &targetKeys = global ? m_entries[target].globalStaged : m_entries[target].staged;
-    targetKeys = canonical;
+    QStringList targetParts = splitKeys(targetKeys);
+    if (!targetParts.contains(canonical))
+        targetParts.append(canonical);
+    targetKeys = targetParts.join(QLatin1Char('\t'));
     notifyEntry(target);
     if (wasDirty != dirty())
         emit dirtyChanged();
     setError({});
-    rebuildRows();
+    refreshSearch();
     return {{QStringLiteral("ok"), true}, {QStringLiteral("key"), canonical}};
 }
 
@@ -343,7 +367,7 @@ bool ShortcutsModel::clearKey(const QString &option, bool global)
 {
     const int target = findEntry(option);
     if (target < 0 || (global && m_entries[target].globalKey.isEmpty())) {
-        setError(tr("This shortcut is unavailable."));
+        setError(qtr("This shortcut is unavailable."));
         return false;
     }
     const bool wasDirty = dirty();
@@ -353,27 +377,51 @@ bool ShortcutsModel::clearKey(const QString &option, bool global)
     if (wasDirty != dirty())
         emit dirtyChanged();
     setError({});
-    rebuildRows();
+    refreshSearch();
+    return true;
+}
+
+bool ShortcutsModel::removeKey(const QString &option, bool global, const QString &key)
+{
+    const int target = findEntry(option);
+    if (target < 0 || (global && m_entries[target].globalKey.isEmpty())) {
+        setError(qtr("This shortcut is unavailable."));
+        return false;
+    }
+    QString &keys = global ? m_entries[target].globalStaged : m_entries[target].staged;
+    QStringList parts = splitKeys(keys);
+    if (parts.removeAll(key) == 0)
+        return false;
+    const bool wasDirty = dirty();
+    keys = parts.join(QLatin1Char('\t'));
+    notifyEntry(target);
+    if (wasDirty != dirty())
+        emit dirtyChanged();
+    setError({});
+    refreshSearch();
     return true;
 }
 
 bool ShortcutsModel::apply()
 {
     if (!m_ctx || !m_ctx->getIntf()) {
-        setError(tr("VLC preferences are unavailable."));
+        setError(qtr("VLC preferences are unavailable."));
         return false;
     }
     QVector<Change> changes;
     for (const Entry &entry : m_entries) {
         if (entry.staged != entry.current)
-            changes.append({entry.key, entry.current, entry.staged});
+            changes.append({entry.key, entry.action, entry.current, entry.staged, false});
         if (!entry.globalKey.isEmpty() && entry.globalStaged != entry.globalCurrent)
-            changes.append({entry.globalKey, entry.globalCurrent, entry.globalStaged});
+            changes.append({entry.globalKey, entry.action, entry.globalCurrent, entry.globalStaged, true});
     }
     for (const Change &change : changes) {
         if (readKey(change.key) != change.before) {
-            setError(tr("%1 changed outside this dialog. Cancel and reopen shortcuts.")
-                         .arg(change.key));
+            // the action by its name, not by the option of VLC
+            setError((change.global
+                      ? qtr("The global hotkeys of \"%1\" changed outside this dialog. Cancel and reopen the shortcuts.")
+                      : qtr("The hotkeys of \"%1\" changed outside this dialog. Cancel and reopen the shortcuts."))
+                         .arg(change.action));
             return false;
         }
     }
@@ -386,7 +434,7 @@ bool ShortcutsModel::apply()
         if (readKey(change.key) != change.after) {
             for (const Change &rollback : changes)
                 putKey(rollback.key, rollback.before);
-            setError(tr("A shortcut could not be changed. Changes were reverted in memory."));
+            setError(qtr("A shortcut could not be changed. Changes were reverted in memory."));
             return false;
         }
     }
@@ -394,7 +442,7 @@ bool ShortcutsModel::apply()
     if (result != 0) {
         for (const Change &change : changes)
             putKey(change.key, change.before);
-        setError(tr("Could not save shortcuts (error %1). Changes were reverted in memory; verify the configuration file.")
+        setError(qtr("Could not save shortcuts (error %1). Changes were reverted in memory; verify the configuration file.")
                      .arg(result));
         return false;
     }

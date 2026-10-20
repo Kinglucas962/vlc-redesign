@@ -31,6 +31,20 @@ bool replyOk(const HttpResponse& reply)
     return reply.error.isEmpty() && reply.status >= 200 && reply.status < 300
         && reply.body.size() <= maxJsonBytes;
 }
+
+// The account of the session, shared by the dialogs (in memory only)
+struct Account
+{
+    QString apiKey;
+    QString username;
+    QString password;
+};
+
+Account& sessionAccount()
+{
+    static Account account;
+    return account;
+}
 }
 
 HttpRequest MLOpenSubtitles::request(const QUrl& url, const QString& apiKey) const
@@ -80,6 +94,25 @@ void MLOpenSubtitles::cancel()
     m_busy = false;
     m_error.clear();
     emit changed();
+}
+
+void MLOpenSubtitles::rememberAccount(const QString& apiKey, const QString& username,
+                                      const QString& password)
+{
+    Account& account = sessionAccount();
+    account.apiKey = apiKey;
+    account.username = username;
+    account.password = password;
+}
+
+QVariantMap MLOpenSubtitles::rememberedAccount() const
+{
+    const Account& account = sessionAccount();
+    return {
+        {QStringLiteral("apiKey"), account.apiKey},
+        {QStringLiteral("username"), account.username},
+        {QStringLiteral("password"), account.password},
+    };
 }
 
 void MLOpenSubtitles::search(const QString& query, const QString& language,

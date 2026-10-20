@@ -45,6 +45,8 @@ Item {
     ShortcutExt{ sequence:"Ctrl+L"; onActivated: MainCtx.playqueuePanel.visible = !MainCtx.playqueuePanel.visible; }
 
     ShortcutExt{ sequence:"F1"; onActivated: DialogsProvider.helpDialog() }
+    // About VLC in the main menu, as the classic Help menu
+    ShortcutExt{ sequence:"Shift+F1"; onActivated: DialogsProvider.aboutDialog() }
     ShortcutExt{ sequence:"F10"; onActivated: MainCtx.toggleToolbarMenu() }
     ShortcutExt{ sequence:"F11"; onActivated: MainCtx.toggleInterfaceFullScreen() }
     // Ctrl+\ is the "Hide UI" shortcut of the redesign right-click menu

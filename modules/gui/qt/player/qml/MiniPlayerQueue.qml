@@ -19,10 +19,20 @@ Item {
     objectName: "miniPlayerQueue"
     implicitHeight: 228
     readonly property bool lightTheme: !VLCStyle.palette.isDark
+    // the row picked by a click ("−" removes it); a double click plays a row
+    property int selectedIndex: -1
 
     PlaylistListModel {
         id: queueModel
         playlist: MainPlaylistController.playlist
+    }
+    // the rows move or go away: the selection is dropped
+    Connections {
+        target: queueModel
+        function onModelReset() { root.selectedIndex = -1 }
+        function onRowsInserted() { root.selectedIndex = -1 }
+        function onRowsRemoved() { root.selectedIndex = -1 }
+        function onRowsMoved() { root.selectedIndex = -1 }
     }
     Widgets.FilePicker { id: filePicker; ctx: MainCtx }
 
@@ -88,8 +98,8 @@ Item {
             width: 26
             height: 28
             text: "−"
-            enabled: queueList.currentIndex >= 0 && queueModel.count > 0
-            Accessible.name: qsTr("Remove current item from queue")
+            enabled: root.selectedIndex >= 0 && root.selectedIndex < queueModel.count
+            Accessible.name: qsTr("Remove selected item from queue")
             background: Item {}
             contentItem: Text {
                 text: parent.text
@@ -100,7 +110,7 @@ Item {
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
-            onClicked: queueModel.removeItems([queueList.currentIndex])
+            onClicked: queueModel.removeItems([root.selectedIndex])
         }
         Controls.Button {
             width: 26
@@ -132,7 +142,6 @@ Item {
         height: parent.height - 86
         clip: true
         model: queueModel
-        currentIndex: queueModel.currentIndex
         boundsBehavior: Flickable.StopAtBounds
         delegate: Controls.ItemDelegate {
             required property int index
@@ -143,6 +152,7 @@ Item {
             height: VLCStyle.dp(31, VLCStyle.scale)
             leftPadding: 5
             rightPadding: 5
+            highlighted: index === root.selectedIndex
             background: Rectangle {
                 color: parent.hovered || parent.highlighted
                        ? (root.lightTheme ? "#b0b0b0" : "#262626") : "transparent"
@@ -181,7 +191,8 @@ Item {
                 }
             }
             Accessible.name: title
-            onClicked: MainPlaylistController.goTo(index, true)
+            onClicked: root.selectedIndex = index
+            onDoubleClicked: MainPlaylistController.goTo(index, true)
         }
     }
 }

@@ -8,7 +8,7 @@ import QtQuick.Templates as T
 
 import VLC.Dialogs
 import VLC.MainInterface
-import VLC.MediaLibrary
+import VLC.Player
 import VLC.Style
 import VLC.Widgets as Widgets
 
@@ -19,7 +19,31 @@ Widgets.RedesignMenu {
 
     readonly property var profileModel: MainCtx.controlbarProfileModel
 
+    // Open Recent: the media library keeps the history, and the user can
+    // turn it off ("save-recentplay", as the classic menu)
+    property bool _recentAllowed: false
+    // Created only with a media library: without one the types of
+    // VLC.MediaLibrary are not registered, and naming them here would break
+    // this menu (used by the player too)
+    property var _recentModel: null
+
     menuWidth: VLCStyle.dp(375, VLCStyle.scale)
+
+    onAboutToShow: {
+        _recentAllowed = MainCtx.mediaLibraryAvailable && Player.isRecentPlaySaved()
+        if (_recentAllowed && !_recentModel) {
+            _recentModel = Qt.createQmlObject("import VLC.MediaLibrary; MLRecentMediaModel { limit: 10 }",
+                                              root, "MainMenuRecentModel")
+            _recentModel.ml = MainCtx.mediaLibrary
+        }
+    }
+
+    // The player is edited in place (Figma "Player - customize"): from the
+    // library, show it so the editor has a bar to drop the controls on
+    // shows the player first if needed (Dialogs.qml)
+    function _customizePlayer() {
+        DialogsProvider.showToolbarEditorDialog()
+    }
 
     Widgets.RedesignMenuItem {
         text: qsTr("Open File(s)")
@@ -63,18 +87,14 @@ Widgets.RedesignMenu {
 
         title: qsTr("Open Recent")
         iconName: "recent"
-        enabled: MainCtx.mediaLibraryAvailable && recentModel.count > 0
+        enabled: root._recentAllowed && !!root._recentModel && root._recentModel.count > 0
 
         Instantiator {
-            model: MLRecentMediaModel {
-                id: recentModel
-                limit: 10
-                ml: MainCtx.mediaLibraryAvailable ? MediaLib : null
-            }
+            model: root._recentAllowed ? root._recentModel : null
             delegate: Widgets.RedesignMenuItem {
                 required property var model
                 text: model.title || model.mrl || ""
-                onTriggered: MediaLib.addAndPlay([model.id])
+                onTriggered: MainCtx.mediaLibrary.addAndPlay([model.id])
             }
             onObjectAdded: (index, object) => recentMenu.insertItem(index, object)
             onObjectRemoved: (index, object) => recentMenu.removeItem(object)
@@ -100,6 +120,8 @@ Widgets.RedesignMenu {
                 checkable: true
                 checked: root.profileModel.selectedProfile === index
                 onTriggered: {
+                    // A click toggles the check: follow the model again
+                    checked = Qt.binding(() => root.profileModel.selectedProfile === index)
                     const previous = root.profileModel.selectedProfile
                     if (previous === index || !root.profileModel.setSelectedProfile(index))
                         return
@@ -117,8 +139,11 @@ Widgets.RedesignMenu {
         Widgets.RedesignMenuItem {
             text: qsTr("New")
             iconName: "add"
-            // The player editor creates, clones and saves profiles
-            onTriggered: DialogsProvider.showToolbarEditorDialog()
+            // Opens the player editor and asks for the new profile's name
+            onTriggered: {
+                root._customizePlayer()
+                MainCtx.controlbarProfileModel.requestNewProfile()
+            }
         }
     }
 
@@ -130,7 +155,7 @@ Widgets.RedesignMenu {
     Widgets.RedesignMenuItem {
         text: qsTr("Customize Player")
         iconName: "paint"
-        onTriggered: DialogsProvider.showToolbarEditorDialog()
+        onTriggered: root._customizePlayer()
     }
     Widgets.RedesignMenuItem {
         text: qsTr("Settings")

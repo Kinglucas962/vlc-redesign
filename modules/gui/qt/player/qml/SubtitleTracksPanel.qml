@@ -10,7 +10,6 @@ import QtQuick.Controls.Basic as Controls
 
 import VLC.Dialogs
 import VLC.MainInterface
-import VLC.MediaLibrary
 import VLC.Player
 import VLC.PlayerControls
 import VLC.Style
@@ -21,8 +20,19 @@ ColumnLayout {
     spacing: VLCStyle.dp(8, VLCStyle.scale)
     property var reveal: null
     readonly property bool localMedia: Player.url.toString().startsWith("file://")
+    // data() calls are not bindings: bumped when the tracks change so the
+    // checks and counts below are evaluated again
+    property int _tracksRevision: 0
+    Connections {
+        target: Player.subtitleTracks
+        function onDataChanged() { ++root._tracksRevision }
+        function onModelReset() { ++root._tracksRevision }
+        function onRowsInserted() { ++root._tracksRevision }
+        function onRowsRemoved() { ++root._tracksRevision }
+    }
     // Tracks of subtitle files added to the media (TrackListModel.ExternalRole)
     readonly property int externalCount: {
+        void root._tracksRevision
         let count = 0
         for (let i = 0; i < Player.subtitleTracks.count; ++i)
             if (Player.subtitleTracks.data(Player.subtitleTracks.index(i, 0), Qt.UserRole + 1))
@@ -30,9 +40,14 @@ ColumnLayout {
         return count
     }
 
-    SubtitleAssociationsDialog {
+    // The dialog of the library, loaded only with it: its types are not
+    // registered otherwise and would keep the player from loading
+    Loader {
         id: associationsDialog
-        parent: Controls.Overlay.overlay
+        visible: false
+        active: MainCtx.mediaLibraryAvailable
+        source: "qrc:///qt/qml/VLC/MediaLibrary/SubtitleAssociationsDialog.qml"
+        onLoaded: item.parent = Controls.Overlay.overlay
     }
 
     Text {
@@ -48,6 +63,7 @@ ColumnLayout {
         Layout.fillWidth: true
         text: qsTr("None")
         checked: {
+            void root._tracksRevision
             for (let i = 0; i < Player.subtitleTracks.count; ++i)
                 if (Player.subtitleTracks.data(Player.subtitleTracks.index(i, 0), Qt.CheckStateRole))
                     return false
@@ -95,8 +111,8 @@ ColumnLayout {
             description: root.localMedia && MainCtx.mediaLibraryAvailable
                          ? qsTr("Add subtitles to the library")
                          : qsTr("Library association needs a local media file and media library.")
-            enabled: root.localMedia && MainCtx.mediaLibraryAvailable
-            onClicked: associationsDialog.openForUrl(Player.url)
+            enabled: root.localMedia && associationsDialog.status === Loader.Ready
+            onClicked: associationsDialog.item.openForUrl(Player.url)
         }
 
         HeaderButton {

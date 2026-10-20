@@ -18,7 +18,7 @@ Item {
 
     MLRecentMediaModel {
         id: recentMedia
-        ml: MediaLib
+        ml: MainCtx.mediaLibraryAvailable ? MediaLib : null
     }
 
     // Clear history now: label, (i) and the 100 px Clear button of the design

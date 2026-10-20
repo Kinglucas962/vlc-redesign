@@ -41,11 +41,11 @@ bool ConfigModel::rescanPlugins()
     const QString folder = QCoreApplication::applicationDirPath();
     const QString generator = folder + QStringLiteral("/vlc-cache-gen.exe");
     if (!QFileInfo::exists(generator)) {
-        setError(tr("The plugins can not be rescanned on this installation."));
+        setError(qtr("The plugins can not be rescanned on this installation."));
         return false;
     }
     if (!QProcess::startDetached(generator, { QDir::toNativeSeparators(folder + QStringLiteral("/plugins")) })) {
-        setError(tr("The plugins could not be rescanned."));
+        setError(qtr("The plugins could not be rescanned."));
         return false;
     }
     return true;
@@ -57,7 +57,7 @@ bool ConfigModel::openConfigFolder()
     const QString path = QString::fromUtf8(folder ? folder : "");
     free(folder);
     if (path.isEmpty() || !QDesktopServices::openUrl(QUrl::fromLocalFile(path))) {
-        setError(tr("The configurations folder could not be opened."));
+        setError(qtr("The configurations folder could not be opened."));
         return false;
     }
     return true;
@@ -140,7 +140,7 @@ bool ConfigModel::audioscrobblerEnabled() const
 bool ConfigModel::setAudioscrobblerEnabled(bool enabled)
 {
     if (!audioscrobblerAvailable()) {
-        setError(tr("Last.fm is unavailable in this VLC installation."));
+        setError(qtr("Last.fm is unavailable in this VLC installation."));
         return false;
     }
     const QString extra = valueFor(QStringLiteral("extraintf")).toString();

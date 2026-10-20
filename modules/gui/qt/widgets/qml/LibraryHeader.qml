@@ -46,6 +46,8 @@ T.ToolBar {
                    (availableWidth - VLCStyle.dp(24 + 12 + 24 + 10, VLCStyle.scale)
                     - (crumbs.length - 1) * VLCStyle.dp(6 + 8 + 6, VLCStyle.scale)) / crumbs.length)
         : 0
+    // MainDisplay (historyBack, historyForward), when the header is in it
+    readonly property var _historyHost: typeof g_mainDisplay !== "undefined" ? g_mainDisplay : null
     readonly property string breadcrumb: {
         const detail = History.viewProp && History.viewProp.title ? History.viewProp.title : ""
         return detail && detail !== title ? title + "  ▸  " + detail : title
@@ -132,6 +134,47 @@ T.ToolBar {
         }
     }
 
+    // The grouping of the videos, when the page gives a SortMenuVideo (the
+    // sort menu of VLC lists it after the orders): a separator, then "Do not
+    // group videos", "Group by name" and "Group by folder"
+    readonly property bool _videoGrouping: root.sortMenu instanceof SortMenuVideo
+    property var _groupingItems: []
+
+    function _updateGroupingItems() {
+        // (removeItem destroys the item)
+        for (const item of _groupingItems)
+            sortOptions.removeItem(item)
+        _groupingItems = []
+        if (!_videoGrouping)
+            return
+        const items = [groupingSeparator.createObject(sortOptions)]
+        for (const entry of [[qsTr("Do not group videos"), MainCtx.GROUPING_NONE],
+                             [qsTr("Group by name"), MainCtx.GROUPING_NAME],
+                             [qsTr("Group by folder"), MainCtx.GROUPING_FOLDER]])
+            items.push(groupingOption.createObject(sortOptions, { text: entry[0], grouping: entry[1] }))
+        // after the orders, whenever these are added
+        for (const item of items)
+            sortOptions.addItem(item)
+        _groupingItems = items
+    }
+    on_VideoGroupingChanged: _updateGroupingItems()
+    Component.onCompleted: _updateGroupingItems()
+
+    Component {
+        id: groupingSeparator
+        Widgets.RedesignMenuSeparator { }
+    }
+
+    Component {
+        id: groupingOption
+        Widgets.RedesignOptionItem {
+            property int grouping
+            checked: MainCtx.grouping === grouping
+            // the page applies it (SortMenuVideo.onGrouping)
+            onTriggered: root.sortMenu.grouping(grouping)
+        }
+    }
+
     Navigation.navigable: true
 
     readonly property ColorContext colorContext: ColorContext {
@@ -201,7 +244,13 @@ T.ToolBar {
                     opacity: (VLCStyle.palette.isDark || parent.enabled) ? 1 : 0.4
                 }
                 enabled: !History.previousEmpty
-                onClicked: History.previous()
+                onClicked: {
+                    // the main display keeps the page left for "Next"
+                    if (root._historyHost)
+                        root._historyHost.historyBack()
+                    else
+                        History.previous()
+                }
             }
 
             Widgets.IconToolButton {
@@ -210,14 +259,18 @@ T.ToolBar {
                 implicitWidth: VLCStyle.dp(24, VLCStyle.scale)
                 implicitHeight: implicitWidth
                 contentItem: Image {
-                    source: VLCStyle.palette.isDark ? "qrc:///redesign/icons/arrow-right/disabled.png"
-                                                    : "qrc:///redesign/arrow-right.svg"
+                    source: VLCStyle.palette.isDark
+                            ? "qrc:///redesign/icons/arrow-right/" + (parent.enabled ? "default" : "disabled") + ".png"
+                            : "qrc:///redesign/arrow-right.svg"
                     sourceSize: Qt.size(VLCStyle.redesign.iconSize, VLCStyle.redesign.iconSize)
                     fillMode: Image.Pad
                     smooth: false
-                    opacity: VLCStyle.palette.isDark ? 1 : 0.4
+                    opacity: (VLCStyle.palette.isDark || parent.enabled) ? 1 : 0.4
                 }
-                enabled: false // NavigationHistory exposes previous, but has no forward stack.
+                // History has no forward stack: the main display keeps the
+                // pages left with "Previous"
+                enabled: !!root._historyHost && !root._historyHost.historyForwardEmpty
+                onClicked: root._historyHost.historyForward()
             }
             }
 

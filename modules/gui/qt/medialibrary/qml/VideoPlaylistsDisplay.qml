@@ -126,6 +126,9 @@ Widgets.PageLoader {
                 focus: true
 
                 isMusic: false
+                // the Playlists page of the sidebar: every playlist, songs
+                // included (as the compact library of the player)
+                playlistType: MLPlaylistListModel.PLAYLIST_TYPE_ALL
 
                 searchPattern: playlistPage.search.pattern
                 sortOrder: playlistPage.sort.order

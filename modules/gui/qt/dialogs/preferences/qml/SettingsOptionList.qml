@@ -20,6 +20,9 @@ Column {
     property string sectionFilter: ""
     property string excludedSection: ""
     property bool hideSectionHeadings: false
+    // Developer mode: the expert options (the design leaves them out) show
+    // under Advanced Options
+    property bool showExpert: false
     // Reset all settings was clicked (the dialog confirms it)
     signal resetAllRequested()
     readonly property int count: optionsRepeater.count
@@ -32,13 +35,35 @@ Column {
                                root.settingsModel.valueFor("redesign/subtitle-size-mode"))) === 1
         return (key === "freetype-fontsize") !== pixels
     }
+    // A search shows the rows whose label, section or help (the text of
+    // their (i)) holds the text: what the page shows, not the keys of VLC
+    // ("Shuffle" is "random"; every key of the interface starts with "qt").
+    // Worked out once per text, not for each row and the rows before it
+    readonly property var searchMatches: {
+        const count = optionsRepeater.count
+        if (!root.search.length)
+            return null
+        const text = root.search.toLowerCase()
+        const matches = []
+        for (let i = 0; i < count; ++i) {
+            const key = root.settingsModel.keyAt(i)
+            const entry = presentationData.entry(key, root.settingsModel.labelAt(i))
+            // a row shown again elsewhere is found once
+            matches.push(!key.startsWith("x-mirror:")
+                         && (String(entry.label || "").toLowerCase().includes(text)
+                             || String(entry.section || "").toLowerCase().includes(text)
+                             || root.settingsModel.helpAt(i).toLowerCase().includes(text)))
+        }
+        return matches
+    }
     function entryVisible(i) {
         const key = root.settingsModel.keyAt(i)
-        const entry = presentationData.entry(key, "")
-        return !entry.hidden && !sizeModeHidden(key)
+        const entry = presentationData.entry(key, root.settingsModel.labelAt(i))
+        return !entry.hidden && (!entry.expert || root.showExpert) && !sizeModeHidden(key)
                && (filterMode === "all" || (filterMode === "advanced") === entry.advanced)
                && (!sectionFilter || entry.section === sectionFilter)
                && (!excludedSection || entry.section !== excludedSection)
+               && (!root.searchMatches || !!root.searchMatches[i])
     }
     readonly property int availableCount: {
         let total = 0
@@ -58,10 +83,7 @@ Column {
             spacing: 0
             readonly property var presentation: presentationData.entry(model.key, model.label)
             // A category can place an inline effect panel between native option groups.
-            visible: !presentation.hidden && !root.sizeModeHidden(model.key) && (root.filterMode === "all"
-                      || (root.filterMode === "advanced") === presentation.advanced)
-                     && (!root.sectionFilter || presentation.section === root.sectionFilter)
-                     && (!root.excludedSection || presentation.section !== root.excludedSection)
+            visible: root.entryVisible(index)
             // The row shown before this one in the list (-1: the first one)
             readonly property int previousVisible: {
                 for (let i = index - 1; i >= 0; --i)
@@ -126,35 +148,40 @@ Column {
             Loader {
                 width: parent.width
                 active: parent.visible && presentation.editor !== "equalizer"
+                // the roles of a row read undefined for a moment while the
+                // list is rebuilt: fall back to empty values
                 sourceComponent: SettingsOptionRow {
-                    settingKey: model.key
-                    label: presentation.label
-                    accessibleLabel: presentation.accessible || presentation.label
-                    help: model.help
-                    settingType: model.type
+                    settingKey: model.key ?? ""
+                    label: presentation.label ?? ""
+                    accessibleLabel: presentation.accessible || presentation.label || ""
+                    help: model.help ?? ""
+                    settingType: model.type ?? ""
                     settingValue: model.value
                     choices: {
                         const labels = presentation.choiceLabels
                         // Wheels: Seek is backwards (3) when Reverse scroll direction is on
-                        const setting = model.key.replace(/^x-mirror:/, "")
+                        const setting = (model.key ?? "").replace(/^x-mirror:/, "")
                         if (setting === "hotkeys-y-wheel-mode" || setting === "hotkeys-x-wheel-mode")
                             return [{ value: -1, label: qsTr("Nothing") }, { value: 0, label: qsTr("Volume") },
                                     { value: model.value === 3 ? 3 : 2, label: qsTr("Seek") }]
                         if (presentation.editor === "boolchoice" && labels)
                             return [{ value: false, label: labels[false] }, { value: true, label: labels[true] }]
                         if (!labels || !model.choices)
-                            return model.choices
+                            return model.choices || []
                         const named = model.choices.map(choice => ({ value: choice.value,
                                                                      label: labels[choice.value] ?? choice.label }))
-                        // the default of VLC as a choice of its own, shown for that value
+                        // the default of VLC as a choice of its own, shown for
+                        // that value; not when it is one of the choices (its
+                        // name would never show)
                         return presentation.defaultChoice
+                               && !model.choices.some(choice => choice.value === model.defaultValue)
                             ? [{ value: model.defaultValue, label: presentation.defaultChoice }].concat(named)
                             : named
                     }
                     minimum: model.minimum
                     maximum: model.maximum
                     editorKind: presentation.editor
-                    showInfo: presentation.info !== undefined ? presentation.info : model.help.length > 0
+                    showInfo: presentation.info !== undefined ? presentation.info : (model.help ?? "").length > 0
                     infoGap: presentation.infoGap !== undefined ? presentation.infoGap : 10
                     unit: presentation.unit || ""
                     onValue: model.defaultValue
@@ -167,7 +194,7 @@ Column {
                                   ? root.settingsModel.displayPath(String(model.value || "").length
                                                                    ? String(model.value) : defaultText)
                                   : ""
-                    dirty: model.dirty
+                    dirty: !!model.dirty
                     onCommit: (value) => root.settingsModel.setValue(settingKey, value)
                     decimals: presentation.decimals
                     rowHeight: presentation.rowHeight
@@ -177,11 +204,29 @@ Column {
                     labelsBaseline: presentation.labelsBaseline
                     available: (model.key !== "one-instance-when-started-from-file" && model.key !== "playlist-enqueue"
                                 || !!(root.settingsModel.revision, root.settingsModel.valueFor("one-instance")))
-                               && (!model.key.endsWith("-caching") || model.category !== "network"
+                               // the fullscreen controls of the skins: with a skin only
+                               && (model.key !== "qt-fs-controller"
+                                   || !!(root.settingsModel.revision, root.settingsModel.valueFor("x-custom-skin")))
+                               && (!(model.key ?? "").endsWith("-caching") || model.category !== "network"
                                    || Number((root.settingsModel.revision, root.settingsModel.valueFor("x-buffering"))) === 4)
                     placeholder: presentation.placeholder || ""
                     valueShown: model.key !== "http-port"
                                 || !!(root.settingsModel.revision, root.settingsModel.valueFor("x-web-remote"))
+                    // The web interface without a password only shows a page
+                    // asking for one (http.lua)
+                    readonly property bool webRemoteLocked: model.key === "x-web-remote" && !!model.value
+                        && (root.settingsModel.revision, root.settingsModel.hasOption("http-password"))
+                        && !String(root.settingsModel.valueFor("http-password") || "").length
+                    note: {
+                        const notes = []
+                        if (webRemoteLocked)
+                            notes.push(qsTr("Set a web remote password in the Advanced Options: the remote stays locked without one."))
+                        // the settings read when VLC starts, once changed
+                        if (presentation.restart && model.pendingRestart)
+                            notes.push(qsTr("Applies after restart"))
+                        return notes.join(" ")
+                    }
+                    noteWarning: webRemoteLocked
                     onColorRequested: {
                         const rgb = filePicker.chooseColor(Number(settingValue), label)
                         if (rgb >= 0)
@@ -189,7 +234,12 @@ Column {
                     }
                     onBrowseRequested: {
                         if (editorKind === "directory") {
-                            const folder = filePicker.chooseFolder(qsTr("Choose a recording folder"))
+                            const titles = {
+                                "snapshot-path": qsTr("Choose a snapshot folder"),
+                                "input-timeshift-path": qsTr("Choose a time-shift buffer folder"),
+                                "input-record-path": qsTr("Choose a recording folder")
+                            }
+                            const folder = filePicker.chooseFolder(titles[settingKey] || qsTr("Choose a folder"))
                             if (folder.toString() !== "")
                                 root.settingsModel.setDirectoryUrl(settingKey, folder)
                         } else if (editorKind === "openfile") {

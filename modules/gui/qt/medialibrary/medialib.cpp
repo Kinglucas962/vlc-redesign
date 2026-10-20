@@ -26,7 +26,10 @@
 #include <random>
 #include <utility>
 
+#include <QDir>
 #include <QQmlEngine>
+
+#include <vlc_url.h>
 
 MediaLib::MediaLib(qt_intf_t *_intf, vlc::playlist::PlaylistController* playlistController, QObject *_parent)
     : QObject( _parent )
@@ -112,6 +115,21 @@ static void convertQVariantListToPlaylistMedias(vlc_medialibrary_t* ml, QVariant
 
 MLItemId MediaLib::deserializeMlItemIdFromString(const QString& serialized_id) {
     return MLItemId::fromString(serialized_id);
+}
+
+QString MediaLib::mrlFromUrl(const QUrl& url)
+{
+    if (url.isLocalFile())
+    {
+        const QByteArray path = QDir::toNativeSeparators(url.toLocalFile()).toUtf8();
+        if (char* mrl = vlc_path2uri(path.constData(), "file"))
+        {
+            const QString result = QString::fromUtf8(mrl);
+            free(mrl);
+            return result;
+        }
+    }
+    return url.toString(QUrl::FullyEncoded);
 }
 
 void MediaLib::addToPlaylist(const QString& mrl, const QStringList &options)

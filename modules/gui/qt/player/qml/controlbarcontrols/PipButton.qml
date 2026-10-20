@@ -24,7 +24,9 @@ import VLC.Util
 // Figma "Customize Player": "Picture in Picture", the video in the mini
 // player over the library
 RedesignIconButton {
-    enabled: Player.isStarted
+    // Without the picture in picture of the library (canShowVideoPIP), going
+    // there would only hide the video
+    enabled: Player.isStarted && MainCtx.canShowVideoPIP
     iconSource: "qrc:///redesign/icons/PiP/default.png"
     onClicked: MainCtx.playerView = false
     description: qsTr("Picture in Picture")

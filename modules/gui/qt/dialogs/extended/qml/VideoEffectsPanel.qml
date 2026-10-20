@@ -12,6 +12,7 @@ ColumnLayout {
     id: root
     required property var effects
     property int section: 0
+    function c(value) { return VLCStyle.redesign.color(value, value) }
     readonly property var essential: [
         { id: "adjust", title: qsTr("Image adjustment") },
         { id: "sharpen", title: qsTr("Sharpen") },
@@ -43,12 +44,12 @@ ColumnLayout {
                 focusPolicy: Qt.StrongFocus
                 onClicked: root.section = index
                 background: Rectangle {
-                    color: sectionButton.hovered ? VLCStyle.redesign.controlHoverBackground : "transparent"
+                    color: sectionButton.hovered ? root.c(VLCStyle.redesign.controlHoverBackground) : "transparent"
                     radius: VLCStyle.dp(5, VLCStyle.scale)
                 }
                 contentItem: Text {
                     text: sectionButton.modelData
-                    color: root.section === sectionButton.index ? VLCStyle.redesign.accent : VLCStyle.redesign.textMuted
+                    color: root.section === sectionButton.index ? VLCStyle.redesign.accent : root.c(VLCStyle.redesign.textMuted)
                     font.family: VLCStyle.redesign.fontFamily
                     font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
                     horizontalAlignment: Text.AlignHCenter

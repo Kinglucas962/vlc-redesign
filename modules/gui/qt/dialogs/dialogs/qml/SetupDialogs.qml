@@ -33,6 +33,7 @@ Item {
         function onPreferencesRequested() { root.show(preferences) }
         function onShortcutsRequested() { root.show(shortcuts) }
         function onNetworkStreamRequested() { root.show(networkStream) }
+        function onAboutRequested() { root.show(about) }
         function onSetupRequested() { if (!setup.item || !setup.item.visible) root.show(setup) }
         function onEffectsRequested(page) {
             effects.requestedTab = page
@@ -70,6 +71,13 @@ Item {
         anchors.fill: parent
         active: false
         source: "qrc:/qt/qml/VLC/Dialogs/NetworkStreamDialog.qml"
+        onLoaded: { item.parent = root; item.open() }
+    }
+    Loader {
+        id: about
+        anchors.fill: parent
+        active: false
+        source: "qrc:/qt/qml/VLC/Dialogs/RedesignAboutDialog.qml"
         onLoaded: { item.parent = root; item.open() }
     }
     Loader {

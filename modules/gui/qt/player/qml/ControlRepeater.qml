@@ -323,15 +323,21 @@ Repeater {
         }
 
         onLoaded: {
+            // labels and dividers only show something: no focus, no Tab stop
+            const indicator = (item.Accessible.role === Accessible.Indicator)
+
             // control should not request focus if they are not enabled:
-            item.focus = Qt.binding(function() { return item.enabled && item.visible })
+            item.focus = Qt.binding(function() { return !indicator && item.enabled && item.visible })
 
             // navigation parent of control is always controlLayout
             // so it can be set here unlike leftItem and rightItem:
             item.Navigation.parentItem = repeater
+            // the arrow keys go past them
+            if (indicator)
+                item.Navigation.navigable = false
 
             if (typeof item.activeFocusOnTab === "boolean")
-                item.activeFocusOnTab = true
+                item.activeFocusOnTab = !indicator
 
             item.visible = Qt.binding(function() { return loader.visible })
 

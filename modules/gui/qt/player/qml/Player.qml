@@ -448,6 +448,7 @@ FocusScope {
         // title stays reachable (pinned or not).
         focus: true
         title: Player.title
+        barIdentifier: controlBar.identifier
 
         pinControls: MainCtx.pinVideoControls
 
@@ -548,7 +549,7 @@ FocusScope {
                 const uris = {
                     home: ["home"], videos: ["video", "all"], music: ["music"], network: ["network"],
                     playlists: ["video", "playlists"], playlist: ["video", "playlists"],
-                    recent: ["home", "continueWatching"], folder: ["network"]
+                    recent: ["home", "recent"], folder: ["network"]
                 }
                 rootPlayer.libraryVisible = false
                 MainCtx.playerView = false

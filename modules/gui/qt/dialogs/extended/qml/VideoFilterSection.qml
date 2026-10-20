@@ -15,6 +15,7 @@ ColumnLayout {
     required property string filterId
     required property string title
     property bool expanded: false
+    function c(value) { return VLCStyle.redesign.color(value, value) }
     property var items: []
     spacing: VLCStyle.dp(8, VLCStyle.scale)
     visible: effects.filterAvailable(filterId)
@@ -27,7 +28,7 @@ ColumnLayout {
         Text {
             Layout.fillWidth: true
             text: root.title
-            color: VLCStyle.redesign.textPrimary
+            color: root.c(VLCStyle.redesign.textPrimary)
             font.family: VLCStyle.redesign.fontFamily
             font.pixelSize: VLCStyle.dp(15, VLCStyle.scale)
             font.weight: Font.Medium
@@ -55,12 +56,12 @@ ColumnLayout {
         Accessible.name: root.expanded ? qsTr("Collapse %1 settings").arg(root.title)
                                        : qsTr("Expand %1 settings").arg(root.title)
         onClicked: root.expanded = !root.expanded
-        background: Rectangle { color: "#1B1B1B"; radius: VLCStyle.dp(6, VLCStyle.scale) }
+        background: Rectangle { color: root.c("#1B1B1B"); radius: VLCStyle.dp(6, VLCStyle.scale) }
         contentItem: RowLayout {
             Text {
                 Layout.fillWidth: true
                 text: root.expanded ? qsTr("Collapse Settings") : qsTr("Expand Settings")
-                color: VLCStyle.redesign.textMuted
+                color: root.c(VLCStyle.redesign.textMuted)
                 font.family: VLCStyle.redesign.fontFamily
                 font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
             }
@@ -79,7 +80,7 @@ ColumnLayout {
         Layout.fillWidth: true
         implicitHeight: settings.implicitHeight + VLCStyle.dp(32, VLCStyle.scale)
         visible: root.expanded
-        color: "#1B1B1B"
+        color: root.c("#1B1B1B")
         radius: VLCStyle.dp(6, VLCStyle.scale)
         ColumnLayout {
             id: settings

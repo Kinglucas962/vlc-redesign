@@ -593,6 +593,14 @@ bool InterfaceWindowHandler::applyKeyEvent(QKeyEvent * event) const
         return false;
     }
 
+    // NOTE: The design (onboarding) teaches Q for the queue and L for the library. Let the
+    //       player view handle them as long as no VLC hotkey uses them.
+    if ((key == Qt::Key_Q || key == Qt::Key_L) && event->modifiers() == Qt::NoModifier
+        && m_mainCtx->isHotkeyFree(static_cast<Qt::Key>(key), event->modifiers()))
+    {
+        return false;
+    }
+
     QQuickItem * item = p_intf->p_compositor->activeFocusItem();
 
     // NOTE: When the item has visual focus we let it handle the key. When the item does not

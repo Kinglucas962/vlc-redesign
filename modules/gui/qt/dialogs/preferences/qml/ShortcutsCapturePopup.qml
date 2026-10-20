@@ -16,6 +16,20 @@ Popup {
     signal keyCaptured(int key, int modifiers)
     signal clearRequested()
     signal replaceRequested()
+    // Esc while asking whether to take the key from another action
+    signal conflictCancelled()
+
+    // Esc cancels: the question about a key already used first (back to
+    // waiting for a key), else the capture (nothing assigned). Esc can
+    // therefore not be given to an action from this editor.
+    function cancel() {
+        if (conflictAction.length > 0) {
+            conflictCancelled()
+            keyInput.forceActiveFocus()
+        } else {
+            close()
+        }
+    }
 
     modal: true
     focus: true
@@ -30,6 +44,11 @@ Popup {
     contentItem: FocusScope {
         id: captureFocus
         focus: true
+        // Esc from a button of the popup (the keyboard left the capture)
+        Keys.onEscapePressed: (event) => {
+            event.accepted = true
+            capturePopup.cancel()
+        }
         TextInput {
             id: keyInput
             focus: true
@@ -37,9 +56,13 @@ Popup {
             height: 1
             opacity: 0
             Keys.priority: Keys.BeforeItem
+            // every key comes here, none triggers a shortcut of the window
+            Keys.onShortcutOverride: (event) => event.accepted = true
             Keys.onPressed: (event) => {
                 event.accepted = true
-                if (capturePopup.conflictAction.length === 0)
+                if (event.key === Qt.Key_Escape)
+                    capturePopup.cancel()
+                else if (capturePopup.conflictAction.length === 0)
                     capturePopup.keyCaptured(event.key, event.modifiers)
             }
         }
@@ -61,7 +84,7 @@ Popup {
             anchors.rightMargin: 14
             text: capturePopup.conflictAction.length > 0
                   ? qsTr("This key is assigned to %1. Replace that assignment?").arg(capturePopup.conflictAction)
-                  : qsTr("Press a key combination for %1").arg(capturePopup.captureAction)
+                  : qsTr("Press a key combination to add to %1 (Esc cancels)").arg(capturePopup.captureAction)
             color: capturePopup.conflictAction.length > 0 ? "#df8950"
                   : (capturePopup.dark ? "#aaaaaa" : "#555555")
             wrapMode: Text.WordWrap

@@ -45,6 +45,16 @@ QString own(char* bytes)
     return result;
 }
 QString cropName(const QString& side) { return "crop-" + side; }
+// The only filter saved (as the picture settings): the others and the crop
+// stay previews of the current video
+const QString savedFilter = "adjust";
+// The name of a setting as the preferences show it
+QString settingName(const QString& name)
+{
+    const QByteArray id = name.toUtf8();
+    const module_config_t* option = config_FindConfig(id.constData());
+    return option && option->psz_text ? qtr(option->psz_text) : name;
+}
 }
 
 VideoEffects::VideoEffects(QObject* parent) : QObject(parent) {}
@@ -190,7 +200,9 @@ QVariantList VideoEffects::parameters(const QString& filter) const
                 }
                 break;
             case CONFIG_ITEM_INTEGER:
-                item["type"] = option->i_type == CONFIG_ITEM_RGB || name == "extract-component" ? "color" : "integer";
+                // An integer with named values (the component to extract) is a choice
+                item["type"] = option->i_type == CONFIG_ITEM_RGB ? "color"
+                             : option->list_count > 0 ? "choice" : "integer";
                 if (option->min.i != option->max.i) {
                     item["minimum"] = qlonglong(option->min.i);
                     item["maximum"] = qlonglong(option->max.i);
@@ -238,12 +250,11 @@ bool VideoEffects::begin()
     m_configSnapshot.clear();
     for (const QString& filter : filters)
         for (const QString& name : optionNames(filter)) m_snapshotValues.insert(name, readValue(name));
-    for (const QString& name : m_snapshotValues.keys()) {
+    for (const QString& name : optionNames(savedFilter)) {
         const QVariant value = getConfig(name);
         if (value.isValid()) m_configSnapshot.insert(name, value);
     }
     m_configSnapshot.insert("video-filter", getConfig("video-filter"));
-    m_configSnapshot.insert("crop", getConfig("crop"));
     for (const QString& side : cropSides) m_snapshotCrop.insert(side, cropValue(side));
     m_transactionActive = true;
     clearError(); changed();
@@ -258,7 +269,11 @@ bool VideoEffects::writeValue(const QString& name, const QVariant& value)
     const int type = config_GetType(id.constData());
     vout_thread_t* vout = vlc_player_vout_Hold(m_ctx->getIntf()->p_player);
     if (!vout) return fail(tr("No active video output is available."));
-    if (var_Type(vout, id.constData()) == 0 && var_Create(vout, id.constData(), type | VLC_VAR_DOINHERIT) != VLC_SUCCESS) {
+    // Created as the core maps a filter option (filter_AddProxyCallbacks): a
+    // command variable, else filter_DelProxyCallbacks leaves the callback of
+    // the filter on it once that filter is gone
+    if (var_Type(vout, id.constData()) == 0
+        && var_Create(vout, id.constData(), type | VLC_VAR_DOINHERIT | VLC_VAR_ISCOMMAND) != VLC_SUCCESS) {
         vout_Release(vout);
         return fail(tr("The video effect value could not be prepared."));
     }
@@ -368,17 +383,23 @@ bool VideoEffects::prepareConfiguration(QHash<QString, QVariant>& values,
                                         QHash<QString, QVariant>& expected)
 {
     if (!requirePreview()) return false;
-    vout_thread_t* vout = vlc_player_vout_Hold(m_ctx->getIntf()->p_player);
-    if (!vout) return fail(tr("No active video output is available."));
-    const QString crop = own(var_GetString(vout, "crop"));
-    vout_Release(vout);
     for (auto it = m_configSnapshot.cbegin(); it != m_configSnapshot.cend(); ++it) {
-        const QVariant value = it.key() == "video-filter" ? QVariant(filterChain())
-                             : it.key() == "crop" ? QVariant(crop) : readValue(it.key());
+        if (it.key() == "video-filter") continue;
+        const QVariant value = readValue(it.key());
         if (!value.isValid()) return fail(tr("A video effect value is unavailable."));
         values.insert(it.key(), value);
         expected.insert(it.key(), it.value());
     }
+    // Adds or removes the adjustment in the saved list only: the other
+    // filters stay, those staged by Settings (post-processing) included
+    const bool staged = values.contains("video-filter");
+    const QVariant base = staged ? values.value("video-filter") : m_configSnapshot.value("video-filter");
+    QStringList saved = base.toString().split(':', Qt::SkipEmptyParts);
+    const bool enabled = filterEnabled(savedFilter);
+    if (enabled && !saved.contains(savedFilter)) saved << savedFilter;
+    else if (!enabled) saved.removeAll(savedFilter);
+    values.insert("video-filter", saved.join(':'));
+    if (!staged) expected.insert("video-filter", m_configSnapshot.value("video-filter"));
     return true;
 }
 
@@ -397,7 +418,7 @@ bool VideoEffects::save()
     int result = 0;
     if (!ConfigValues::commit(m_ctx->getIntf(), values, expected, &conflict, &result))
         return fail(result ? tr("Video effect settings could not be saved (error %1).").arg(result)
-                           : tr("Video effect setting %1 changed outside this dialog.").arg(conflict));
+                           : tr("The setting \"%1\" changed outside this dialog.").arg(settingName(conflict)));
     finalizeConfiguration();
     return true;
 }

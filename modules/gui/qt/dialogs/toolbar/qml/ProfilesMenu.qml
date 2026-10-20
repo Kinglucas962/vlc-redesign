@@ -145,8 +145,9 @@ Controls.Popup {
             }
             onClicked: {
                 root.close()
-                // The existing editor owns creation, cloning, Save, and Cancel.
-                DialogsProvider.showToolbarEditorDialog()
+                // Customize Player asks for the name, then the new profile is
+                // arranged there (Save keeps it, Cancel drops it)
+                root.profileModel.requestNewProfile()
             }
         }
     }

@@ -17,12 +17,16 @@ RedesignIconButton {
     readonly property bool _hasPlayer: (typeof rootPlayer !== "undefined") && rootPlayer !== null
 
     iconSource: "qrc:///redesign/icons/sidebar/default.png"
-    checked: _hasPlayer && rootPlayer.libraryVisible
+    // In the bar of the mini player the library is the page shown: the
+    // button leaves it for the player
+    checked: _hasPlayer ? rootPlayer.libraryVisible : !MainCtx.playerView
     description: qsTr("Library")
     AccessibleCompat.id: "barLibraryButton"
 
     onClicked: {
         if (_hasPlayer)
             rootPlayer.libraryVisible = !rootPlayer.libraryVisible
+        else
+            MainCtx.playerView = true
     }
 }

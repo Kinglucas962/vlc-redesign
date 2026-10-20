@@ -49,6 +49,10 @@ Widgets.PageLoader {
     }, {
         name: "listenAgain",
         component: listenAgainComponent
+    }, {
+        // "Recent" of the sidebar
+        name: "recent",
+        component: recentComponent
     }]
 
     property int displayMarginBeginning: 0
@@ -190,6 +194,36 @@ Widgets.PageLoader {
                     model: newVideo.model
 
                     showPlayAsAudioAction: true
+                }
+
+                displayMarginBeginning: root.displayMarginBeginning
+                displayMarginEnd: root.displayMarginEnd
+
+                enableBeginningFade: root.enableBeginningFade
+                enableEndFade: root.enableEndFade
+            }
+        }
+    }
+
+    // The media played last, videos and songs (the history of the library),
+    // not only the videos left unfinished as "Continue Watching"
+    Component {
+        id: recentComponent
+
+        Widgets.PageExt {
+            id: recentPage
+
+            title: qsTr("Recent")
+
+            MediaView {
+                focus: true
+
+                anchors.fill: parent
+
+                model: MLRecentMediaModel {
+                    ml: MediaLib
+
+                    searchPattern: recentPage.search.pattern
                 }
 
                 displayMarginBeginning: root.displayMarginBeginning

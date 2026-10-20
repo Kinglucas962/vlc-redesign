@@ -54,8 +54,16 @@ T.Switch {
 
     // Accessible
 
-    Accessible.onPressAction: root.clicked()
-    Accessible.onToggleAction: root.toggle()
+    // As a click: toggles, then tells the users that act on clicked (the
+    // effect switches)
+    function userToggle() {
+        root.toggle()
+        root.toggled()
+        root.clicked()
+    }
+
+    Accessible.onPressAction: root.userToggle()
+    Accessible.onToggleAction: root.userToggle()
 
     // Children
 

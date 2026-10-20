@@ -363,6 +363,17 @@ std::unique_ptr<MLListCacheLoader> MLPlaylistListModel::createMLLoader() const /
     return std::make_unique<MLListCacheLoader>(m_mediaLib, std::make_shared<MLPlaylistListModel::Loader>(*this, m_playlistType));
 }
 
+// "Newest First" / "Oldest First" of the compact library: the creation date
+// of the playlists (by name otherwise)
+vlc_ml_sorting_criteria_t MLPlaylistListModel::nameToCriteria(QByteArray name) const /* override */
+{
+    return QHash<QByteArray, vlc_ml_sorting_criteria_t> {
+        {QByteArrayLiteral("title"), VLC_ML_SORTING_ALPHA},
+        {QByteArrayLiteral("name"), VLC_ML_SORTING_ALPHA},
+        {QByteArrayLiteral("insertion"), VLC_ML_SORTING_INSERTIONDATE},
+    }.value(name, VLC_ML_SORTING_DEFAULT);
+}
+
 //-------------------------------------------------------------------------------------------------
 // Private functions
 //-------------------------------------------------------------------------------------------------

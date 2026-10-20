@@ -80,7 +80,8 @@ decltype (ControlbarProfileModel::m_defaults)
             },
             {
                 Style::DEFAULT_STYLE,
-                N_("Default Style"),
+                // the first profile of the design (Figma 6648:20666)
+                N_("Default"),
                 {
                     {
                         PlayerControlbarModel::Videoplayer,
@@ -431,6 +432,300 @@ decltype (ControlbarProfileModel::m_defaults)
                                 },
                                 {
                                     ControlListModel::VOLUME
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                Style::MOVIES_STYLE,
+                // One long video: 10 s skips around Play, the subtitles, the
+                // chapters and the speed at hand
+                N_("Movies"),
+                {
+                    {
+                        PlayerControlbarModel::Videoplayer,
+                        {
+                            {
+                                {
+                                    ControlListModel::SKIP_BACK_10_BUTTON,
+                                    ControlListModel::PLAY_BUTTON,
+                                    ControlListModel::SKIP_FW_10_BUTTON
+                                },
+                                {
+
+                                },
+                                {
+                                    ControlListModel::VOLUME,
+                                    ControlListModel::LANG_BUTTON,
+                                    ControlListModel::CHAPTERS_BUTTON,
+                                    ControlListModel::PLAYBACK_SPEED_BUTTON,
+                                    ControlListModel::SETTINGS_BUTTON,
+                                    ControlListModel::FULLSCREEN_BUTTON
+                                }
+                            }
+                        }
+                    },
+                    {
+                        PlayerControlbarModel::Audioplayer,
+                        {
+                            {
+                                {
+                                    ControlListModel::PREVIOUS_BUTTON,
+                                    ControlListModel::SKIP_BACK_BUTTON,
+                                    ControlListModel::PLAY_BUTTON,
+                                    ControlListModel::SKIP_FW_BUTTON,
+                                    ControlListModel::NEXT_BUTTON
+                                },
+                                {
+
+                                },
+                                {
+                                    ControlListModel::VOLUME,
+                                    ControlListModel::EXTENDED_BUTTON,
+                                    ControlListModel::PLAYLIST_BUTTON
+                                }
+                            }
+                        }
+                    },
+                    {
+                        PlayerControlbarModel::Miniplayer,
+                        {
+                            {
+                                {
+                                    ControlListModel::ARTWORK_INFO
+                                },
+                                {
+                                    ControlListModel::SKIP_BACK_10_BUTTON,
+                                    ControlListModel::PLAY_BUTTON,
+                                    ControlListModel::SKIP_FW_10_BUTTON
+                                },
+                                {
+                                    ControlListModel::VOLUME,
+                                    ControlListModel::PLAYER_SWITCH_BUTTON
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                Style::SHOWS_STYLE,
+                // Episodes in a row: the previous and next episodes around the
+                // skips, the subtitles and the play queue
+                N_("Shows"),
+                {
+                    {
+                        PlayerControlbarModel::Videoplayer,
+                        {
+                            {
+                                {
+                                    ControlListModel::PREVIOUS_BUTTON,
+                                    ControlListModel::SKIP_BACK_10_BUTTON,
+                                    ControlListModel::PLAY_BUTTON,
+                                    ControlListModel::SKIP_FW_10_BUTTON,
+                                    ControlListModel::NEXT_BUTTON
+                                },
+                                {
+
+                                },
+                                {
+                                    ControlListModel::VOLUME,
+                                    ControlListModel::LANG_BUTTON,
+                                    ControlListModel::PLAYLIST_BUTTON,
+                                    ControlListModel::SETTINGS_BUTTON,
+                                    ControlListModel::FULLSCREEN_BUTTON
+                                }
+                            }
+                        }
+                    },
+                    {
+                        PlayerControlbarModel::Audioplayer,
+                        {
+                            {
+                                {
+                                    ControlListModel::PREVIOUS_BUTTON,
+                                    ControlListModel::SKIP_BACK_BUTTON,
+                                    ControlListModel::PLAY_BUTTON,
+                                    ControlListModel::SKIP_FW_BUTTON,
+                                    ControlListModel::NEXT_BUTTON
+                                },
+                                {
+
+                                },
+                                {
+                                    ControlListModel::VOLUME,
+                                    ControlListModel::EXTENDED_BUTTON,
+                                    ControlListModel::PLAYLIST_BUTTON
+                                }
+                            }
+                        }
+                    },
+                    {
+                        PlayerControlbarModel::Miniplayer,
+                        {
+                            {
+                                {
+                                    ControlListModel::ARTWORK_INFO
+                                },
+                                {
+                                    ControlListModel::PREVIOUS_BUTTON,
+                                    ControlListModel::PLAY_BUTTON,
+                                    ControlListModel::NEXT_BUTTON
+                                },
+                                {
+                                    ControlListModel::VOLUME,
+                                    ControlListModel::PLAYER_SWITCH_BUTTON
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                Style::MUSIC_STYLE,
+                // Albums and playlists: shuffle and repeat around the track
+                // buttons, the favorites and the play queue
+                N_("Music"),
+                {
+                    {
+                        PlayerControlbarModel::Videoplayer,
+                        {
+                            {
+                                {
+                                    ControlListModel::RANDOM_BUTTON,
+                                    ControlListModel::PREVIOUS_BUTTON,
+                                    ControlListModel::PLAY_BUTTON,
+                                    ControlListModel::NEXT_BUTTON,
+                                    ControlListModel::LOOP_BUTTON
+                                },
+                                {
+
+                                },
+                                {
+                                    ControlListModel::VOLUME,
+                                    ControlListModel::FAVORITE_BUTTON,
+                                    ControlListModel::PLAYLIST_BUTTON,
+                                    ControlListModel::SETTINGS_BUTTON
+                                }
+                            }
+                        }
+                    },
+                    {
+                        PlayerControlbarModel::Audioplayer,
+                        {
+                            {
+                                {
+                                    ControlListModel::RANDOM_BUTTON,
+                                    ControlListModel::PREVIOUS_BUTTON,
+                                    ControlListModel::PLAY_BUTTON,
+                                    ControlListModel::NEXT_BUTTON,
+                                    ControlListModel::LOOP_BUTTON
+                                },
+                                {
+
+                                },
+                                {
+                                    ControlListModel::VOLUME,
+                                    ControlListModel::FAVORITE_BUTTON,
+                                    ControlListModel::EXTENDED_BUTTON,
+                                    ControlListModel::PLAYLIST_BUTTON
+                                }
+                            }
+                        }
+                    },
+                    {
+                        PlayerControlbarModel::Miniplayer,
+                        {
+                            {
+                                {
+                                    ControlListModel::ARTWORK_INFO
+                                },
+                                {
+                                    ControlListModel::RANDOM_BUTTON,
+                                    ControlListModel::PREVIOUS_BUTTON,
+                                    ControlListModel::PLAY_BUTTON,
+                                    ControlListModel::NEXT_BUTTON,
+                                    ControlListModel::LOOP_BUTTON
+                                },
+                                {
+                                    ControlListModel::FAVORITE_BUTTON,
+                                    ControlListModel::VOLUME,
+                                    ControlListModel::PLAYER_SWITCH_BUTTON
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                Style::WORK_STYLE,
+                // Reviews, lectures and recordings: frame stepping (15 s skips
+                // for audio), the speed, the A-B loop, snapshots and bookmarks
+                N_("Work"),
+                {
+                    {
+                        PlayerControlbarModel::Videoplayer,
+                        {
+                            {
+                                {
+                                    ControlListModel::FRAME_PREV_BUTTON,
+                                    ControlListModel::PLAY_BUTTON,
+                                    ControlListModel::FRAME_NEXT_BUTTON
+                                },
+                                {
+
+                                },
+                                {
+                                    ControlListModel::PLAYBACK_SPEED_BUTTON,
+                                    ControlListModel::ATOB_BUTTON,
+                                    ControlListModel::SNAPSHOT_BUTTON,
+                                    ControlListModel::BOOKMARK_BUTTON,
+                                    ControlListModel::VOLUME,
+                                    ControlListModel::SETTINGS_BUTTON
+                                }
+                            }
+                        }
+                    },
+                    {
+                        PlayerControlbarModel::Audioplayer,
+                        {
+                            {
+                                {
+                                    ControlListModel::SKIP_BACK_BUTTON,
+                                    ControlListModel::PLAY_BUTTON,
+                                    ControlListModel::SKIP_FW_BUTTON
+                                },
+                                {
+
+                                },
+                                {
+                                    ControlListModel::PLAYBACK_SPEED_BUTTON,
+                                    ControlListModel::ATOB_BUTTON,
+                                    ControlListModel::BOOKMARK_BUTTON,
+                                    ControlListModel::VOLUME,
+                                    ControlListModel::PLAYLIST_BUTTON
+                                }
+                            }
+                        }
+                    },
+                    {
+                        PlayerControlbarModel::Miniplayer,
+                        {
+                            {
+                                {
+                                    ControlListModel::ARTWORK_INFO
+                                },
+                                {
+                                    ControlListModel::SKIP_BACK_BUTTON,
+                                    ControlListModel::PLAY_BUTTON,
+                                    ControlListModel::SKIP_FW_BUTTON
+                                },
+                                {
+                                    ControlListModel::PLAYBACK_SPEED_BUTTON,
+                                    ControlListModel::VOLUME,
+                                    ControlListModel::PLAYER_SWITCH_BUTTON
                                 }
                             }
                         }

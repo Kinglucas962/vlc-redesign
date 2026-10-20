@@ -96,16 +96,13 @@ bool ControlbarProfileModel::save(bool clearDirty)
             m_settings->setValue(it.key(), it.value());
         m_settings->endGroup();
         m_settings->sync();
-        m_lastError = tr("Could not save the selected profile.");
-        emit errorChanged();
+        setError(qtr("Could not save the selected profile."));
         return false;
     }
     if (clearDirty)
         for (auto *profile : m_profiles) profile->resetDirty();
-    if (!m_lastError.isEmpty()) {
-        m_lastError.clear();
-        emit errorChanged();
-    }
+    setModified(false);
+    setError({});
     return true;
 }
 
@@ -194,16 +191,12 @@ bool ControlbarProfileModel::reload()
     m_settings->endGroup();
     if (!ok || index < 0 || index >= profiles.size()) index = 0;
     if (profiles.isEmpty()) return false;
-    if (auto *ctx = qobject_cast<MainCtx *>(parent())) {
-        QString error;
-        if (!ProfileSettings::apply(ctx, m_settings,
-                                    profiles[index]->m_settingsSnapshot, &error)) {
-            for (auto *profile : profiles) delete profile;
-            m_lastError = error;
-            emit errorChanged();
-            return false;
-        }
-    }
+    // The saved profiles are kept even when the settings of the selected one
+    // can not be applied (they would be replaced by the defaults at the
+    // next save): it stays selected with the settings in use
+    QString error;
+    if (auto *ctx = qobject_cast<MainCtx *>(parent()))
+        ProfileSettings::apply(ctx, m_settings, profiles[index]->m_settingsSnapshot, &error);
 
     beginResetModel();
     m_selectedProfile = -1;
@@ -216,6 +209,8 @@ bool ControlbarProfileModel::reload()
     m_skipNextApply = true;
     setSelectedProfile(index);
     m_skipNextApply = false;
+    setModified(false);
+    setError(error);
 
     return true;
 }

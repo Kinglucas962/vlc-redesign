@@ -178,7 +178,7 @@ bool ProfileSettings::apply(MainCtx *ctx, QSettings *settings,
 {
     if (target.isEmpty()) return true; // Profiles saved before this feature inherit current settings.
     if (!ctx || !ctx->getIntf() || target.value("version").toInt() != 1) {
-        if (error) *error = QStringLiteral("Profile settings are unavailable or incompatible.");
+        if (error) *error = qtr("Profile settings are unavailable or incompatible.");
         return false;
     }
     const QVariantMap targetConfig = target.value("config").toMap();
@@ -203,7 +203,7 @@ bool ProfileSettings::apply(MainCtx *ctx, QSettings *settings,
     const int theme = target.value("theme").toInt();
     if (!QColor(accent).isValid() || theme < 0
         || theme >= ctx->getColorScheme()->rowCount(QModelIndex())) {
-        if (error) *error = QStringLiteral("Profile appearance is invalid.");
+        if (error) *error = qtr("Profile appearance is invalid.");
         return false;
     }
 
@@ -220,7 +220,7 @@ bool ProfileSettings::apply(MainCtx *ctx, QSettings *settings,
         settings->setValue("redesign/accent", oldAccent);
         settings->setValue("redesign/developer-mode", oldDeveloperMode);
         settings->setValue("MainWindow/color-scheme-index", oldTheme);
-        if (error) *error = QStringLiteral("Could not save profile appearance.");
+        if (error) *error = qtr("Could not save profile appearance.");
         return false;
     }
     bool ok = true;
@@ -237,7 +237,7 @@ bool ProfileSettings::apply(MainCtx *ctx, QSettings *settings,
         settings->setValue("redesign/developer-mode", oldDeveloperMode);
         settings->setValue("MainWindow/color-scheme-index", oldTheme);
         settings->sync();
-        if (error) *error = QStringLiteral("Could not apply profile settings; previous values restored.");
+        if (error) *error = qtr("Could not apply profile settings; previous values restored.");
         return false;
     }
     ctx->getColorScheme()->setCurrentIndex(theme);

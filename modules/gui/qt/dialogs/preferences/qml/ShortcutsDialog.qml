@@ -8,6 +8,7 @@ import QtQuick.Templates as T
 import VLC.Dialogs
 import VLC.MainInterface
 import VLC.Style
+import VLC.Util
 import VLC.Widgets as Widgets
 
 // Figma "Keyboard Shortcuts" (2437:14832): 1048 x 800. The title bar holds
@@ -99,6 +100,13 @@ Widgets.RedesignDialog {
         }
     }
 
+    // Opens on the actions a search of the settings found
+    property string initialSearch: ""
+    function openWithSearch(text) {
+        initialSearch = text
+        open()
+    }
+
     function openReset() {
         if (visible) resetConfirmation.open()
         else { resetRequested = true; open() }
@@ -120,7 +128,8 @@ Widgets.RedesignDialog {
         saved = false
         profileError = ""
         shortcuts.reload()
-        searchField.text = ""
+        searchField.text = initialSearch
+        initialSearch = ""
         scopePicker.currentIndex = 0
         if (resetRequested) resetConfirmation.open()
         resetRequested = false
@@ -172,47 +181,146 @@ Widgets.RedesignDialog {
     }
 
     // Figma "Frame 162": 270 x 33, #090909, radius 6, the keys (DM Mono 14,
-    // #C6C6C6) in the middle, the edit icon (#404040) 5 from the end
-    component KeyField: T.Button {
+    // #C6C6C6) in the middle, the edit icon (#404040) 5 from the end. An
+    // action has several keys: one chip each, its cross (shown while the
+    // field is hovered) removes it; a press on the field adds a key.
+    component KeyField: FocusScope {
         id: keyField
 
-        property string keys
+        // the keys as VLC writes them ("f", "Ctrl+e")
+        property var keyList: []
+        // the name read out for the field ("Hotkey of Play / pause")
+        property string accessibleName
+
+        signal addRequested()
+        signal removeRequested(string key)
+
+        readonly property int keyCount: keyList ? keyList.length : 0
+        readonly property string keysText: {
+            const shown = []
+            for (let i = 0; i < keyCount; ++i)
+                shown.push(root.displayKeys(keyList[i]))
+            return shown.join(", ")
+        }
+        // the crosses show while the field is hovered or has the keyboard
+        readonly property bool editing: fieldHover.hovered || keyField.activeFocus
 
         width: VLCStyle.dp(270, VLCStyle.scale)
         height: VLCStyle.dp(33, VLCStyle.scale)
-        padding: 0
 
-        Accessible.name: keys
+        HoverHandler { id: fieldHover }
 
-        background: Rectangle {
-            radius: VLCStyle.dp(6, VLCStyle.scale)
-            color: keyField.hovered ? VLCStyle.redesign.color("#141414", "#e5e5e5")
-                                    : VLCStyle.redesign.color("#090909", "#fafafa")
-            border.width: keyField.visualFocus ? 1 : 0
-            border.color: VLCStyle.redesign.focusColor
-        }
-        contentItem: Item {
-            // Figma: the text box (its advance rounded up) centred in the
-            // 230 between the paddings of 20
-            FigmaText {
-                x: VLCStyle.dp(20, VLCStyle.scale) + (parent.width - VLCStyle.dp(40, VLCStyle.scale) - width) / 2
-                y: VLCStyle.dp(4, VLCStyle.scale)
-                width: Math.min(Math.ceil(implicitWidth - 0.05), parent.width - VLCStyle.dp(40, VLCStyle.scale))
-                text: keyField.keys
-                color: VLCStyle.redesign.color("#C6C6C6", "#333333")
-                // DM Mono (bundled): a line of 1.302 em, ascender 0.992
-                font.family: VLCStyle.redesign.monoFontFamily
-                lineRatio: 1.302
-                ascentRatio: 0.992
+        T.Button {
+            id: addButton
+
+            anchors.fill: parent
+            padding: 0
+
+            Accessible.name: keyField.accessibleName
+            Accessible.description: keyField.keyCount > 0
+                                    ? qsTr("%1. Press to add a key").arg(keyField.keysText)
+                                    : qsTr("No key. Press to add one")
+
+            onClicked: keyField.addRequested()
+
+            background: Rectangle {
+                radius: VLCStyle.dp(6, VLCStyle.scale)
+                color: addButton.hovered ? VLCStyle.redesign.color("#141414", "#e5e5e5")
+                                         : VLCStyle.redesign.color("#090909", "#fafafa")
+                border.width: addButton.visualFocus ? 1 : 0
+                border.color: VLCStyle.redesign.focusColor
             }
-            Image {
-                x: parent.width - VLCStyle.dp(5, VLCStyle.scale) - width
-                y: VLCStyle.dp(4, VLCStyle.scale)
-                width: VLCStyle.redesign.iconSize
-                height: width
-                sourceSize: Qt.size(width, height)
-                source: "qrc:///redesign/icons/edit/dim.png"
-                smooth: false
+            contentItem: Item {
+                Image {
+                    x: parent.width - VLCStyle.dp(5, VLCStyle.scale) - width
+                    y: VLCStyle.dp(4, VLCStyle.scale)
+                    width: VLCStyle.redesign.iconSize
+                    height: width
+                    sourceSize: Qt.size(width, height)
+                    source: "qrc:///redesign/icons/edit/dim.png"
+                    smooth: false
+                }
+            }
+        }
+
+        // Figma: the keys centred in the 230 between the paddings of 20;
+        // several keys share that room (each one elided when they don't fit)
+        Row {
+            id: chipRow
+
+            readonly property real room: keyField.width - 2 * VLCStyle.dp(20, VLCStyle.scale)
+
+            x: VLCStyle.dp(20, VLCStyle.scale) + (room - width) / 2
+            y: VLCStyle.dp(4, VLCStyle.scale)
+            spacing: VLCStyle.dp(4, VLCStyle.scale)
+
+            Repeater {
+                model: keyField.keyList
+
+                delegate: Rectangle {
+                    id: chip
+
+                    required property string modelData
+
+                    readonly property real crossSize: VLCStyle.dp(16, VLCStyle.scale)
+                    // after the text: 2, the cross, 2
+                    readonly property real crossRoom: crossSize + VLCStyle.dp(4, VLCStyle.scale)
+                    // a lone key keeps that room on its left too: its text
+                    // in the middle of the field, as the design
+                    readonly property real leftRoom: keyField.keyCount === 1 ? crossRoom
+                                                                             : VLCStyle.dp(4, VLCStyle.scale)
+                    readonly property real maxWidth: (chipRow.room - chipRow.spacing * (keyField.keyCount - 1))
+                                                     / Math.max(1, keyField.keyCount)
+
+                    width: Math.min(leftRoom + Math.ceil(keyText.implicitWidth - 0.05) + crossRoom,
+                                    Math.floor(maxWidth))
+                    height: VLCStyle.dp(25, VLCStyle.scale)
+                    radius: VLCStyle.dp(4, VLCStyle.scale)
+                    // the keys apart from each other when there are several
+                    color: keyField.keyCount > 1 && keyField.editing
+                           ? VLCStyle.redesign.color("#191919", "#ececec") : "transparent"
+
+                    FigmaText {
+                        id: keyText
+                        x: chip.leftRoom
+                        width: Math.max(0, chip.width - x - chip.crossRoom)
+                        text: root.displayKeys(chip.modelData)
+                        color: VLCStyle.redesign.color("#C6C6C6", "#333333")
+                        // DM Mono (bundled): a line of 1.302 em, ascender 0.992
+                        font.family: VLCStyle.redesign.monoFontFamily
+                        lineRatio: 1.302
+                        ascentRatio: 0.992
+                    }
+
+                    T.Button {
+                        id: removeButton
+
+                        x: chip.width - width - VLCStyle.dp(2, VLCStyle.scale)
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: chip.crossSize
+                        height: chip.crossSize
+                        padding: 0
+                        opacity: keyField.editing ? 1 : 0
+                        activeFocusOnTab: true
+
+                        Accessible.name: qsTr("Remove %1").arg(keyText.text)
+
+                        onClicked: keyField.removeRequested(chip.modelData)
+
+                        background: Rectangle {
+                            radius: VLCStyle.dp(3, VLCStyle.scale)
+                            color: removeButton.hovered ? VLCStyle.redesign.color("#222222", "#dcdcdc") : "transparent"
+                            border.width: removeButton.visualFocus ? 1 : 0
+                            border.color: VLCStyle.redesign.focusColor
+                        }
+                        contentItem: Image {
+                            sourceSize: Qt.size(width, height)
+                            source: SVGColorImage.colorize("qrc:///redesign/duo/close.svg")
+                                        .color1(removeButton.hovered ? VLCStyle.redesign.color("#C6C6C6", "#333333")
+                                                                     : VLCStyle.redesign.color("#6B6B6B", "#7c7c7b")).uri()
+                        }
+                    }
+                }
             }
         }
     }
@@ -437,8 +545,8 @@ Widgets.RedesignDialog {
                 required property int index
                 required property string key
                 required property string action
-                required property string hotkey
-                required property string globalHotkey
+                required property var hotkeys
+                required property var globalHotkeys
                 required property bool dirty
                 // Names of the design for the actions it shows
                 readonly property string label: root.actionLabels[key] ?? action
@@ -484,14 +592,18 @@ Widgets.RedesignDialog {
                     KeyField {
                         objectName: "hotkey_" + shortcutRow.key
                         x: content.hotkeyX
-                        keys: root.displayKeys(shortcutRow.hotkey)
-                        onClicked: root.beginCapture(shortcutRow.key, false, shortcutRow.action)
+                        keyList: shortcutRow.hotkeys
+                        accessibleName: qsTr("Hotkey of %1").arg(shortcutRow.label)
+                        onAddRequested: root.beginCapture(shortcutRow.key, false, shortcutRow.label)
+                        onRemoveRequested: (key) => shortcuts.removeKey(shortcutRow.key, false, key)
                     }
                     KeyField {
                         objectName: "globalHotkey_" + shortcutRow.key
                         x: content.globalX
-                        keys: root.displayKeys(shortcutRow.globalHotkey)
-                        onClicked: root.beginCapture(shortcutRow.key, true, shortcutRow.action)
+                        keyList: shortcutRow.globalHotkeys
+                        accessibleName: qsTr("Global hotkey of %1").arg(shortcutRow.label)
+                        onAddRequested: root.beginCapture(shortcutRow.key, true, shortcutRow.label)
+                        onRemoveRequested: (key) => shortcuts.removeKey(shortcutRow.key, true, key)
                     }
                 }
             }
@@ -527,6 +639,8 @@ Widgets.RedesignDialog {
         }
         onReplaceRequested: root.assignCaptured(root.capturedKey,
                                                  root.capturedModifiers, true)
+        // back to waiting for another key
+        onConflictCancelled: root.conflictAction = ""
     }
 
     ShortcutsResetPopup {

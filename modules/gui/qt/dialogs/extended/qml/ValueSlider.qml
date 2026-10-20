@@ -39,7 +39,7 @@ ColumnLayout {
             width: VLCStyle.dp(136, VLCStyle.scale)
             height: VLCStyle.dp(32, VLCStyle.scale)
             radius: VLCStyle.dp(4, VLCStyle.scale)
-            color: "#0E0E0E"
+            color: VLCStyle.redesign.color("#0E0E0E", "#c2c2c1")
             visible: root.editable
             TextInput {
                 id: numericInput
@@ -93,7 +93,7 @@ ColumnLayout {
             width: slider.availableWidth
             height: VLCStyle.dp(16, VLCStyle.scale)
             radius: VLCStyle.dp(6, VLCStyle.scale)
-            color: "#090909"
+            color: VLCStyle.redesign.color("#090909", "#dedede")
             Rectangle {
                 width: Math.max(0, slider.visualPosition * parent.width)
                 height: parent.height

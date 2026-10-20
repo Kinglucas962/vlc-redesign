@@ -558,17 +558,10 @@ void VLCMenuBar::HelpMenu(qt_intf_t *p_intf, QMenu *menu )
 {
     addDPStaticEntry( menu, qtr( "&Help" ) ,
         ":/menu/help.svg", &DialogsProvider::helpDialog, "F1" );
-#ifdef UPDATE_CHECK
+    // VideoLAN's update check offers the official VLC: the About of the
+    // redesign checks this build's GitHub releases
     addDPStaticEntry( menu, qtr( "Check for &Updates..." ) , "",
-                     [ctx = QPointer(p_intf->p_mi)]() {
-        if (Q_LIKELY(ctx))
-        {
-            const auto updateModel = ctx->getUpdateModel();
-            assert(updateModel);
-            updateModel->checkUpdate(true);
-        }
-    });
-#endif
+                      &DialogsProvider::aboutDialog );
     menu->addSeparator();
     addDPStaticEntry( menu, qfut( I_MENU_ABOUT ), ":/menu/info.svg",
             &DialogsProvider::aboutDialog, "Shift+F1", QAction::AboutRole );
@@ -919,9 +912,26 @@ QMenu *RedesignPopupMenu( qt_intf_t *p_intf )
     action = playlist->addAction( qtr( "Shuffle" ), THEMPL, &PlaylistController::toggleRandom );
     action->setCheckable( true );
     action->setChecked( THEMPL->isRandom() );
-    action = playlist->addAction( qtr( "Repeat" ), THEMPL, &PlaylistController::toggleRepeatMode );
-    action->setCheckable( true );
-    action->setChecked( THEMPL->getRepeatMode() != PlaylistController::PLAYBACK_REPEAT_NONE );
+    {
+        /* Repeat has three states: one radio item per mode */
+        QMenu *repeat = playlist->addMenu( qtr( "Repeat" ) );
+        QActionGroup *repeatGroup = new QActionGroup( repeat );
+        const std::pair<QString, PlaylistController::PlaybackRepeat> modes[] = {
+            { qtr( "Off" ), PlaylistController::PLAYBACK_REPEAT_NONE },
+            { qtr( "Repeat All" ), PlaylistController::PLAYBACK_REPEAT_ALL },
+            { qtr( "Repeat One" ), PlaylistController::PLAYBACK_REPEAT_CURRENT },
+        };
+        for( const auto &mode : modes )
+        {
+            const PlaylistController::PlaybackRepeat repeatMode = mode.second;
+            action = repeat->addAction( mode.first, [playlistController = THEMPL, repeatMode]() {
+                playlistController->setRepeatMode( repeatMode );
+            });
+            action->setCheckable( true );
+            action->setChecked( THEMPL->getRepeatMode() == repeatMode );
+            repeatGroup->addAction( action );
+        }
+    }
     playlist->addSeparator();
     playlist->addAction( withShortcut( qfut( I_PL_SAVE ), QStringLiteral( "Ctrl + Y" ) ),
                          THEDP, &DialogsProvider::savePlayingToPlaylist );
@@ -948,8 +958,14 @@ QMenu *RedesignPopupMenu( qt_intf_t *p_intf )
               THEDP, &DialogsProvider::openDiscDialog );
     addEntry( open, p_intf, "capture-device", qtr( "Open Capture Device" ), QStringLiteral( "Ctrl + C" ),
               THEDP, &DialogsProvider::openCaptureDialog );
-    open->addAction( withShortcut( qtr( "Open Location from Clipboard" ), QStringLiteral( "Ctrl + V" ) ),
-                     THEDP, &DialogsProvider::openUrlDialog );
+    /* as Ctrl+V (GlobalShortcuts.qml): one location opens the URL dialog,
+     * several ask to enqueue them */
+    if( mi )
+        open->addAction( withShortcut( qtr( "Open Location from Clipboard" ), QStringLiteral( "Ctrl + V" ) ),
+                         mi, &MainCtx::pasteFromClipboard );
+    else
+        open->addAction( withShortcut( qtr( "Open Location from Clipboard" ), QStringLiteral( "Ctrl + V" ) ),
+                         THEDP, &DialogsProvider::openUrlDialog );
     open->addSeparator();
     addEntry( open, p_intf, "swap", qtr( "Convert" ), QStringLiteral( "Ctrl + R" ),
               THEDP, &DialogsProvider::openAndTranscodingDialogs );

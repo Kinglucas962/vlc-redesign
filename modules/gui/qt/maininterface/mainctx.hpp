@@ -512,6 +512,10 @@ protected:
     int m_osVersion;
 
     bool m_bgCone = true;
+    // "qt-minimal-view" as last read: the view follows it at the start and
+    // when it changes, not on every save of the settings (a UI hidden with
+    // Ctrl+H stays hidden)
+    bool m_minimalViewOption = false;
     bool m_windowSuportExtendedFrame = false;
     unsigned m_windowExtendedMargin = 0;
 

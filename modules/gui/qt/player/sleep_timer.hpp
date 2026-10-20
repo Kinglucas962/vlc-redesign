@@ -63,6 +63,7 @@ private:
     QPointer<PlayerController> m_player;
     QPointer<vlc::playlist::PlaylistController> m_playlist;
     QMetaObject::Connection m_inputConnection;
+    QMetaObject::Connection m_stateConnection;
     QTimer m_tick;
     QElapsedTimer m_elapsed;
     int m_durationSeconds = 0;

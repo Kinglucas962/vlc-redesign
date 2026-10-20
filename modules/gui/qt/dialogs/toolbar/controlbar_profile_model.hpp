@@ -35,6 +35,9 @@ class ControlbarProfileModel : public QAbstractListModel
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged FINAL)
     Q_PROPERTY(QString lastError READ lastError NOTIFY errorChanged FINAL)
     Q_PROPERTY(QString profileAccent READ profileAccent NOTIFY selectedProfileChanged FINAL)
+    // Profiles added, renamed, deleted or chosen since they were last saved
+    // or reloaded (Save of Customize Player)
+    Q_PROPERTY(bool modified READ modified NOTIFY modifiedChanged FINAL)
 
 public:
     explicit ControlbarProfileModel(QSettings* settings, QObject *parent = nullptr);
@@ -53,7 +56,12 @@ public:
         MINIMALIST_STYLE,
         ONE_LINER_STYLE,
         SIMPLEST_STYLE,
-        CLASSIC_STYLE
+        CLASSIC_STYLE,
+        // the profiles of the design (Figma 6648:20666)
+        MOVIES_STYLE,
+        SHOWS_STYLE,
+        MUSIC_STYLE,
+        WORK_STYLE
     };
 
     // Editable:
@@ -77,16 +85,36 @@ public:
     QString lastError() const { return m_lastError; }
     QString profileAccent() const;
     ControlbarProfile* currentModel() const;
+    bool modified() const { return m_modified; }
 
-    ControlbarProfile* cloneProfile(const ControlbarProfile* profile);
-    Q_INVOKABLE void cloneSelectedProfile(const QString& newProfileName);
+    // A copy of the profile (named after it when name is empty)
+    ControlbarProfile* cloneProfile(const ControlbarProfile* profile, const QString& name = {});
 
     Q_INVOKABLE ControlbarProfile* getProfile(int index) const;
 
-    Q_INVOKABLE ControlbarProfile* newProfile(const QString& name);
+    ControlbarProfile* newProfile(const QString& name);
     ControlbarProfile* newProfile();
 
-    Q_INVOKABLE void deleteSelectedProfile();
+    // "New profile" of every menu: opens Customize Player, which asks for
+    // the name of the profile (takeNewProfileRequest())
+    Q_INVOKABLE void requestNewProfile();
+    // Whether a new profile was asked for since the last call
+    Q_INVOKABLE bool takeNewProfileRequest();
+
+    // Why a name can not be given to a new profile (renaming: to the
+    // selected one), empty when it can
+    Q_INVOKABLE QString nameError(const QString& name, bool renaming) const;
+    // The name, or the name followed by a number when a profile has it
+    Q_INVOKABLE QString uniqueName(const QString& name) const;
+
+    // These select the profile and return its row, -1 when they fail
+    // (lastError says why): a new profile has the layout of the Default
+    // one and the settings in use, a clone those of the selected profile
+    Q_INVOKABLE int createProfile(const QString& name);
+    Q_INVOKABLE int cloneSelectedProfile(const QString& name);
+    Q_INVOKABLE bool renameSelectedProfile(const QString& name);
+    // The last profile is never deleted
+    Q_INVOKABLE bool deleteSelectedProfile();
 
     // This is a static method, caller takes the ownership
     // of the profile:
@@ -107,6 +135,8 @@ signals:
     void countChanged();
     void selectedProfileChanged();
     void errorChanged();
+    void modifiedChanged();
+    void newProfileRequested();
 
     void selectedProfileControlListChanged(const QVector<int>& linearControlList);
 
@@ -116,6 +146,8 @@ private:
     int m_selectedProfile = -1;
     QString m_lastError;
     bool m_skipNextApply = false;
+    bool m_modified = false;
+    bool m_newProfileRequested = false;
 
     struct Profile {
         const Style id;
@@ -128,7 +160,12 @@ private:
 private:
     void insertDefaults();
 
-    QString generateUniqueName(const QString& name);
+    QString generateUniqueName(const QString& name) const;
+    void setError(const QString& error);
+    void setModified(bool modified);
+    // Selects a profile even when its settings can not be applied (it
+    // stays selected with the settings in use, lastError says why)
+    void forceSelectedProfile(int index);
 
 protected:
     QSettings* m_settings = nullptr;

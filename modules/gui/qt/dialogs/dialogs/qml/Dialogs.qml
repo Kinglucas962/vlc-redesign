@@ -28,6 +28,8 @@ import VLC.Style
 Item {
     id: root
 
+    onVisibleChanged: if (visible && VLCStyle.customizeRequested) editorOpenTimer.restart()
+
     //---------------------------------------------------------------------------------------------
     // Properties
     //---------------------------------------------------------------------------------------------
@@ -44,10 +46,15 @@ Item {
     // Events
     //---------------------------------------------------------------------------------------------
 
-    Component.onCompleted: if (DialogErrorModel.repeatedMessageCount){
-                               hideErrorPopupTimer.restart()
-                               errorPopup.state = "visible"
-                           }
+    Component.onCompleted: {
+        if (DialogErrorModel.repeatedMessageCount) {
+            hideErrorPopupTimer.restart()
+            errorPopup.state = "visible"
+        }
+        // Customize Player asked from the library (onShowToolbarEditorDialog)
+        if (visible && VLCStyle.customizeRequested)
+            editorOpenTimer.restart()
+    }
 
     Component.onDestruction: {
         if (questionDialog.dialogId !== null) {
@@ -609,9 +616,31 @@ Item {
             target: DialogsProvider
 
             function onShowToolbarEditorDialog() {
+                // The library and the player each have these dialogs: only
+                // the ones of the view shown answer
+                if (!root.visible)
+                    return
+                // The editor edits the player's bar in place: from the
+                // library, show the player; its dialogs open the editor
+                if (MainCtx.effectiveMainInterfaceMode !== MainCtx.MAININTERFACE_MODE_PLAYER) {
+                    VLCStyle.customizeRequested = true
+                    MainCtx.playerView = true
+                    return
+                }
                 toolbarEditorDialogLoader.active = true
                 if (toolbarEditorDialogLoader.item)
                     toolbarEditorDialogLoader.item.open()
+            }
+        }
+
+        // once the switch to the player is over: a popup opened during it
+        // is hidden
+        Timer {
+            id: editorOpenTimer
+            interval: VLCStyle.duration_long + 400
+            onTriggered: {
+                VLCStyle.customizeRequested = false
+                DialogsProvider.showToolbarEditorDialog()
             }
         }
     }

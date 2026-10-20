@@ -8,6 +8,7 @@
  *****************************************************************************/
 import QtQuick
 import QtQuick.Controls.Basic as Controls
+import QtQuick.Templates as T
 
 import VLC.Style
 import VLC.Util
@@ -17,8 +18,13 @@ Item {
     property var folderUrl
     // the folder as the design writes it ("~/Videos")
     property string folderText: ""
+    // without the media library no folder is added: the choice is hidden
+    property bool folderAvailable: true
+    readonly property bool _hasFolder: !!folderUrl && folderUrl.toString() !== ""
     property bool metadataNetworkAccess: false
     signal browseRequested()
+    // the folder left out (the library starts empty)
+    signal clearRequested()
     signal consentRequested(bool allowed)
 
     // Figma 1899:3055 on whole pixels (centring 1090 gives halves)
@@ -71,6 +77,7 @@ Item {
         id: folderLabel
         x: Math.round((parent.width - 595) / 2)
         y: 500
+        visible: root.folderAvailable
         topPadding: 14 - folderLabelMetrics.ascent
         text: qsTr("Choose a Media Folder to get started with")
         color: "#8f8f8f"
@@ -87,6 +94,7 @@ Item {
         y: 533
         width: 471
         height: 36
+        visible: root.folderAvailable
         color: "#090909"
         border.width: 2
         border.color: "#191919"
@@ -94,14 +102,14 @@ Item {
         Text {
             id: folderText
             anchors.fill: parent
-            // 12 inside the border of 2
+            // 12 inside the border of 2 (the clear button: 24 and 8 more)
             anchors.leftMargin: 14
-            anchors.rightMargin: 14
+            anchors.rightMargin: clearFolder.visible ? 14 + 24 + 8 : 14
             // the baseline where the design centres a line of Inter
             verticalAlignment: Text.AlignTop
             topPadding: Math.round(height / 2 + VLCStyle.redesign.centeredBaseline(font.pixelSize)) - folderMetrics.ascent
             elide: Text.ElideMiddle
-            text: root.folderUrl && root.folderUrl.toString() !== ""
+            text: root._hasFolder
                   ? (root.folderText || Helpers.localPathFromUrl(root.folderUrl)) : qsTr("No folder selected")
             color: "#c6c6c6"
             font.family: VLCStyle.redesign.fontFamily
@@ -112,6 +120,26 @@ Item {
                 font: folderText.font
             }
         }
+        // Not in the design: the suggested folder can be left out
+        T.AbstractButton {
+            id: clearFolder
+            objectName: "onboardingClearFolder"
+            anchors.right: parent.right
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            width: 24
+            height: 24
+            visible: root._hasFolder
+            text: qsTr("Remove the folder")
+            Accessible.name: text
+            contentItem: Image {
+                source: "qrc:///redesign/icons/close/default.png"
+                sourceSize: Qt.size(24, 24)
+                fillMode: Image.Pad
+                opacity: clearFolder.hovered || clearFolder.down ? 1 : 0.6
+            }
+            onClicked: root.clearRequested()
+        }
     }
     OnboardingButton {
         x: Math.round((parent.width - 595) / 2) + 481
@@ -119,6 +147,7 @@ Item {
         y: 533.5
         width: 114
         height: 35
+        visible: root.folderAvailable
         objectName: "onboardingBrowseFolder"
         text: qsTr("Browse")
         font.weight: Font.Normal

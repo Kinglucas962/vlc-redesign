@@ -66,10 +66,12 @@ Row {
                 color: root.color
                 hoverColor: modelData.type === CSDButton.Close ? "#c42b1c" : root.hoverColor
                 isThemeDark: theme.palette.isDark
+                readonly property bool restore: modelData.type === CSDButton.MaximizeRestore
+                                                && MainCtx.intfMainWindow.visibility === Window.Maximized
                 iconSource: {
                     switch (modelData.type) {
                     case CSDButton.Minimize: return "qrc:///redesign/player/minimize.png"
-                    case CSDButton.MaximizeRestore: return "qrc:///redesign/player/maximize.png"
+                    case CSDButton.MaximizeRestore: return restore ? "" : "qrc:///redesign/player/maximize.png"
                     case CSDButton.Close: return "qrc:///redesign/player/close.png"
                     }
                     return ""
@@ -84,6 +86,39 @@ Row {
                     return ""
                 }
                 onClicked: modelData.click()
+
+                // Restore, while maximized: the set has no such icon, two
+                // windows drawn with the strokes of the maximize one (24 px
+                // box, 2 px #8F8F8F)
+                Item {
+                    anchors.centerIn: parent
+                    width: VLCStyle.redesign.iconSize
+                    height: width
+                    visible: windowButton.restore
+
+                    readonly property real unit: width / 24
+                    readonly property color stroke: VLCStyle.redesign.color("#8F8F8F", "#2E2E2E")
+
+                    // the window behind: its top and right sides
+                    Rectangle {
+                        x: 8 * parent.unit; y: 5 * parent.unit
+                        width: 11 * parent.unit; height: 2 * parent.unit
+                        color: parent.stroke
+                    }
+                    Rectangle {
+                        x: 17 * parent.unit; y: 5 * parent.unit
+                        width: 2 * parent.unit; height: 11 * parent.unit
+                        color: parent.stroke
+                    }
+                    // the window in front
+                    Rectangle {
+                        x: 5 * parent.unit; y: 8 * parent.unit
+                        width: 11 * parent.unit; height: 11 * parent.unit
+                        color: "transparent"
+                        border.color: parent.stroke
+                        border.width: 2 * parent.unit
+                    }
+                }
 
                 // Figma "Player - customize": outlined (36 x 24)
                 DashedRect {
