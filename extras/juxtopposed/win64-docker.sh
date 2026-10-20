@@ -78,7 +78,12 @@ rm -rf /build/package
 # Fail instead of silently rebuilding every contrib from source.
 sed 's/|| PREBUILT_FAILED=yes/|| exit 1/' extras/package/win32/build.sh \
     > extras/package/win32/build-prebuilt-only.sh
-sh extras/package/win32/build-prebuilt-only.sh -a x86_64 -p -o /build/package "$@"
+# In release mode (-r) VLC's packaging also tries package-win32-zip, which
+# expects its own folder layout and fails with -o; the package in
+# /build/package is complete by then (it was removed above, so a failure
+# before the install leaves it empty and the checks below catch it).
+sh extras/package/win32/build-prebuilt-only.sh -a x86_64 -p -o /build/package "$@" \
+    || echo "build.sh failed after packaging (expected in release mode)" >&2
 rm -f extras/package/win32/build-prebuilt-only.sh
 
 test -s /build/package/vlc.exe

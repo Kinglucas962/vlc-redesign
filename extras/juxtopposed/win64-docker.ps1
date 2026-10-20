@@ -38,13 +38,18 @@ if ($Lint) {
 }
 
 # Same paths as extras/ci/get-contrib-sha.sh win64
-$sha = git -C $root rev-list -1 HEAD -- extras/tools contrib extras/ci extras/package/win32
-$archive = "vlc-contrib-x86_64-w64-mingw32-$sha.tar.zst"
-if (-not (Test-Path "$Cache\$archive")) {
-    New-Item -ItemType Directory -Force $Cache | Out-Null
-    curl.exe -fL --retry 3 -o "$Cache\$archive" "https://artifacts.videolan.org/vlc/win64/$archive"
-    if ($LASTEXITCODE -ne 0) { throw "Prebuilt contrib $archive is not available" }
+# VideoLAN only publishes archives for its own commits: when a commit of this
+# fork touches these paths (packaging), use the newest upstream one.
+New-Item -ItemType Directory -Force $Cache | Out-Null
+$archive = $null
+foreach ($sha in @(git -C $root rev-list -n 20 HEAD -- extras/tools contrib extras/ci extras/package/win32)) {
+    $name = "vlc-contrib-x86_64-w64-mingw32-$sha.tar.zst"
+    if (Test-Path "$Cache\$name") { $archive = $name; break }
+    curl.exe -sfL --retry 3 -o "$Cache\$name" "https://artifacts.videolan.org/vlc/win64/$name"
+    if ($LASTEXITCODE -eq 0) { $archive = $name; break }
+    Remove-Item "$Cache\$name" -ErrorAction SilentlyContinue
 }
+if (-not $archive) { throw 'No prebuilt contrib archive is available for the last 20 commits' }
 New-Item -ItemType Directory -Force $Out | Out-Null
 # A running VLC locks its DLLs and the package copy would fail at the end.
 $outPath = (Resolve-Path $Out).Path
