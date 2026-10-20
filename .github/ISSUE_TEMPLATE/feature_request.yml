@@ -1,0 +1,44 @@
+name: Suggestion
+description: An idea to make VLC Redesign better
+labels: ["suggestion"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas are welcome! The look follows [Juxtopposed's design](https://www.figma.com/community/file/1691465999134370980),
+        so suggestions that fit it, or fill a gap it doesn't cover, are the easiest to take on.
+        Check the [roadmap](https://github.com/KuchiSofts/vlc-redesign/blob/main/ROADMAP.md) first: it may already be planned.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Player
+        - Library
+        - Settings
+        - Subtitles
+        - Menus and shortcuts
+        - Themes and look
+        - Installer and updates
+        - Performance
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do that you can't today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: How it could work. Sketches or mock-ups are great.
+  - type: checkboxes
+    id: design
+    attributes:
+      label: Design
+      options:
+        - label: It's in Juxtopposed's design but missing or different here
+        - label: It's not in the design (a new idea)

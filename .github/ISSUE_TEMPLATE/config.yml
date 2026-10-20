@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: The official VLC media player
+    url: https://www.videolan.org/vlc/
+    about: Problems with the official VLC (not this redesign) go to VideoLAN.
+  - name: The design by Juxtopposed
+    url: https://www.youtube.com/watch?v=ERFeOgqk324
+    about: Watch the video that this redesign comes from.

@@ -6,6 +6,7 @@
 
 [**⬇ Download for Windows**](https://github.com/KuchiSofts/vlc-redesign/releases/latest) ·
 [What's new](CHANGELOG.md) ·
+[Roadmap](ROADMAP.md) ·
 [Credits](CREDITS.md) ·
 [Build from source](#build-from-source)
 
@@ -97,18 +98,31 @@ The demo uses free media: *[Sintel](https://durian.blender.org/)* and *[Big Buck
 
 ## Download
 
-1. Go to **[Releases](https://github.com/KuchiSofts/vlc-redesign/releases/latest)** and download `vlc-redesign-…-win64.zip`.
-2. Unzip it anywhere (for example `C:\Apps\vlc-redesign`).
-3. Run **`vlc.exe`**.
+Go to **[Releases](https://github.com/KuchiSofts/vlc-redesign/releases/latest)** and pick one:
 
-It's portable: it doesn't install anything, and it keeps its settings in a `portable` folder
-next to `vlc.exe`, so it won't touch an installed official VLC. To remove it, delete the folder.
+| | |
+|---|---|
+| **Installer** · `vlc-redesign-…-win64-setup.exe` | Recommended. Installs for you only (no administrator rights needed), adds a Start menu entry, and keeps itself up to date. Optionally adds VLC Redesign to *Open with* without taking over your default player. |
+| **Portable** · `vlc-redesign-…-win64.zip` | Unzip anywhere and run `vlc.exe`. Nothing is installed; delete the folder to remove it. |
 
-Requirements: Windows 10 or 11, 64-bit.
+Both keep their settings, library and history in their own `portable` folder, so they never touch an
+installed official VLC. Requirements: Windows 10 or 11, 64-bit.
+
+### Updates
+
+VLC Redesign checks this repository for a new release once a day (Settings → General → *Check for updates
+automatically*, or ⋯ → About → *Check for updates*). When one is out, a card offers:
+
+- **Update now** (installed copy): downloads the installer, checks it against the release's `SHA256SUMS.txt`,
+  closes VLC Redesign, updates it and opens it again on what was playing, where it was.
+- **Download** (portable copy): opens the [latest release](https://github.com/KuchiSofts/vlc-redesign/releases/latest).
+
+Running the installer by hand works too: it closes a running VLC Redesign politely and reopens it afterwards.
 
 > [!NOTE]
 > Windows SmartScreen may warn about an unknown publisher, because the build isn't code-signed.
 > Click *More info → Run anyway*, or build it yourself from source.
+> Every release lists the SHA-256 of its files in `SHA256SUMS.txt`.
 
 ## Known limitations
 
@@ -133,8 +147,9 @@ git clone https://github.com/KuchiSofts/vlc-redesign.git
 cd vlc-redesign
 # Development build (debug, asserts on) into %USERPROFILE%\source\vlc-win64
 .\extras\juxtopposed\win64-docker.ps1
-# Release build, stripped, in its own Docker volume
-.\extras\juxtopposed\win64-docker.ps1 -Out C:\vlc-redesign -Volume vlc-win64-release -Strip -r
+# Release: build, then the portable zip, the installer and SHA256SUMS.txt
+# (needs Inno Setup 6.7+: choco install innosetup)
+.\extras\juxtopposed\make-release.ps1
 ```
 
 The first build takes a while; later ones only rebuild what changed (`-Quick` skips configure).

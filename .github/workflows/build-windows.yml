@@ -1,0 +1,63 @@
+# Copyright (C) 2026 VLC authors and VideoLAN
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Builds the Windows package of every pull request (including the weekly
+# upstream VLC merges) and of main, in VideoLAN's official build image, so an
+# upstream change that breaks the redesign is caught before it is merged.
+name: Windows build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  win64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # the prebuilt contrib archive is named after the commit that last
+          # touched contrib/ and the packaging
+          fetch-depth: 0
+
+      - name: Build image
+        run: docker build -t vlc-win64-redesign -f extras/juxtopposed/win64.Dockerfile extras/juxtopposed
+
+      - name: Prebuilt contribs
+        run: |
+          mkdir -p cache
+          for sha in $(git rev-list -n 20 HEAD -- extras/tools contrib extras/ci extras/package/win32); do
+            name="vlc-contrib-x86_64-w64-mingw32-$sha.tar.zst"
+            if curl -fsSL --retry 3 -o "cache/$name" "https://artifacts.videolan.org/vlc/win64/$name"; then
+              echo "CONTRIB=$name" >> "$GITHUB_ENV"; break
+            fi
+            rm -f "cache/$name"
+          done
+          test -n "$(ls cache)"
+
+      - name: Build
+        run: |
+          mkdir -p out
+          docker run --rm -u root -v vlc-build:/build vlc-win64-redesign chown videolan:videolan /build
+          sudo chown -R 1000:1000 out
+          docker run --rm \
+            -e CONTRIB_ARCHIVE="/cache/$CONTRIB" -e STRIP=1 \
+            -v "$PWD:/src:ro" -v "$PWD/cache:/cache:ro" -v "$PWD/out:/out" -v vlc-build:/build \
+            vlc-win64-redesign sh -c 'cp /src/extras/juxtopposed/win64-docker.sh /tmp/build.sh && exec sh /tmp/build.sh -r'
+          test -s out/vlc.exe
+          test -s out/plugins/gui/libqt_plugin.dll
+
+      - name: Upload the package
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vlc-redesign-win64-${{ github.sha }}
+          path: out
+          retention-days: 7
