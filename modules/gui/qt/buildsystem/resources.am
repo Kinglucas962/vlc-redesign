@@ -61,6 +61,7 @@ libqt_plugin_la_RES = \
 	pixmaps/redesign/icons/subtitles/default.png \
 	pixmaps/redesign/icons/privacy/default.png \
 	pixmaps/redesign/icons/sidebar/active.png \
+	pixmaps/redesign/icons/sidebar/default.png \
 	pixmaps/redesign/icons/speed/default.png \
 	pixmaps/redesign/icons/profile/default.png \
 	pixmaps/redesign/icons/EQ/default.png \
@@ -84,8 +85,29 @@ libqt_plugin_la_RES = \
 	pixmaps/redesign/icons/check/active.png \
 	pixmaps/redesign/icons/disc/default.png \
 	pixmaps/redesign/icons/recent/default.png \
+	pixmaps/redesign/icons/recent/active.png \
+	pixmaps/redesign/icons/folder/large.png \
+	pixmaps/redesign/icons/repeat/default.png \
+	pixmaps/redesign/icons/repeat/active.png \
+	pixmaps/redesign/icons/shuffle/default.png \
+	pixmaps/redesign/icons/shuffle/active.png \
+	pixmaps/redesign/icons/right-sidebar/default.png \
+	pixmaps/redesign/icons/play/outline-active.png \
+	pixmaps/redesign/icons/arrow-left/default.png \
+	pixmaps/redesign/icons/arrow-left/disabled.png \
+	pixmaps/redesign/icons/arrow-right/default.png \
+	pixmaps/redesign/icons/arrow-right/disabled.png \
+	pixmaps/redesign/icons/sort/dim.png \
+	pixmaps/redesign/icons/grid/dim.png \
+	pixmaps/redesign/icons/list/dim.png \
+	pixmaps/redesign/icons/search/dim.png \
+	pixmaps/redesign/icons/more/dim.png \
+	pixmaps/redesign/icons/video/dim.png \
+	pixmaps/redesign/icons/subtitle/dim.png \
+	pixmaps/redesign/icons/spectrum/dim.png \
+	pixmaps/redesign/icons/edit/dim.png \
+	pixmaps/redesign/icons/open/dim.png \
 	pixmaps/redesign/icons/privacy/active.png \
-	pixmaps/redesign/icons/vlc/default.png \
 	pixmaps/redesign/icons/settings/active.png \
 	pixmaps/redesign/icons/folder/active.png \
 	pixmaps/redesign/icons/lists/active.png \
@@ -127,10 +149,17 @@ libqt_plugin_la_RES = \
 	pixmaps/redesign/icons/bookmark/default.png \
 	pixmaps/redesign/icons/folder/selected.png \
 	pixmaps/redesign/icons/info/default.png \
-	pixmaps/redesign/icons/add/default.png \
+	pixmaps/redesign/icons/add/default.png 	pixmaps/redesign/icons/add/half.png \
 	pixmaps/redesign/icons/backward-10-sec/default.png \
 	pixmaps/redesign/icons/accessibility/default.png \
 	pixmaps/redesign/welcome.svg \
+	pixmaps/redesign/theme-system.png \
+	pixmaps/redesign/theme-bar-mask.png \
+	pixmaps/redesign/theme-bar-pill.png \
+	pixmaps/redesign/theme-bar-play.png \
+	pixmaps/redesign/theme-bar-knob.png \
+	pixmaps/redesign/theme-strip-cone.png \
+	pixmaps/redesign/theme-strip-buttons.png \
 	pixmaps/redesign/grid.png \
 	pixmaps/redesign/list.png \
 	pixmaps/redesign/subtitle-file.png \
@@ -151,6 +180,59 @@ libqt_plugin_la_RES = \
 	pixmaps/redesign/music.svg \
 	pixmaps/redesign/network.svg \
 	pixmaps/redesign/settings.svg \
+	pixmaps/redesign/duo/add.svg \
+	pixmaps/redesign/duo/album.svg \
+	pixmaps/redesign/duo/audio.svg \
+	pixmaps/redesign/duo/backward-10.svg \
+	pixmaps/redesign/duo/capture-device.svg \
+	pixmaps/redesign/duo/close.svg \
+	pixmaps/redesign/duo/disc.svg \
+	pixmaps/redesign/duo/edit.svg \
+	pixmaps/redesign/duo/faster.svg \
+	pixmaps/redesign/duo/favorite.svg \
+	pixmaps/redesign/duo/file.svg \
+	pixmaps/redesign/duo/folder.svg 	pixmaps/redesign/duo/folder-open.svg pixmaps/redesign/duo/folder-add.svg pixmaps/redesign/duo/export.svg \
+	pixmaps/redesign/duo/forward-10.svg \
+	pixmaps/redesign/duo/go-to.svg \
+	pixmaps/redesign/duo/help.svg \
+	pixmaps/redesign/duo/hotkeys.svg \
+	pixmaps/redesign/duo/info-small.svg \
+	pixmaps/redesign/duo/info.svg \
+	pixmaps/redesign/duo/lists.svg \
+	pixmaps/redesign/duo/mark-watched.svg \
+	pixmaps/redesign/duo/next.svg \
+	pixmaps/redesign/duo/open.svg \
+	pixmaps/redesign/duo/paint.svg \
+	pixmaps/redesign/duo/pause.svg \
+	pixmaps/redesign/duo/play.svg \
+	pixmaps/redesign/duo/playback-settings.svg \
+	pixmaps/redesign/duo/playback.svg \
+	pixmaps/redesign/duo/playlist.svg \
+	pixmaps/redesign/duo/plugins.svg \
+	pixmaps/redesign/duo/previous.svg \
+	pixmaps/redesign/duo/profile.svg \
+	pixmaps/redesign/duo/queue.svg \
+	pixmaps/redesign/duo/quit.svg \
+	pixmaps/redesign/duo/recent.svg \
+	pixmaps/redesign/duo/record.svg \
+	pixmaps/redesign/duo/remove.svg \
+	pixmaps/redesign/duo/settings.svg \
+	pixmaps/redesign/duo/shuffle.svg \
+	pixmaps/redesign/duo/slower.svg \
+	pixmaps/redesign/duo/spectrum.svg \
+	pixmaps/redesign/duo/stop.svg \
+	pixmaps/redesign/duo/streaming.svg \
+	pixmaps/redesign/duo/subtitle.svg \
+	pixmaps/redesign/duo/subtitles.svg \
+	pixmaps/redesign/duo/swap.svg \
+	pixmaps/redesign/duo/sync.svg \
+	pixmaps/redesign/duo/tv.svg \
+	pixmaps/redesign/duo/ui.svg \
+	pixmaps/redesign/duo/video.svg \
+	pixmaps/redesign/duo/view.svg \
+	pixmaps/redesign/duo/volume-high.svg \
+	pixmaps/redesign/duo/volume-low.svg \
+	pixmaps/redesign/duo/volume-muted.svg \
 	pixmaps/redesign/menu.svg \
 	pixmaps/redesign/sidebar.svg \
 	pixmaps/redesign/minimize.svg \
@@ -158,6 +240,7 @@ libqt_plugin_la_RES = \
 	pixmaps/redesign/fullscreen.svg \
 	pixmaps/redesign/close.svg \
 	pixmaps/fonts/InterVariable.ttf \
+	pixmaps/fonts/DMMono-Regular.ttf \
 	pixmaps/redesign/play.svg \
 	pixmaps/redesign/previous.svg \
 	pixmaps/redesign/next.svg \
@@ -165,6 +248,31 @@ libqt_plugin_la_RES = \
 	pixmaps/redesign/volume-fill.svg \
 	pixmaps/redesign/volume-mask.svg \
 	pixmaps/redesign/volume.svg \
+	pixmaps/redesign/icons/scope/default.png \
+	pixmaps/redesign/icons/spectrometer/default.png \
+	pixmaps/redesign/icons/spectrum/default.png \
+	pixmaps/redesign/icons/waveform/default.png \
+	pixmaps/redesign/player/corner-tl-dark.png \
+	pixmaps/redesign/player/corner-tr-dark.png \
+	pixmaps/redesign/player/corner-bl-dark.png \
+	pixmaps/redesign/player/corner-br-dark.png \
+	pixmaps/redesign/player/corner-tl-light.png \
+	pixmaps/redesign/player/corner-tr-light.png \
+	pixmaps/redesign/player/corner-bl-light.png \
+	pixmaps/redesign/player/corner-br-light.png \
+	pixmaps/redesign/player/library-add.png \
+	pixmaps/redesign/player/library-playlist.png \
+	pixmaps/redesign/player/previous.png \
+	pixmaps/redesign/player/next.png \
+	pixmaps/redesign/player/equalizer.png \
+	pixmaps/redesign/player/subtitles.png \
+	pixmaps/redesign/player/settings.png \
+	pixmaps/redesign/player/queue.png \
+	pixmaps/redesign/player/minimize.png \
+	pixmaps/redesign/player/maximize.png \
+	pixmaps/redesign/player/fullscreen.png \
+	pixmaps/redesign/player/close.png \
+	pixmaps/redesign/player/pause.png \
 	pixmaps/redesign/volume-high.png \
 	pixmaps/redesign/volume-medium.png \
 	pixmaps/redesign/volume-low.png \
@@ -413,3 +521,4 @@ endif
 noinst_LIBRARIES =
 
 EXTRA_DIST += pixmaps/fonts/LICENSE.txt
+EXTRA_DIST += pixmaps/fonts/DMMono-OFL.txt

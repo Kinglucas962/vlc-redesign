@@ -29,8 +29,27 @@ Widgets.IconToolButton {
     enabled: Player.seekable
 
     text: VLCIcons.skip_back
-    onClicked: Player.jumpBwd()
+    onClicked: Player.jumpBy(-15)
     description: qsTr("Step back")
+
+    // Figma "Player - Music": jumps of 15 s, frames of 30 x 28 like Previous
+    implicitWidth: VLCStyle.dp(30, VLCStyle.scale)
+    implicitHeight: VLCStyle.dp(28, VLCStyle.scale)
+
+    contentItem: Item {
+        implicitWidth: VLCStyle.redesign.iconSize
+        implicitHeight: VLCStyle.redesign.iconSize
+
+        Image {
+            anchors.centerIn: parent
+            source: "qrc:///redesign/icons/backward-15-sec/default.png"
+            width: VLCStyle.redesign.iconSize
+            height: VLCStyle.redesign.iconSize
+            sourceSize: Qt.size(width, height)
+            fillMode: Image.PreserveAspectFit
+            opacity: stepBackBtn.enabled ? 1 : 0.4
+        }
+    }
 
     AccessibleCompat.id: "skipBackButton"
 }

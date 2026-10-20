@@ -43,14 +43,18 @@ Widgets.GridItem {
     fallbackImage: VLCStyle.noArtVideoCover
     fillMode: Image.PreserveAspectCrop
 
-    title: model.title || qsTr("Unknown title")
+    // The design names the videos by their file
+    title: (redesignTitle && model.fileName) ? model.fileName : (model.title || qsTr("Unknown title"))
     subtitle: model?.duration?.formatHMS() ?? ""
     pictureWidth: VLCStyle.gridCover_video_width
     pictureHeight: VLCStyle.gridCover_video_height
     titleFontFamily: redesignTitle ? VLCStyle.redesign.fontFamily : ""
     titleFontWeight: redesignTitle ? Font.Normal : Font.DemiBold
+    // The design dims the videos already played (Figma: #969696, #6B6B6B
+    // played, with their progress)
+    readonly property bool watched: (model?.playcount ?? 0) > 0 || (model?.progress ?? 0) > 0
     titleColor: redesignTitle
-                ? VLCStyle.redesign.color("#6B6B6B", colorContext.fg.primary,
+                ? VLCStyle.redesign.color(watched ? "#6B6B6B" : VLCStyle.redesign.textSecondary, colorContext.fg.primary,
                                           colorContext.palette?.isDark ?? true)
                 : colorContext.fg.primary
     selectedTitleColor: redesignTitle
@@ -93,7 +97,8 @@ Widgets.GridItem {
             right: parent.right
         }
 
-        visible: (model.progress > 0)
+        // the design draws the progress in the picture (below)
+        visible: (model.progress > 0) && !root.redesignTitle
 
         radius: root.pictureRadius
         value: Helpers.clamp(model.progress !== undefined ? model.progress : 0, 0, 1)
@@ -110,34 +115,23 @@ Widgets.GridItem {
             visible: VLCStyle.palette.isDark
         }
 
-        // Software Qt Quick cannot run the image rounding shader. Paint only
-        // the four exterior corners, leaving the actual thumbnail unchanged.
-        Canvas {
-            anchors.fill: parent
-            visible: root.GraphicsInfo.shaderType !== GraphicsInfo.RhiShader
-            onWidthChanged: requestPaint()
-            onHeightChanged: requestPaint()
-            onPaint: {
-                const ctx = getContext("2d")
-                ctx.clearRect(0, 0, width, height)
-                ctx.fillStyle = VLCStyle.redesign.windowBackground
-                const corners = [ [0, 0, 0, root.mediaCover.radiusTopLeft],
-                                  [width, 0, 90, root.mediaCover.radiusTopRight],
-                                  [width, height, 180, root.mediaCover.radiusBottomRight],
-                                  [0, height, 270, root.mediaCover.radiusBottomLeft] ]
-                for (const corner of corners) {
-                    const r = Math.min(corner[3], width / 2, height / 2)
-                    ctx.save()
-                    ctx.translate(corner[0], corner[1])
-                    ctx.rotate(corner[2] * Math.PI / 180)
-                    ctx.beginPath()
-                    ctx.moveTo(0, 0)
-                    ctx.lineTo(r, 0)
-                    ctx.arcTo(0, 0, 0, r, r)
-                    ctx.closePath()
-                    ctx.fill()
-                    ctx.restore()
-                }
+        // Figma: the progress, a line of the accent at the bottom of the
+        // picture, inside its rounded corners
+        Item {
+            anchors.left: parent.left
+            anchors.bottom: parent.bottom
+            visible: root.redesignTitle && (model?.progress ?? 0) > 0
+            width: Math.round(parent.width * Helpers.clamp(model?.progress ?? 0, 0, 1))
+            height: VLCStyle.dp(4, VLCStyle.scale)
+            clip: true
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.bottom: parent.bottom
+                width: root.pictureWidth
+                height: 2 * root.pictureRadius
+                radius: root.pictureRadius
+                color: VLCStyle.redesign.accent
             }
         }
 
@@ -156,6 +150,9 @@ Widgets.GridItem {
         }
 
         Widgets.VideoQualityLabels {
+            // The cards of the design have no quality badges
+            visible: !root.redesignTitle
+
             anchors {
                 top: parent.top
                 right: parent.right

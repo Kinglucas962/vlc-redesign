@@ -65,6 +65,13 @@ T.ItemDelegate {
     property color titleColor: theme.fg.primary
     property color selectedTitleColor: theme.fg.highlight
     property alias subtitle: subtitleTxt.text
+    property color subtitleColor: theme.fg.secondary
+    property int subtitleFontPixelSize: 0
+    property string subtitleFontFamily: ""
+    // Text boxes of the design (0: the line height of the font): the
+    // baselines of Inter in them
+    property int titleBoxHeight: 0
+    property int subtitleBoxHeight: 0
     property alias subtitleVisible: subtitleTxt.visible
     property alias playCoverShowPlay: picture.playCoverShowPlay
     property alias implicitPlayCoverShowPlay: picture.implicitPlayCoverShowPlay
@@ -364,7 +371,18 @@ T.ItemDelegate {
                 font.family: root.titleFontFamily || Qt.application.font.family
                 font.weight: root.titleFontWeight
 
-                height: implicitHeight
+                height: root.titleBoxHeight > 0 ? root.titleBoxHeight : implicitHeight
+                verticalAlignment: root.titleBoxHeight > 0 ? Text.AlignTop : Text.AlignVCenter
+                topPadding: root.titleBoxHeight > 0
+                            ? VLCStyle.redesign.textBaseline(Math.round((root.titleBoxHeight - Math.round(1.2109375 * font.pixelSize)) / 2),
+                                                             font.pixelSize) - titleMetrics.ascent
+                            : 0
+                bottomPadding: 0
+
+                FontMetrics {
+                    id: titleMetrics
+                    font: titleLabel.font
+                }
                 color: root.selected ? root.selectedTitleColor : root.titleColor
             }
         }
@@ -377,11 +395,25 @@ T.ItemDelegate {
             elide: Text.ElideRight
             color: root.selected
                 ? theme.fg.highlight
-                : theme.fg.secondary
+                : root.subtitleColor
+            font.pixelSize: root.subtitleFontPixelSize > 0 ? root.subtitleFontPixelSize : VLCStyle.fontSize_normal
+            font.family: root.subtitleFontFamily || Qt.application.font.family
 
             Layout.preferredWidth: Math.min(root.width, implicitWidth)
+            Layout.preferredHeight: root.subtitleBoxHeight > 0 ? root.subtitleBoxHeight : -1
             Layout.alignment: root.textAlignHCenter ? Qt.AlignCenter : Qt.AlignLeft
             Layout.topMargin: root.subtitleTopMargin
+            verticalAlignment: root.subtitleBoxHeight > 0 ? Text.AlignTop : Text.AlignVCenter
+            topPadding: root.subtitleBoxHeight > 0
+                        ? VLCStyle.redesign.textBaseline(Math.round((root.subtitleBoxHeight - Math.round(1.2109375 * font.pixelSize)) / 2),
+                                                         font.pixelSize) - subtitleMetrics.ascent
+                        : 0
+            bottomPadding: 0
+
+            FontMetrics {
+                id: subtitleMetrics
+                font: subtitleTxt.font
+            }
 
             T.ToolTip.delay: VLCStyle.delayToolTipAppear
             T.ToolTip.text: subtitleTxt.text

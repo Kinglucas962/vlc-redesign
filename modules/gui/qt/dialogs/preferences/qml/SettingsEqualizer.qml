@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  ****************************************************************************/
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import VLC.Style
 
@@ -23,29 +23,12 @@ ColumnLayout {
             font.family: VLCStyle.redesign.fontFamily
             font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
         }
-        Switch {
+        SettingsToggle {
             id: enabledSwitch
             objectName: "settingsEqualizerEnabled"
             Accessible.name: qsTr("Equalizer")
-            Binding on checked {
-                when: !enabledSwitch.pressed
-                value: { root.effects.bands; return root.effects.filterEnabled("equalizer") }
-            }
-            onClicked: root.effects.setFilterEnabled("equalizer", checked)
-            indicator: Rectangle {
-                implicitWidth: VLCStyle.dp(40, VLCStyle.scale)
-                implicitHeight: VLCStyle.dp(22, VLCStyle.scale)
-                radius: height / 2
-                color: enabledSwitch.checked ? VLCStyle.redesign.accent : "#373737"
-                Rectangle {
-                    x: enabledSwitch.checked ? parent.width - width - 3 : 3
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: VLCStyle.dp(16, VLCStyle.scale)
-                    height: width
-                    radius: width / 2
-                    color: "#eaeaea"
-                }
-            }
+            checked: { root.effects.bands; return root.effects.filterEnabled("equalizer") }
+            onSwitched: (on) => root.effects.setFilterEnabled("equalizer", on)
         }
     }
     RowLayout {
@@ -182,24 +165,11 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth: true
         Label { Layout.fillWidth: true; text: qsTr("Two-pass"); color: VLCStyle.redesign.color("#8F8F8F", "#7c7c7b"); font.pixelSize: VLCStyle.dp(14, VLCStyle.scale) }
-        Switch {
+        SettingsToggle {
             id: twoPassSwitch
-            Binding on checked { when: !twoPassSwitch.pressed; value: root.effects.twoPass }
-            onClicked: root.effects.setTwoPass(checked)
-            indicator: Rectangle {
-                implicitWidth: VLCStyle.dp(40, VLCStyle.scale)
-                implicitHeight: VLCStyle.dp(22, VLCStyle.scale)
-                radius: height / 2
-                color: twoPassSwitch.checked ? VLCStyle.redesign.accent : "#373737"
-                Rectangle {
-                    x: twoPassSwitch.checked ? parent.width - width - 3 : 3
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: VLCStyle.dp(16, VLCStyle.scale)
-                    height: width
-                    radius: width / 2
-                    color: "#eaeaea"
-                }
-            }
+            Accessible.name: qsTr("Two-pass")
+            checked: root.effects.twoPass
+            onSwitched: (on) => root.effects.setTwoPass(on)
         }
     }
 }

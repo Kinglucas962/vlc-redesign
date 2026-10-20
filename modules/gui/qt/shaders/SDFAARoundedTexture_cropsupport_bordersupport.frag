@@ -134,9 +134,10 @@ void main()
         float implicitRatio = denormalSubTextureSize.x / denormalSubTextureSize.y;
         float ratio = size.x / size.y;
 
-        if ((implicitRatio > 1.0) && (ratio < implicitRatio))
+        // The part of the texture of the ratio of the item, centered
+        if (ratio < implicitRatio)
         {
-            float cropRate = (denormalSubTextureSize.x - denormalSubTextureSize.y) / 2 / denormalSubTextureSize.x;
+            float cropRate = (1.0 - ratio / implicitRatio) / 2.0;
             float normalCropRate = qt_SubRect_source.z * cropRate;
 
             float k = qt_SubRect_source.z + qt_SubRect_source.x - normalCropRate;
@@ -145,9 +146,9 @@ void main()
             texCoord.x = (k - l) / (qt_SubRect_source.z) * (qt_TexCoord0.x - qt_SubRect_source.x) + l;
             texCoord.y = qt_TexCoord0.y;
         }
-        else if ((implicitRatio < 1.0) && (ratio > implicitRatio))
+        else if (ratio > implicitRatio)
         {
-            float cropRate = (denormalSubTextureSize.y - denormalSubTextureSize.x) / 2 / denormalSubTextureSize.y;
+            float cropRate = (1.0 - implicitRatio / ratio) / 2.0;
             float normalCropRate = qt_SubRect_source.w * cropRate;
 
             float k = qt_SubRect_source.w + qt_SubRect_source.y - normalCropRate;

@@ -79,8 +79,8 @@ Widgets.PageExt {
     headerAction: Component {
         RowLayout {
             spacing: VLCStyle.dp(12, VLCStyle.scale)
-            LibrarySourceButton { iconOnly: true }
-            OpenMediaButton { iconOnly: true }
+            // Figma: the more button only (the add folder action is in its menu)
+            OpenMediaButton { iconOnly: true; libraryFolder: true }
         }
     }
 

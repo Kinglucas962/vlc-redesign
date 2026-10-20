@@ -86,6 +86,12 @@ protected:
     bool m_hasResizeCursor = false;
 
     QRect m_interfaceGeometry;
+    // the geometry out of maximized / full screen / minimized: saved instead
+    QRect m_normalGeometry;
+    // the borders of the window Qt does not count (the resize borders of the
+    // client side decoration on Windows): saved with the geometry, as Qt
+    // restores it before the window exists, without them
+    QMargins m_extraBorders;
 
     WheelToVLCConverter m_wheelAccumulator;
 

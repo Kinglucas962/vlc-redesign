@@ -1,3 +1,11 @@
+/*****************************************************************************
+ * Copyright (C) 2026 VLC authors and VideoLAN
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *****************************************************************************/
 import QtQuick
 import QtQuick.Controls.Basic as Controls
 
@@ -12,8 +20,11 @@ Controls.Popup {
     modal: true
     focus: true
     padding: 0
-    closePolicy: Controls.Popup.NoAutoClose
-    anchors.centerIn: parent
+    // Escape closes it, except while the folder is added to the media library
+    closePolicy: controller.busy ? Controls.Popup.NoAutoClose : Controls.Popup.CloseOnEscape
+    // centred on whole pixels: the text stays crisp
+    x: parent ? Math.round((parent.width - width) / 2) : 0
+    y: parent ? Math.round((parent.height - height) / 2) : 0
     width: Math.min(1090, parent ? parent.width - 24 : 1090)
     height: Math.min(759, parent ? parent.height - 24 : 759)
 
@@ -59,12 +70,6 @@ Controls.Popup {
         }
         MainCtx.useGlobalShortcuts = previousGlobalShortcuts
     }
-    Keys.onEscapePressed: event => {
-        event.accepted = true
-        if (!controller.busy)
-            root.close()
-    }
-
     background: Rectangle {
         radius: 14
         color: "#0e0e0e"
@@ -83,6 +88,7 @@ Controls.Popup {
                 anchors.fill: parent
                 visible: root.step === 0
                 folderUrl: root.folderUrl
+                folderText: controller.displayPath(root.folderUrl)
                 metadataNetworkAccess: root.metadataNetworkAccess
                 onConsentRequested: allowed => root.metadataNetworkAccess = allowed
                 onBrowseRequested: {
@@ -123,8 +129,9 @@ Controls.Popup {
             OnboardingButton {
                 x: 62
                 y: 671
-                visible: root.step === 0
-                text: controller.needsSetup ? qsTr("Skip") : qsTr("Cancel")
+                // Figma: no Skip on the first run; Cancel when reopened
+                visible: root.step === 0 && !controller.needsSetup
+                text: qsTr("Cancel")
                 objectName: "onboardingSkipButton"
                 enabled: !controller.busy
                 onClicked: {
@@ -138,8 +145,9 @@ Controls.Popup {
                     controller.skip()
                 }
             }
+            // Figma 1902:6770: Back 8 before Finish
             OnboardingButton {
-                x: 816
+                x: 820
                 y: 671
                 visible: root.step > 0
                 text: qsTr("Back")
@@ -166,4 +174,7 @@ Controls.Popup {
             }
         }
     }
+
+    // Keeps the title bar draggable while this modal dialog is open
+    Widgets.CSDModalDragStrip { dialog: root }
 }

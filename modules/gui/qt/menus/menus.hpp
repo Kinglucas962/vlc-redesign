@@ -84,9 +84,10 @@ public:
     static void InterfacesMenu( qt_intf_t *p_intf, QMenu * );
     static void ExtensionsMenu( qt_intf_t *p_intf, QMenu * );
 
-    static void NavigMenu( qt_intf_t *, QMenu * );
+    /* playlistEntries: also Play, Stop, Previous, Next and Record */
+    static void NavigMenu( qt_intf_t *, QMenu *, bool playlistEntries = true );
 
-    static void RebuildNavigMenu(qt_intf_t *, QMenu *);
+    static void RebuildNavigMenu(qt_intf_t *, QMenu *, bool playlistEntries = true);
 
     static void VideoMenu( qt_intf_t *, QMenu * );
 

@@ -22,7 +22,7 @@ QVariantList MLSubtitleAssociations::targets() const
     QVariantList result;
     for (const auto& target : m_targets)
     {
-        const QString kind = target.url.isValid() ? tr("File") :
+        const QString kind = target.url.isValid() ? (QFileInfo(target.url.toLocalFile()).isDir() ? tr("Folder") : tr("File")) :
                              target.id.type == VLC_ML_PARENT_FOLDER ? tr("Folder") :
                              target.id.type == VLC_ML_PARENT_PLAYLIST ? tr("Playlist") : tr("Media");
         result.push_back(QVariantMap{{"label", target.label}, {"kind", kind}});
@@ -91,7 +91,9 @@ void MLSubtitleAssociations::selectTarget(int index)
     m_selectedTarget = index;
     const auto target = m_targets[index];
     emit targetsChanged();
-    if (target.url.isValid())
+    if (target.url.isValid() && QFileInfo(target.url.toLocalFile()).isDir())
+        openFolderUrl(target.url);
+    else if (target.url.isValid())
         loadUrlTarget(target.url);
     else
         loadTarget(target.id);

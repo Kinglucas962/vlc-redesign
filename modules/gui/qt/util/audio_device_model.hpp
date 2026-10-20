@@ -48,9 +48,14 @@ public:
 
     void updateCurrent(QString current);
 
+    // Lists the devices of the audio output again (plugged or removed)
+    Q_INVOKABLE void refresh();
+
     QHash<int, QByteArray> roleNames() const override;
 
 private:
+    void clearDevices();
+
     int m_inputs = 0;
     char **m_names = nullptr;
     char **m_ids = nullptr;

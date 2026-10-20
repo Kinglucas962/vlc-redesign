@@ -29,11 +29,39 @@ QtObject {
     // Dark reference: Player 187:328 and library shell 970:2703.
     // Light chrome values measured from the full exported Player - Light frame.
     readonly property QtObject redesign: QtObject {
+        // Inter 3.19 (variable, SIL OFL): the build Figma lays the design out
+        // with (its text boxes are the advances of 3.19 rounded up)
         readonly property FontLoader regularFont: FontLoader {
             source: "qrc:///fonts/InterVariable.ttf"
         }
         readonly property string fontFamily: regularFont.name
-        readonly property var accentChoices: ["#d37918", "#a03b26", "#8c721b", "#147428", "#147a97", "#144497", "#6631b5", "#ab3c80", "#7e7e7e"]
+        // DM Mono (SIL OFL), the keys of the design ("Keyboard Shortcuts"):
+        // a line of 1.302 em (ascender 0.992, descender 0.31)
+        readonly property FontLoader monoFont: FontLoader {
+            source: "qrc:///fonts/DMMono-Regular.ttf"
+        }
+        readonly property string monoFontFamily: monoFont.name
+        // Inter as the design lays it out: a line is 1.2109 em (ascender
+        // 0.96875, descender 0.2412) centred in a text box of whole pixels
+        // (17 px for 14 px text), the box itself on whole pixels. Placing
+        // the baselines with these keeps the text where the design draws
+        // it, whatever line metrics Qt uses.
+        readonly property real ascender: 0.96875
+        // Baseline of a text box of the design whose top is at top
+        function textBaseline(top, pixelSize) {
+            const line = 1.2109375 * pixelSize
+            return top + (Math.round(line) - line) / 2 + 0.96875 * pixelSize
+        }
+        // Baseline of a text box centred in a box (of an even height unless
+        // given), from the middle of that box
+        function centeredBaseline(pixelSize, boxHeight) {
+            const box = boxHeight !== undefined ? boxHeight : 0
+            const top = Math.round((box - Math.round(1.2109375 * pixelSize)) / 2) - box / 2
+            return textBaseline(top, pixelSize)
+        }
+        // The colors of the onboarding of the design when chosen (the others
+        // show at half opacity)
+        readonly property var accentChoices: ["#d37918", "#e15033", "#c49d24", "#18a235", "#18aad3", "#185dd4", "#8e41ff", "#f051b5", "#afafaf"]
         readonly property color logoColor: "#D37918"
         property color accent: MainCtx.settingValue("redesign/accent", "#D37918")
         readonly property Connections profileAppearanceSync: Connections {
@@ -42,8 +70,12 @@ QtObject {
                 vlc_style.redesign.accent = MainCtx.controlbarProfileModel.profileAccent
             }
         }
-        readonly property color accentDim: Qt.colorEqual(accent, "#D37918") ? "#AB6314" : Qt.darker(accent, 1.25)
-        readonly property color accentBackground: Qt.colorEqual(accent, "#D37918") ? "#371F06" : Qt.tint("#0E0E0E", Qt.rgba(accent.r, accent.g, accent.b, 0.25))
+        // Accent Dim and Accent Bright of the design (#AB6314 and #371F06 for
+        // the default accent: 0.81 and 0.26 of it)
+        readonly property color accentDim: Qt.colorEqual(accent, "#D37918") ? "#AB6314"
+                                           : Qt.rgba(accent.r * 0.81, accent.g * 0.81, accent.b * 0.81, 1)
+        readonly property color accentBackground: Qt.colorEqual(accent, "#D37918") ? "#371F06"
+                                                  : Qt.rgba(accent.r * 0.26, accent.g * 0.26, accent.b * 0.26, 1)
         readonly property color windowBackground: "#0E0E0E"
         readonly property color sidebarBackground: "#191919"
         readonly property color controlBackground: "#191919"
@@ -84,15 +116,20 @@ QtObject {
 
         function color(darkValue, fallback, isDark = vlc_style.palette.isDark) {
             if (isDark) return darkValue
+            // Nothing drawn stays so in both themes (idle button backgrounds)
+            if (Qt.colorEqual(darkValue, "transparent")) return darkValue
             if (Qt.colorEqual(darkValue, accent)) return accent
             if (Qt.colorEqual(darkValue, accentDim)) return accentDim
             if (Qt.colorEqual(darkValue, accentBackground))
                 return Qt.tint("#dedede", Qt.rgba(accent.r, accent.g, accent.b, 0.35))
+            // Figma "Player - Light": the muted texts and icons (#8F8F8F)
+            // read #2E2E2E, the dimmed ones (#6B6B6B) stay
             const light = {
-                "#0e0e0e": "#c2c2c1", "#191919": "#ababaa", "#1b1b1b": "#ababaa",
+                "#0e0e0e": "#c2c2c1", "#0f0f0f": "#c2c2c1", "#191919": "#ababaa", "#1b1b1b": "#ababaa",
                 "#222222": "#9c9c9b", "#eaeaea": "#2e2e2e", "#969696": "#4d4d4d",
-                "#8f8f8f": "#7c7c7b", "#404040": "#929291", "#373737": "#8e8e8d",
-                "#090909": "#dedede"
+                "#8f8f8f": "#2e2e2e", "#404040": "#929291", "#373737": "#8e8e8d",
+                "#090909": "#dedede", "#151515": "#b5b5b4", "#6b6b6b": "#6b6b6b",
+                "#c6c6c6": "#2e2e2e"
             }
             return light[darkValue.toString().toLowerCase()] || fallback
         }
@@ -252,7 +289,8 @@ QtObject {
     readonly property int contextButton_width: icon_normal
     readonly property int contextButton_margin: margin_xxsmall
 
-    readonly property int checkButton_width: MainCtx.dp(56, scale)
+    // The ON / OFF toggle of the design
+    readonly property int checkButton_width: MainCtx.dp(68, scale)
     readonly property int checkButton_height: MainCtx.dp(32, scale)
 
     readonly property int checkButton_margins: MainCtx.dp(4, scale)
@@ -326,6 +364,9 @@ QtObject {
 
     readonly property int smallWidth: MainCtx.dp(600, scale)
     readonly property int mediumWidth: MainCtx.dp(1000, scale)
+
+    // the player is being customized (Figma "Player - customize")
+    property bool customizing: false
 
     readonly property bool isScreenSmall: appWidth <= smallWidth
     readonly property bool isScreenReallySmall: appWidth <= MainCtx.dp(380, scale)

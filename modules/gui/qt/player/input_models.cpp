@@ -48,6 +48,8 @@ QVariant TrackListModel::data(const QModelIndex &index, int role) const
         return m_data[row].m_title;
     else if (role == Qt::CheckStateRole)
         return QVariant::fromValue<bool>(m_data[row].m_selected);
+    else if (role == ExternalRole)
+        return m_data[row].m_external;
     return QVariant{};
 }
 
@@ -153,6 +155,7 @@ QHash<int, QByteArray> TrackListModel::roleNames() const
 {
     QHash<int, QByteArray> roleNames = this->QAbstractListModel::roleNames();
     roleNames[Qt::CheckStateRole] = QByteArrayLiteral("checked");
+    roleNames[ExternalRole] = QByteArrayLiteral("external");
     return roleNames;
 }
 
@@ -182,8 +185,20 @@ void TrackListModel::setMultiSelect(bool multiSelect)
     emit multiSelectChanged(m_multiSelect);
 }
 
+// The tracks of a slave have the MD5 of its MRL before their category
+// ("<md5>/spu/3"), the ones of the media start with it ("spu/2")
+static bool isExternalTrack(vlc_es_id_t *id)
+{
+    const char *strId = id ? vlc_es_id_GetStrId(id) : nullptr;
+    if (!strId)
+        return false;
+    const char *slash = strchr(strId, '/');
+    return slash && slash - strId == 32;
+}
+
 TrackListModel::Data::Data(const vlc_player_track *track_info)
     : m_title( qfu(track_info->name) )
+    , m_external( isExternalTrack(track_info->es_id) )
     , m_id( track_info->es_id, true )
     , m_selected( track_info->selected )
 {
@@ -193,6 +208,7 @@ void TrackListModel::Data::update(const vlc_player_track *track_info)
 {
     m_id.reset(track_info->es_id, true);
     m_title = qfu(track_info->name);
+    m_external = isExternalTrack(track_info->es_id);
     m_selected = track_info->selected;
 }
 

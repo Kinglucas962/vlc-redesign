@@ -67,6 +67,7 @@ T.Button {
     }
 
     contentItem: Item {
+        // (the light theme gets the light variant: RedesignIconInterceptor)
         Image {
             anchors.centerIn: parent
             width: VLCStyle.redesign.iconSize

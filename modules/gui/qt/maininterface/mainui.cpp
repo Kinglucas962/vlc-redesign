@@ -16,6 +16,8 @@
 #include "medialibrary/mlvideomodel.hpp"
 #include "medialibrary/mlrecentmediamodel.hpp"
 #include "medialibrary/mlrecentvideomodel.hpp"
+#include "medialibrary/mlrecentaudiomodel.hpp"
+#include "medialibrary/mlfrequentfoldersmodel.hpp"
 #include "medialibrary/mlfoldersmodel.hpp"
 #include "medialibrary/mlvideogroupsmodel.hpp"
 #include "medialibrary/mlvideofoldersmodel.hpp"
@@ -28,6 +30,7 @@
 
 #include "player/player_controller.hpp"
 #include "player/waveform.hpp"
+#include "player/local_folder_model.hpp"
 #include "player/delay_estimator.hpp"
 
 
@@ -46,6 +49,8 @@
 #include "util/color_svg_image_provider.hpp"
 #include "util/effects_image_provider.hpp"
 #include "util/vlcaccess_image_provider.hpp"
+#include "util/thumbnail_image_provider.hpp"
+#include "util/redesign_icon_provider.hpp"
 #include "util/csdbuttonmodel.hpp"
 #include "util/vlctick.hpp"
 #include "util/list_selection_model.hpp"
@@ -162,6 +167,11 @@ bool MainUI::setup(QQmlEngine* engine)
         new EffectsImageProvider(engine);
     engine->addImageProvider(QStringLiteral("svgcolor"), new SVGColorImageImageProvider());
     engine->addImageProvider(QStringLiteral("vlcaccess"), new VLCAccessImageProvider());
+    engine->addImageProvider(QLatin1String(ThumbnailImageProvider::providerId),
+                             new ThumbnailImageProvider(m_intf));
+    // Icons of the redesign in the light theme
+    engine->addImageProvider(QLatin1String(RedesignIconProvider::providerId), new RedesignIconProvider());
+    engine->addUrlInterceptor(new RedesignIconInterceptor(m_mainCtx, engine));
 
     m_component  = new QQmlComponent(engine, QStringLiteral("qrc:/qt/qml/VLC/MainInterface/MainInterface.qml"), QQmlComponent::PreferSynchronous, engine);
     if (m_component->isLoading())
@@ -291,6 +301,7 @@ void MainUI::registerQMLTypes()
 
         // @uri VLC.Player
         qmlRegisterType<Waveform>(uri, versionMajor, versionMinor, "Waveform");
+        qmlRegisterType<LocalFolderModel>(uri, versionMajor, versionMinor, "LocalFolderModel");
         qmlRegisterUncreatableType<TrackListModel>(uri, versionMajor, versionMinor, "TrackListModel", "available tracks of a media (audio/video/sub)" );
         qmlRegisterUncreatableType<TitleListModel>(uri, versionMajor, versionMinor, "TitleListModel", "available titles of a media" );
         qmlRegisterUncreatableType<ChapterListModel>(uri, versionMajor, versionMinor, "ChapterListModel", "available chapters of a media" );
@@ -299,7 +310,9 @@ void MainUI::registerQMLTypes()
         qmlRegisterSingletonInstance<PlayerController>(uri, versionMajor, versionMinor, "Player", m_intf->p_mainPlayerController);
         qmlRegisterTypesAndRevisions<TimedText>(uri, versionMajor);
         qmlRegisterType<PlayerHighResolutionTimeUpdater>(uri, versionMajor, versionMinor, "HighResolutionTimeUpdater");
-        qmlRegisterUncreatableMetaObject(VLCTickForeign::staticMetaObject, uri, versionMajor, versionMinor, "VLCTick", "Not Instantiable" );
+        // The enums (VLCTick.ForceHours...) are in the meta object of the gadget
+        // itself: the one of the foreign namespace has none
+        qmlRegisterUncreatableMetaObject(VLCTick::staticMetaObject, uri, versionMajor, versionMinor, "VLCTick", "Not Instantiable" );
         qmlRegisterTypesAndRevisions<VLCDuration>(uri, versionMajor);
         qmlRegisterTypesAndRevisions<VLCTime>(uri, versionMajor);
 
@@ -380,6 +393,7 @@ void MainUI::registerQMLTypes()
         qmlRegisterUncreatableType<SVGColorImageBuilder>(uri, versionMajor, versionMinor, "SVGColorImageBuilder", "");
         qmlRegisterSingletonInstance<SVGColorImage>(uri, versionMajor, versionMinor, "SVGColorImage", new SVGColorImage(this));
         qmlRegisterSingletonInstance<VLCAccessImage>(uri, versionMajor, versionMinor, "VLCAccessImage", new VLCAccessImage(this));
+        qmlRegisterSingletonInstance<VLCThumbnail>(uri, versionMajor, versionMinor, "VLCThumbnail", new VLCThumbnail(this));
         qmlRegisterType<DelayEstimator>( uri, versionMajor, versionMinor, "DelayEstimator" );
         qmlRegisterTypesAndRevisions<WheelToVLCConverter>( uri, versionMajor );
 
@@ -444,6 +458,8 @@ void MainUI::registerQMLTypes()
         qmlRegisterType<MLMediaModel>( uri, versionMajor, versionMinor, "MLMediaModel" );
         qmlRegisterType<MLVideoModel>( uri, versionMajor, versionMinor, "MLVideoModel" );
         qmlRegisterType<MLRecentVideoModel>( uri, versionMajor, versionMinor, "MLRecentVideoModel" );
+        qmlRegisterType<MLRecentAudioModel>( uri, versionMajor, versionMinor, "MLRecentAudioModel" );
+        qmlRegisterType<MLFrequentFoldersModel>( uri, versionMajor, versionMinor, "MLFrequentFoldersModel" );
         qmlRegisterType<MLVideoGroupsModel>( uri, versionMajor, versionMinor, "MLVideoGroupsModel" );
         qmlRegisterType<MLVideoFoldersModel>( uri, versionMajor, versionMinor, "MLVideoFoldersModel" );
         qmlRegisterType<MLPlaylistListModel>( uri, versionMajor, versionMinor, "MLPlaylistListModel" );

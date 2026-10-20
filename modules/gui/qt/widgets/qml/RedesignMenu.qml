@@ -1,0 +1,61 @@
+/*****************************************************************************
+ * Copyright (C) 2026 VLC authors and VideoLAN
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 or later.
+ *****************************************************************************/
+import QtQuick
+import QtQuick.Templates as T
+import QtQuick.Window
+
+import VLC.Style
+
+// Menu of the redesign (Figma "menu", "right-click menu" and the context
+// menus): a dark rounded panel of 48px rows, see RedesignMenuItem.
+T.Menu {
+    id: root
+
+    // Icon of the item opening this menu as a submenu, see RedesignMenuItem
+    property string iconName
+    // Figma's menus are 265 wide (context menus, options, the profile
+    // submenu); the main menu 375, the right-click menu 292
+    property real menuWidth: VLCStyle.dp(265, VLCStyle.scale)
+
+    implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset,
+                            implicitContentWidth + leftPadding + rightPadding)
+    implicitHeight: Math.max(implicitBackgroundHeight + topInset + bottomInset,
+                             implicitContentHeight + topPadding + bottomPadding)
+
+    padding: VLCStyle.dp(4, VLCStyle.scale)
+    margins: 0
+    // Submenus line up with the row that opens them
+    overlap: padding
+    cascade: true
+
+    delegate: RedesignMenuItem { }
+
+    contentItem: ListView {
+        implicitHeight: contentHeight
+        model: root.contentModel
+        interactive: Window.window
+                     ? contentHeight + root.topPadding + root.bottomPadding > Window.window.height
+                     : false
+        clip: true
+        currentIndex: root.currentIndex
+        boundsBehavior: Flickable.StopAtBounds
+    }
+
+    background: Rectangle {
+        implicitWidth: root.menuWidth
+        radius: VLCStyle.dp(10, VLCStyle.scale)
+        // "Dark/BG/A3 Transparent": #191919 at 95%
+        color: VLCStyle.palette.isDark ? Qt.rgba(0x19 / 255, 0x19 / 255, 0x19 / 255, 0.95)
+                                       : Qt.rgba(0xab / 255, 0xab / 255, 0xaa / 255, 0.95)
+
+        // Figma: drop shadow 0 8 blur 15 #000000 46 % (as RedesignDialog)
+        RoundedRectangleShadow {
+            yOffset: VLCStyle.dp(8, VLCStyle.scale)
+            blurRadius: 7.5 * VLCStyle.scale // (dp() rounds to whole pixels)
+            color: Qt.rgba(0, 0, 0, 0.46)
+        }
+    }
+}

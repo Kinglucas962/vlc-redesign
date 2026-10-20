@@ -56,7 +56,8 @@ public:
         NameRole = Qt::UserRole,
         TimeRole = Qt::UserRole + 1,
         PositionRole = Qt::UserRole + 2,
-        DescriptionRole = Qt::UserRole + 3
+        DescriptionRole = Qt::UserRole + 3,
+        MillisecondsRole = Qt::UserRole + 4
     };
     QHash<int, QByteArray> roleNames() const override;
 
@@ -78,8 +79,10 @@ public:
     MediaLib* ml() const;
     void setMl(MediaLib* ml);
 
-    void add();
+    // Bookmark at the current time of the player
+    Q_INVOKABLE void add();
     void remove( const QModelIndexList& indexes );
+    Q_INVOKABLE void removeAt( int row );
     void clear();
     Q_INVOKABLE void select( const QModelIndex& index );
 

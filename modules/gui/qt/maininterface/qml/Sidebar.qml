@@ -60,6 +60,11 @@ SideNavigationPane {
         }, {
             name: "mlsettings",
             url: "qrc:///qt/qml/VLC/MediaLibrary/MLFoldersSettings.qml"
+        }, {
+            // A local folder, from the home page and the compact library
+            name: "folder",
+            url: "qrc:///qt/qml/VLC/MediaLibrary/FolderDisplay.qml",
+            guard: function (prop) { return !!prop.folderUrl }
         }
     ]
 
@@ -83,10 +88,12 @@ SideNavigationPane {
 
     property int maximumWidth: Math.max(minimumWidth, (sidebar.mainDisplay.width + sidebarResizeHandle.width) / 3)
 
-    topPadding: VLCStyle.dp(20, VLCStyle.scale)
-    leftPadding: 0
-    rightPadding: sidebarResizeHandle.visible ? sidebarResizeHandle.visualBorder.width : 0.0
-    bottomPadding: VLCStyle.applicationVerticalMargin + VLCStyle.margin_small
+    // Figma "Frame 3": padding 8
+    topPadding: VLCStyle.dp(8, VLCStyle.scale)
+    leftPadding: VLCStyle.dp(8, VLCStyle.scale)
+    rightPadding: VLCStyle.dp(8, VLCStyle.scale)
+                  + (sidebarResizeHandle.visible ? sidebarResizeHandle.visualBorder.width : 0.0)
+    bottomPadding: VLCStyle.applicationVerticalMargin + VLCStyle.dp(8, VLCStyle.scale)
 
     safeAreaLeftMargin: VLCStyle.applicationHorizontalMargin
 
@@ -225,4 +232,3 @@ SideNavigationPane {
     }
 
 }
-

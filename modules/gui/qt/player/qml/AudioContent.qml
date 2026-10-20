@@ -161,7 +161,9 @@ MouseArea {
     ColumnLayout {
         parent: leftSideParent.visible ? rightSideParent : centerContent
 
-        anchors.centerIn: parent
+        // centred on a whole pixel (Figma: the cover at 591 of the 1920)
+        anchors.verticalCenter: parent.verticalCenter
+        x: Math.round((parent.width - width) / 2)
         spacing: 0
 
         Item {
@@ -171,8 +173,9 @@ MouseArea {
                 centerContent.height - VLCStyle.dp(170, VLCStyle.scale),
                 (musicView.lyricsLayoutActive ? rightSideParent.width : centerContent.width)
                     - VLCStyle.dp(48, VLCStyle.scale)))
+            // Figma: 738 x 737
             Layout.preferredWidth: side
-            Layout.preferredHeight: side
+            Layout.preferredHeight: Math.round(side * 737 / 738)
             Layout.alignment: Qt.AlignHCenter
 
             Widgets.ImageExt {
@@ -197,42 +200,15 @@ MouseArea {
                 Accessible.role: Accessible.Graphic
                 Accessible.name: qsTr("Cover")
 
+                // Figma: drop shadow #FFFFFF 3 %, blur 90.5 (sigma 45.25),
+                // spread 64 (the box and its radius grown by 64)
                 Widgets.RoundedRectangleShadow {
-                    color: Qt.rgba(0, 0, 0, .18)
-                    yOffset: VLCStyle.dp(24, VLCStyle.scale)
-                    blurRadius: VLCStyle.dp(54, VLCStyle.scale)
-                }
-                Widgets.RoundedRectangleShadow {
-                    color: Qt.rgba(0, 0, 0, .22)
-                    yOffset: VLCStyle.dp(5, VLCStyle.scale)
-                    blurRadius: VLCStyle.dp(14, VLCStyle.scale)
-                }
-            }
-
-            Canvas {
-                anchors.fill: parent
-                visible: cover.GraphicsInfo.shaderType !== GraphicsInfo.RhiShader
-                onWidthChanged: requestPaint()
-                onHeightChanged: requestPaint()
-                onPaint: {
-                    const ctx = getContext("2d")
-                    ctx.clearRect(0, 0, width, height)
-                    ctx.fillStyle = VLCStyle.redesign.windowBackground
-                    const points = [[0, 0, 0], [width, 0, 90],
-                                    [width, height, 180], [0, height, 270]]
-                    for (const point of points) {
-                        const r = Math.min(cover.radius, width / 2, height / 2)
-                        ctx.save()
-                        ctx.translate(point[0], point[1])
-                        ctx.rotate(point[2] * Math.PI / 180)
-                        ctx.beginPath()
-                        ctx.moveTo(0, 0)
-                        ctx.lineTo(r, 0)
-                        ctx.arcTo(0, 0, 0, r, r)
-                        ctx.closePath()
-                        ctx.fill()
-                        ctx.restore()
-                    }
+                    readonly property real spread: VLCStyle.dp(64, VLCStyle.scale)
+                    color: Qt.rgba(1, 1, 1, .03)
+                    blurRadius: 45.25 * VLCStyle.scale // (dp() rounds to whole pixels)
+                    width: parent.width + 2 * spread + 2 * blurRadius * compensationFactor
+                    height: parent.height + 2 * spread + 2 * blurRadius * compensationFactor
+                    radius: VLCStyle.dp(20, VLCStyle.scale) + spread
                 }
             }
         }
@@ -240,8 +216,26 @@ MouseArea {
         Widgets.SubtitleLabel {
             id: albumLabel
 
-            Layout.alignment: Qt.AlignHCenter
-            Layout.topMargin: VLCStyle.margin_xxlarge
+            // across the column, Figma's box (the advance of Inter 3.19
+            // rounded up, measured 16 times larger less the unit per glyph the
+            // bundled font adds) centred in it, not rounded (the layout would
+            // put a narrower item on a whole pixel); the column as wide as the
+            // box, not wider (the padding stays out of the layout)
+            Layout.fillWidth: true
+            Layout.preferredWidth: figmaBox
+            // Figma: space-between, the gaps above the cover, between the
+            // cover and the text and under the text are equal
+            Layout.topMargin: Math.max(VLCStyle.margin_large,
+                                       (centerContent.height - coverItem.Layout.preferredHeight - Layout.preferredHeight) / 3)
+            // the text box of the design (29 px for 24 px), the line centred
+            Layout.preferredHeight: Math.round(1.2109375 * font.pixelSize)
+            verticalAlignment: Text.AlignTop
+            topPadding: VLCStyle.redesign.textBaseline(0, font.pixelSize) - albumMetrics.ascent
+            bottomPadding: 0
+            FontMetrics {
+                id: albumMetrics
+                font: albumLabel.font
+            }
 
             Binding on visible {
                 delayed: true
@@ -249,11 +243,22 @@ MouseArea {
                 value: albumLabel.text.length > 0 && centerContent.height > (albumLabel.y + albumLabel.height)
             }
 
-            text: Player.title && Player.artist ? Player.title + " - " + Player.artist : ""
+            // Figma "Player - Music": "untangle - juxtopposed", regular
+            text: Player.title && Player.artist ? Player.title + " - " + Player.artist : (Player.title || "")
             font.family: VLCStyle.redesign.fontFamily
             font.pixelSize: VLCStyle.dp(24, VLCStyle.scale)
             font.weight: Font.Medium
-            horizontalAlignment: Text.AlignHCenter
+            readonly property real figmaBox: Math.ceil(albumExact.advanceWidth / 16
+                                                       - text.length * font.pixelSize / 2816 - 0.001)
+            horizontalAlignment: figmaBox < width ? Text.AlignLeft : Text.AlignHCenter
+            leftPadding: figmaBox < width ? (width - figmaBox) / 2 : 0
+            TextMetrics {
+                id: albumExact
+                font.family: albumLabel.font.family
+                font.weight: albumLabel.font.weight
+                font.pixelSize: albumLabel.font.pixelSize * 16
+                text: albumLabel.text
+            }
             color: VLCStyle.redesign.color(VLCStyle.redesign.textSecondary, "#4d4d4d")
             Accessible.description: qsTr("Title and artist")
 
@@ -273,7 +278,8 @@ MouseArea {
             Binding on visible {
                 delayed: true
                 when: artistLabel.componentCompleted
-                value: artistLabel.text.length > 0 && centerContent.height > (artistLabel.y + artistLabel.height)
+                // The design shows the title and artist only
+                value: false
             }
 
             text: Player.album
@@ -359,7 +365,10 @@ MouseArea {
             Binding on visible {
                 delayed: true
                 when: audioControls.componentCompleted
-                value: Player.videoTracks.count === 0 && centerContent.height > (audioControls.y + audioControls.height)
+                // The jumps are in the control bar of the design; only the
+                // lyrics button stays, for tracks with lyrics
+                value: Player.videoTracks.count === 0 && Player.hasLyrics
+                       && centerContent.height > (audioControls.y + audioControls.height)
             }
 
             focus: true
@@ -375,6 +384,7 @@ MouseArea {
             }
 
             Widgets.IconToolButton {
+                visible: false
                 text: VLCIcons.skip_back
                 font.pixelSize: VLCStyle.icon_audioPlayerButton
                 onClicked: Player.jumpBwd()
@@ -384,6 +394,7 @@ MouseArea {
             }
 
             Widgets.IconToolButton {
+                visible: false
                 text: VLCIcons.visualization
                 font.pixelSize: VLCStyle.icon_audioPlayerButton
                 onClicked: DialogsProvider.audioVisualizationDialog()
@@ -405,6 +416,7 @@ MouseArea {
             }
 
             Widgets.IconToolButton{
+                visible: false
                 text: VLCIcons.skip_for
                 font.pixelSize: VLCStyle.icon_audioPlayerButton
                 onClicked: Player.jumpFwd()

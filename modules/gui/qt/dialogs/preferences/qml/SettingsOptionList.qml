@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  ****************************************************************************/
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls.Basic
 import VLC.Style
 import VLC.MainInterface
 import VLC.Widgets as Widgets
@@ -20,16 +20,31 @@ Column {
     property string sectionFilter: ""
     property string excludedSection: ""
     property bool hideSectionHeadings: false
+    // Reset all settings was clicked (the dialog confirms it)
+    signal resetAllRequested()
     readonly property int count: optionsRepeater.count
+    // Whether the option of a row of the model shows in this list
+    // Font size of the subtitles: by name (Relative) or in pixels, as Size values says
+    function sizeModeHidden(key) {
+        if (key !== "sub-text-scale" && key !== "freetype-fontsize")
+            return false
+        const pixels = Number((root.settingsModel.revision,
+                               root.settingsModel.valueFor("redesign/subtitle-size-mode"))) === 1
+        return (key === "freetype-fontsize") !== pixels
+    }
+    function entryVisible(i) {
+        const key = root.settingsModel.keyAt(i)
+        const entry = presentationData.entry(key, "")
+        return !entry.hidden && !sizeModeHidden(key)
+               && (filterMode === "all" || (filterMode === "advanced") === entry.advanced)
+               && (!sectionFilter || entry.section === sectionFilter)
+               && (!excludedSection || entry.section !== excludedSection)
+    }
     readonly property int availableCount: {
         let total = 0
-        for (let i = 0; i < optionsRepeater.count; ++i) {
-            const entry = presentationData.entry(root.settingsModel.keyAt(i), "")
-            if (!entry.hidden && (filterMode === "all" || (filterMode === "advanced") === entry.advanced)
-                    && (!sectionFilter || entry.section === sectionFilter)
-                    && (!excludedSection || entry.section !== excludedSection))
+        for (let i = 0; i < optionsRepeater.count; ++i)
+            if (entryVisible(i))
                 ++total
-        }
         return total
     }
     width: parent ? parent.width : implicitWidth
@@ -43,66 +58,198 @@ Column {
             spacing: 0
             readonly property var presentation: presentationData.entry(model.key, model.label)
             // A category can place an inline effect panel between native option groups.
-            visible: !presentation.hidden && (root.filterMode === "all"
+            visible: !presentation.hidden && !root.sizeModeHidden(model.key) && (root.filterMode === "all"
                       || (root.filterMode === "advanced") === presentation.advanced)
                      && (!root.sectionFilter || presentation.section === root.sectionFilter)
                      && (!root.excludedSection || presentation.section !== root.excludedSection)
-            readonly property string previousSection: index > 0
-                ? presentationData.entry(root.settingsModel.keyAt(index - 1), "").section : ""
+            // The row shown before this one in the list (-1: the first one)
+            readonly property int previousVisible: {
+                for (let i = index - 1; i >= 0; --i)
+                    if (root.entryVisible(i))
+                        return i
+                return -1
+            }
+            readonly property string previousSection: previousVisible >= 0
+                ? presentationData.entry(root.settingsModel.keyAt(previousVisible), "").section : ""
 
-            Label {
-                visible: !root.hideSectionHeadings && root.filterMode !== "advanced"
-                         && (index === 0 || presentation.section !== previousSection)
+            // Section title of the design: Inter Medium 16 #C6C6C6, 10 px
+            // above and below, 20 px after the previous section
+            Text {
+                id: sectionTitle
+                visible: !root.hideSectionHeadings
+                         && (root.filterMode !== "advanced" || presentation.heading)
+                         && (previousVisible < 0 || presentation.section !== previousSection)
                 width: parent.width
-                height: visible ? VLCStyle.dp(58, VLCStyle.scale) : 0
-                topPadding: VLCStyle.dp(22, VLCStyle.scale)
+                // whole pixels: the rows below stay on the pixel grid
+                height: visible ? VLCStyle.dp(previousVisible < 0 ? 39 : 59, VLCStyle.scale) : 0
+                // the baseline where the design puts it (the line 10 px from
+                // the top), whatever the line metrics of Qt
+                topPadding: Math.round(VLCStyle.redesign.textBaseline(VLCStyle.dp(previousVisible < 0 ? 10 : 30, VLCStyle.scale),
+                                                                      font.pixelSize)) - titleMetrics.ascent
+                FontMetrics { id: titleMetrics; font: sectionTitle.font }
                 text: presentation.section
-                color: VLCStyle.palette.isDark ? "#d2d2d2" : "#252525"
+                color: VLCStyle.redesign.color("#C6C6C6", "#2e2e2e")
                 font.family: VLCStyle.redesign.fontFamily
                 font.pixelSize: VLCStyle.dp(16, VLCStyle.scale)
+                font.weight: Font.Medium
             }
 
-            SettingsOptionRow {
+            // Equalizer of the design: the bar (or the open panel), 5 px
+            // above and below as a row
+            // (the editors of a row are only created for a row shown: a
+            // page creates them for each option of its category)
+            Loader {
                 width: parent.width
-                settingKey: model.key
-                label: presentation.label
-                help: model.help
-                settingType: model.type
-                settingValue: model.value
-                choices: model.choices
-                minimum: model.minimum
-                maximum: model.maximum
-                editorKind: presentation.editor
-                dirty: model.dirty
-                onCommit: (value) => root.settingsModel.setValue(settingKey, value)
-                onBrowseRequested: {
-                    if (editorKind === "directory") {
-                        const folder = filePicker.chooseFolder(qsTr("Choose a recording folder"))
-                        if (folder.toString() !== "")
-                            root.settingsModel.setDirectoryUrl(settingKey, folder)
-                    } else if (editorKind === "savefile") {
-                        const file = filePicker.chooseSaveFile(qsTr("Choose a log file"), String(settingValue || ""))
-                        if (file.length) root.settingsModel.setValue(settingKey, file)
+                active: parent.visible && presentation.editor === "equalizer"
+                sourceComponent: Item {
+                    height: equalizerPanel.implicitHeight + VLCStyle.dp(10, VLCStyle.scale)
+                    SettingsEqualizerPanel {
+                        id: equalizerPanel
+                        y: VLCStyle.dp(5, VLCStyle.scale)
+                        width: parent.width
+                        // the bands of the user, else those of the preset
+                        readonly property var preset: presentation.editor === "equalizer"
+                            ? (root.settingsModel.revision, root.settingsModel.equalizerPreset(
+                                   String(root.settingsModel.valueFor("equalizer-preset")))) : []
+                        bands: String(model.value || "").trim().length
+                               ? String(model.value).trim().split(/\s+/).map(Number)
+                               : preset.slice(1)
+                        preamp: (root.settingsModel.revision,
+                                 Number(root.settingsModel.valueFor("equalizer-preamp") ?? 12))
+                        onBandsEdited: (bands) => root.settingsModel.setValue(model.key,
+                                                      bands.map(v => v.toFixed(1)).join(" "))
+                        onPreampEdited: (preamp) => root.settingsModel.setValue("equalizer-preamp", preamp)
                     }
                 }
             }
 
-            Label {
-                visible: model.key === "file-logging"
+            Loader {
                 width: parent.width
-                height: visible ? VLCStyle.dp(30, VLCStyle.scale) : 0
-                text: qsTr("Restart VLC to apply changes to file logging.")
-                wrapMode: Text.WordWrap
-                color: VLCStyle.redesign.textMuted
-                font.family: VLCStyle.redesign.fontFamily
-                font.pixelSize: VLCStyle.dp(12, VLCStyle.scale)
+                active: parent.visible && presentation.editor !== "equalizer"
+                sourceComponent: SettingsOptionRow {
+                    settingKey: model.key
+                    label: presentation.label
+                    accessibleLabel: presentation.accessible || presentation.label
+                    help: model.help
+                    settingType: model.type
+                    settingValue: model.value
+                    choices: {
+                        const labels = presentation.choiceLabels
+                        // Wheels: Seek is backwards (3) when Reverse scroll direction is on
+                        const setting = model.key.replace(/^x-mirror:/, "")
+                        if (setting === "hotkeys-y-wheel-mode" || setting === "hotkeys-x-wheel-mode")
+                            return [{ value: -1, label: qsTr("Nothing") }, { value: 0, label: qsTr("Volume") },
+                                    { value: model.value === 3 ? 3 : 2, label: qsTr("Seek") }]
+                        if (presentation.editor === "boolchoice" && labels)
+                            return [{ value: false, label: labels[false] }, { value: true, label: labels[true] }]
+                        if (!labels || !model.choices)
+                            return model.choices
+                        const named = model.choices.map(choice => ({ value: choice.value,
+                                                                     label: labels[choice.value] ?? choice.label }))
+                        // the default of VLC as a choice of its own, shown for that value
+                        return presentation.defaultChoice
+                            ? [{ value: model.defaultValue, label: presentation.defaultChoice }].concat(named)
+                            : named
+                    }
+                    minimum: model.minimum
+                    maximum: model.maximum
+                    editorKind: presentation.editor
+                    showInfo: presentation.info !== undefined ? presentation.info : model.help.length > 0
+                    infoGap: presentation.infoGap !== undefined ? presentation.infoGap : 10
+                    unit: presentation.unit || ""
+                    onValue: model.defaultValue
+                    otherValue: model.key === "volume-save"
+                                ? (root.settingsModel.revision, root.settingsModel.valueFor("mmdevice-volume"))
+                                : undefined
+                    onCommitOther: (value) => root.settingsModel.setValue("mmdevice-volume", value)
+                    defaultText: model.type === "directory" ? root.settingsModel.defaultText(model.key) : ""
+                    displayValue: model.type === "directory"
+                                  ? root.settingsModel.displayPath(String(model.value || "").length
+                                                                   ? String(model.value) : defaultText)
+                                  : ""
+                    dirty: model.dirty
+                    onCommit: (value) => root.settingsModel.setValue(settingKey, value)
+                    decimals: presentation.decimals
+                    rowHeight: presentation.rowHeight
+                    fieldHeight: presentation.fieldHeight || 0
+                    defaultDisplay: presentation.defaultDisplay || ""
+                    controlTop: presentation.controlTop
+                    labelsBaseline: presentation.labelsBaseline
+                    available: (model.key !== "one-instance-when-started-from-file" && model.key !== "playlist-enqueue"
+                                || !!(root.settingsModel.revision, root.settingsModel.valueFor("one-instance")))
+                               && (!model.key.endsWith("-caching") || model.category !== "network"
+                                   || Number((root.settingsModel.revision, root.settingsModel.valueFor("x-buffering"))) === 4)
+                    placeholder: presentation.placeholder || ""
+                    valueShown: model.key !== "http-port"
+                                || !!(root.settingsModel.revision, root.settingsModel.valueFor("x-web-remote"))
+                    onColorRequested: {
+                        const rgb = filePicker.chooseColor(Number(settingValue), label)
+                        if (rgb >= 0)
+                            root.settingsModel.setValue(settingKey, rgb)
+                    }
+                    onBrowseRequested: {
+                        if (editorKind === "directory") {
+                            const folder = filePicker.chooseFolder(qsTr("Choose a recording folder"))
+                            if (folder.toString() !== "")
+                                root.settingsModel.setDirectoryUrl(settingKey, folder)
+                        } else if (editorKind === "openfile") {
+                            const file = filePicker.chooseOpenFile(qsTr("Choose a skin"),
+                                                                   qsTr("Skin files (*.vlt *.wsz *.xml)"))
+                            if (file.length) root.settingsModel.setValue(settingKey, file)
+                        } else if (editorKind === "savefile") {
+                            const file = filePicker.chooseSaveFile(qsTr("Choose a log file"), String(settingValue || ""))
+                            if (file.length) root.settingsModel.setValue(settingKey, file)
+                        }
+                    }
+                }
             }
 
             Loader {
                 width: parent.width
                 active: root.category === "privacy" && root.search.length === 0
-                        && model.key === "restore-playback-states"
+                        && model.key === "redesign/recentplay-filter"
                 sourceComponent: SettingsPrivacyActions { width: root.width }
+            }
+
+            // Open configurations folder, Reset all settings: after the
+            // advanced rows of Diagnostics in the design
+            Loader {
+                width: parent.width
+                active: root.category === "general" && root.filterMode === "advanced"
+                        && model.key === "stats"
+                sourceComponent: Column {
+                    width: root.width
+                    SettingsActionRow {
+                        width: parent.width
+                        label: qsTr("Open configurations folder")
+                        help: qsTr("Shows the folder of the settings of VLC.")
+                        buttonText: qsTr("Open")
+                        buttonWidth: VLCStyle.dp(100, VLCStyle.scale)
+                        onClicked: root.settingsModel.openConfigFolder()
+                    }
+                    SettingsActionRow {
+                        width: parent.width
+                        label: qsTr("Reset all settings")
+                        help: qsTr("Puts every setting of VLC back to its default.")
+                        buttonText: qsTr("Reset")
+                        buttonWidth: VLCStyle.dp(100, VLCStyle.scale)
+                        destructive: true
+                        onClicked: root.resetAllRequested()
+                    }
+                }
+            }
+
+            // "Rescan plugins" ends Smooth Playback in the design
+            Loader {
+                width: parent.width
+                active: root.category === "performance" && root.search.length === 0
+                        && root.filterMode !== "advanced" && model.key === "redesign/process-priority"
+                sourceComponent: SettingsActionRow {
+                    width: root.width
+                    label: qsTr("Rescan plugins")
+                    buttonText: qsTr("Rescan")
+                    onClicked: root.settingsModel.rescanPlugins()
+                }
             }
         }
     }

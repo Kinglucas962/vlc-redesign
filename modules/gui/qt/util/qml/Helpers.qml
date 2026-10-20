@@ -150,6 +150,22 @@ QtObject {
         return (obj?.length !== undefined) ?? false
     }
 
+    // Path to show for a file:// URL, with native separators
+    // (file:///C:/a%20b -> C:\a b, file://host/share -> \\host\share on Windows).
+    function localPathFromUrl(url : var) : string {
+        const str = url?.toString() ?? ""
+        if (!str.startsWith("file://"))
+            return decodeURIComponent(str)
+        let path = decodeURIComponent(str.substring(7))
+        if (Qt.platform.os !== "windows")
+            return path
+        if (/^\/[A-Za-z]:/.test(path))
+            path = path.substring(1)
+        else if (!path.startsWith("/"))
+            path = "//" + path
+        return path.replace(/\//g, "\\")
+    }
+
     // Similar to Item::contains(), but accepts area (rectangle):
     function itemIntersects(item: Item, area: rect) : bool {
         if (!item)

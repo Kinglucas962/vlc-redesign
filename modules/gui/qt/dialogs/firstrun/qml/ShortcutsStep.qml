@@ -1,88 +1,170 @@
+/*****************************************************************************
+ * Copyright (C) 2026 VLC authors and VideoLAN
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *****************************************************************************/
 import QtQuick
-import QtQuick.Controls.Basic as Controls
 
 import VLC.Style
 
+// Basic shortcuts of the onboarding (Figma 1902:6770): two columns (at 62
+// and 605) of six rows 82 apart from 154, the action (220 wide) and its keys
+// 20 after it. A key: 42 high, a border of 3 (#373737), radius 12, #1B1B1B,
+// its text 20 from the sides (12 for a sign) and a drop of 6 below (#5C5C5C
+// at 25 %); "/" 10 from the keys it separates, the keys of a combination 4
+// apart. Inter Light 16 on lines of 28 (175 %).
 Item {
     id: root
+
+    // [{ action, sequences: ["Space"] or ["Left", "Right"] }]
     property var shortcuts: []
 
-    Text {
-        y: 66
-        width: parent.width
-        text: qsTr("Learn the basic keyboard shortcuts.")
-        color: "#969696"
-        font.family: VLCStyle.redesign.fontFamily
-        font.pixelSize: 24
-        font.weight: Font.Light
-        horizontalAlignment: Text.AlignHCenter
+    readonly property int rows: Math.ceil(shortcuts.length / 2)
+
+    // "Shift+s" reads SHIFT, S; "Left" ←; letters are capitals
+    function keysOf(sequence) {
+        const names = { "Left": "←", "Right": "→", "Up": "↑", "Down": "↓",
+                        "Shift": "SHIFT", "Ctrl": "CTRL", "Alt": "ALT", "Meta": "META" }
+        // "+" itself is a key ("Ctrl++")
+        const parts = sequence.replace(/\+\+$/, "+plus").split("+").filter(part => part.length > 0)
+        return parts.map(part => part === "plus" ? "+"
+                                                 : (names[part] ?? (part.length === 1 ? part.toUpperCase() : part)))
     }
 
-    Text {
-        anchors.centerIn: parent
-        visible: root.shortcuts.length === 0
-        text: qsTr("No playback shortcuts are currently assigned.")
+    // Inter as Figma lays it out: the line box (1.2109 em, ascender
+    // 0.96875) centred in the line, the baseline on the whole pixel
+    component FigmaText: Text {
+        id: figmaText
+
+        property real lineHeightPx: 28
+
+        height: lineHeightPx
+        verticalAlignment: Text.AlignTop
         color: "#969696"
         font.family: VLCStyle.redesign.fontFamily
         font.pixelSize: 16
+        font.weight: Font.Light
+        topPadding: Math.round((lineHeightPx - 1.2109375 * font.pixelSize) / 2 + 0.96875 * font.pixelSize) - figmaMetrics.ascent
+
+        FontMetrics {
+            id: figmaMetrics
+            font: figmaText.font
+        }
     }
 
-    Controls.ScrollView {
-        x: 62
-        y: 144
-        width: parent.width - 124
-        height: 490
-        clip: true
-        visible: root.shortcuts.length > 0
-        contentWidth: availableWidth
-        Column {
+    // A raised key
+    component Keycap: Item {
+        id: keycap
+
+        property string text
+
+        // a sign takes 12 on each side, a letter or a word 20
+        readonly property bool sign: text.length === 1 && !/[A-Za-z0-9]/.test(text)
+        readonly property bool arrow: text.length === 1 && text >= "←" && text <= "↓"
+        // the box of the text: its advance to the pixel above (Figma's
+        // hug), the arrows on 16
+        readonly property int textWidth: Math.max(Math.ceil(label.implicitWidth - 0.05), arrow ? 16 : 0)
+
+        width: 2 * (3 + (sign ? 12 : 20)) + textWidth
+        height: 42
+
+        // the drop shadow (0, 6, no blur), behind the key
+        Rectangle {
+            y: 6
             width: parent.width
-            spacing: 14
-            Repeater {
-                model: Math.ceil(root.shortcuts.length / 2)
-                delegate: Row {
-                    id: shortcutRow
-                    required property int index
-                    width: parent.width
-                    height: 55
-                    spacing: 38
-                    Repeater {
-                        model: 2
-                        delegate: Item {
-                            required property int index
-                            readonly property int shortcutIndex: shortcutRow.index + index * Math.ceil(root.shortcuts.length / 2)
-                            readonly property var shortcut: shortcutIndex < root.shortcuts.length ? root.shortcuts[shortcutIndex] : null
-                            width: (parent.width - 38) / 2
-                            height: 55
-                            visible: shortcut !== null
-                            Text {
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: parent.width * 0.53
-                                text: parent.shortcut ? parent.shortcut.action : ""
-                                color: "#969696"
-                                elide: Text.ElideRight
-                                font.family: VLCStyle.redesign.fontFamily
-                                font.pixelSize: 16
-                            }
-                            Rectangle {
-                                id: keycap
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: Math.max(52, Math.min(parent.width * 0.44, keyText.implicitWidth + 28))
-                                height: 43
-                                radius: 12
-                                color: "#1d1d1d"
-                                border.width: 3
-                                border.color: "#383838"
-                                Text {
-                                    id: keyText
-                                    anchors.centerIn: parent
-                                    text: keycap.parent.shortcut ? keycap.parent.shortcut.sequence : ""
-                                    color: "#c6c6c6"
-                                    font.family: VLCStyle.redesign.fontFamily
-                                    font.pixelSize: 15
-                                    elide: Text.ElideRight
+            height: parent.height
+            radius: 12
+            color: Qt.rgba(0x5c / 255, 0x5c / 255, 0x5c / 255, 0.25)
+        }
+        Rectangle {
+            anchors.fill: parent
+            radius: 12
+            color: "#1b1b1b"
+            border.width: 3
+            border.color: "#373737"
+        }
+        FigmaText {
+            id: label
+            x: 3 + (keycap.sign ? 12 : 20)
+            y: 7
+            width: keycap.textWidth
+            // Figma: the text at the start of its box
+            horizontalAlignment: Text.AlignLeft
+            text: keycap.text
+            color: "#eaeaea"
+        }
+    }
+
+    FigmaText {
+        y: 60
+        width: parent.width
+        lineHeightPx: 42
+        horizontalAlignment: Text.AlignHCenter
+        text: qsTr("Learn the basic keyboard shortcuts.")
+        font.pixelSize: 24
+        font.weight: Font.Normal
+    }
+
+    FigmaText {
+        anchors.centerIn: parent
+        visible: root.shortcuts.length === 0
+        text: qsTr("No playback shortcuts are currently assigned.")
+    }
+
+    Repeater {
+        model: root.shortcuts
+
+        delegate: Item {
+            id: row
+
+            required property int index
+            required property var modelData
+
+            readonly property int column: index < root.rows ? 0 : 1
+
+            x: column === 0 ? 62 : 605
+            y: 154 + (index % root.rows) * 82
+            width: 393
+            height: 42
+
+            FigmaText {
+                y: 7
+                width: 220
+                elide: Text.ElideRight
+                text: row.modelData.action
+            }
+
+            Row {
+                x: 240
+                spacing: 10
+
+                Repeater {
+                    model: row.modelData.sequences
+
+                    delegate: Row {
+                        required property int index
+                        required property string modelData
+
+                        spacing: 10
+
+                        FigmaText {
+                            visible: index > 0
+                            y: 7
+                            width: Math.ceil(implicitWidth - 0.05)
+                            text: "/"
+                        }
+
+                        Row {
+                            spacing: 4
+
+                            Repeater {
+                                model: root.keysOf(modelData)
+                                delegate: Keycap {
+                                    required property string modelData
+                                    text: modelData
                                 }
                             }
                         }
@@ -92,12 +174,11 @@ Item {
         }
     }
 
-    Text {
+    FigmaText {
         x: 62
-        y: 677
+        y: 671
         text: qsTr("Find the full list in the menu.")
-        color: "#777777"
-        font.family: VLCStyle.redesign.fontFamily
-        font.pixelSize: 16
+        color: "#6b6b6b"
+        font.weight: Font.Normal
     }
 }

@@ -9,6 +9,7 @@ import QtQuick.Templates as T
 import VLC.Dialogs
 import VLC.MainInterface
 import VLC.Style
+import VLC.Widgets as Widgets
 
 T.Popup {
     id: root
@@ -161,7 +162,7 @@ T.Popup {
                 Text {
                     Layout.fillWidth: true
                     visible: root.currentTab === 0 && !audioBridge.activeAudio
-                    text: audioBridge.lastError || qsTr("Play audio to preview and edit audioBridge.")
+                    text: audioBridge.lastError || qsTr("Play audio to preview and edit audio effects.")
                     color: VLCStyle.redesign.textSecondary
                     font.family: VLCStyle.redesign.fontFamily
                     font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
@@ -285,4 +286,7 @@ T.Popup {
             }
         }
     }
+
+    // Keeps the title bar draggable while this modal dialog is open
+    Widgets.CSDModalDragStrip { dialog: root }
 }

@@ -7,6 +7,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Templates as T
 import VLC.Style
+import VLC.Widgets as Widgets
 
 ColumnLayout {
     id: root
@@ -33,9 +34,8 @@ ColumnLayout {
             font.pixelSize: VLCStyle.dp(15, VLCStyle.scale)
             font.weight: Font.Medium
         }
-        T.CheckBox {
-            implicitWidth: VLCStyle.dp(36, VLCStyle.scale)
-            implicitHeight: VLCStyle.dp(20, VLCStyle.scale)
+        // The ON / OFF toggle of the design
+        Widgets.CheckButton {
             id: enabledCheck
             objectName: "fxEnabled-" + root.filterId
             focusPolicy: Qt.StrongFocus
@@ -45,20 +45,6 @@ ColumnLayout {
                 value: { root.revision; return root.effects.filterEnabled(root.filterId) }
             }
             onClicked: root.effects.setFilterEnabled(root.filterId, checked)
-            indicator: Rectangle {
-                implicitWidth: VLCStyle.dp(36, VLCStyle.scale)
-                implicitHeight: VLCStyle.dp(20, VLCStyle.scale)
-                radius: height / 2
-                color: enabledCheck.checked ? VLCStyle.redesign.accent : "#373737"
-                Rectangle {
-                    x: enabledCheck.checked ? parent.width - width - VLCStyle.dp(3, VLCStyle.scale) : VLCStyle.dp(3, VLCStyle.scale)
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: VLCStyle.dp(14, VLCStyle.scale)
-                    height: width
-                    radius: width / 2
-                    color: "#EAEAEA"
-                }
-            }
         }
     }
 

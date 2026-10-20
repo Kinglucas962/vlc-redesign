@@ -8,7 +8,21 @@
 #include "config_model.hpp"
 
 #include <vlc_common.h>
+#include <vlc_configuration.h>
 #include <vlc_modules.h>
+
+#include "maininterface/mainctx.hpp"
+#include "qt.hpp"
+
+#include <QCoreApplication>
+#include <QDesktopServices>
+#include <QDir>
+#include <QSettings>
+#include <QUrl>
+#include <QFileInfo>
+#include <QProcess>
+
+#include "../../../../audio_filter/equalizer_presets.h"
 
 QVariant ConfigModel::valueFor(const QString& key) const
 {
@@ -20,6 +34,89 @@ QVariant ConfigModel::valueFor(const QString& key) const
 bool ConfigModel::hasOption(const QString& key) const
 {
     return valueFor(key).isValid();
+}
+
+bool ConfigModel::rescanPlugins()
+{
+    const QString folder = QCoreApplication::applicationDirPath();
+    const QString generator = folder + QStringLiteral("/vlc-cache-gen.exe");
+    if (!QFileInfo::exists(generator)) {
+        setError(tr("The plugins can not be rescanned on this installation."));
+        return false;
+    }
+    if (!QProcess::startDetached(generator, { QDir::toNativeSeparators(folder + QStringLiteral("/plugins")) })) {
+        setError(tr("The plugins could not be rescanned."));
+        return false;
+    }
+    return true;
+}
+
+bool ConfigModel::openConfigFolder()
+{
+    char *folder = config_GetUserDir(VLC_CONFIG_DIR);
+    const QString path = QString::fromUtf8(folder ? folder : "");
+    free(folder);
+    if (path.isEmpty() || !QDesktopServices::openUrl(QUrl::fromLocalFile(path))) {
+        setError(tr("The configurations folder could not be opened."));
+        return false;
+    }
+    return true;
+}
+
+// As "Reset Preferences" of the native preferences
+void ConfigModel::resetAll()
+{
+    if (!m_ctx || !m_ctx->getIntf())
+        return;
+    qt_intf_t *p_intf = m_ctx->getIntf();
+    config_ResetAll();
+    config_SaveConfigFile(p_intf);
+    getSettings()->clear();
+    p_intf->preferencesResetPending = true;
+    m_ctx->reloadPrefs();
+    m_ctx->reloadFromSettings();
+    reload();
+}
+
+QVariantList ConfigModel::equalizerPreset(const QString& name) const
+{
+    for (const eqz_preset_t &preset : eqz_preset_10b) {
+        if (name != QLatin1String(preset.psz_name))
+            continue;
+        QVariantList values{ preset.f_preamp };
+        for (int i = 0; i < preset.i_band; ++i)
+            values.append(preset.f_amp[i]);
+        return values;
+    }
+    return {};
+}
+
+QString ConfigModel::defaultText(const QString& key) const
+{
+    vlc_userdir_t folder;
+    if (key == QLatin1String("input-record-path"))
+        folder = VLC_VIDEOS_DIR;
+    else if (key == QLatin1String("snapshot-path"))
+        folder = VLC_PICTURES_DIR;
+    else
+        return {};
+    char *path = config_GetUserDir(folder);
+    const QString result = path ? QDir::toNativeSeparators(QString::fromUtf8(path)) : QString();
+    free(path);
+    return result;
+}
+
+QString ConfigModel::displayPath(const QString& path) const
+{
+    if (path.isEmpty())
+        return {};
+    const QString clean = QDir::cleanPath(QDir::fromNativeSeparators(path));
+    const QString home = QDir::cleanPath(QDir::homePath());
+    if (clean.compare(home, Qt::CaseInsensitive) == 0)
+        return QStringLiteral("~");
+    if (clean.startsWith(home + QLatin1Char('/'), Qt::CaseInsensitive))
+        return QStringLiteral("~") + clean.mid(home.size());
+    return QDir::toNativeSeparators(clean);
 }
 
 bool ConfigModel::audioscrobblerAvailable() const

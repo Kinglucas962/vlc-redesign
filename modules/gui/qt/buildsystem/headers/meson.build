@@ -45,6 +45,7 @@ moc_headers = files(
     '../../dialogs/preferences/preferences.hpp',
     '../../dialogs/preferences/preferences_widgets.hpp',
     '../../dialogs/preferences/simple_preferences.hpp',
+    '../../dialogs/preferences/interface_language.hpp',
     '../../dialogs/sout/convert.hpp',
     '../../dialogs/sout/profile_selector.hpp',
     '../../dialogs/sout/sout.hpp',
@@ -79,6 +80,8 @@ moc_headers = files(
     '../../medialibrary/mlqmltypes.hpp',
     '../../medialibrary/mlrecentmediamodel.hpp',
     '../../medialibrary/mlrecentvideomodel.hpp',
+    '../../medialibrary/mlrecentaudiomodel.hpp',
+    '../../medialibrary/mlfrequentfoldersmodel.hpp',
     '../../medialibrary/mlurlmodel.hpp',
     '../../medialibrary/mlvideo.hpp',
     '../../medialibrary/mlmediamodel.hpp',
@@ -91,6 +94,7 @@ moc_headers = files(
     '../../menus/custom_menus.hpp',
     '../../menus/qml_menu_wrapper.hpp',
     '../../menus/menus.hpp',
+    '../../menus/redesign_menu_style.hpp',
     '../../network/addonsmodel.hpp',
     '../../network/devicesourceprovider.hpp',
     '../../network/networkbasemodel.hpp',
@@ -104,6 +108,7 @@ moc_headers = files(
     '../../player/input_models.hpp',
     '../../player/delay_estimator.hpp',
     '../../player/waveform.hpp',
+    '../../player/local_folder_model.hpp',
     '../../player/sleep_timer.hpp',
     '../../player/player_controller.hpp',
     '../../player/player_controlbar_model.hpp',
@@ -121,6 +126,7 @@ moc_headers = files(
     '../../util/ui_notifier.hpp',
     '../../util/color_svg_image_provider.hpp',
     '../../util/vlcaccess_image_provider.hpp',
+    '../../util/thumbnail_image_provider.hpp',
     '../../util/csdbuttonmodel.hpp',
     '../../util/csdmenu.hpp',
     '../../util/imageluminanceextractor.hpp',
@@ -181,4 +187,3 @@ endif
 if have_wayland and cpp.has_header('qpa/qplatformnativeinterface.h', dependencies: qt6_dep)
     moc_headers += files('../../maininterface/compositor_wayland.hpp')
 endif
-

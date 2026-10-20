@@ -16,27 +16,33 @@ Controls.Popup {
     id: root
     objectName: "toolbarEditorDialog"
     parent: Controls.Overlay.overlay
-    x: 0
-    y: 0
-    width: parent ? parent.width : 0
-    height: parent ? parent.height : 0
+    // Figma "Add Subtitles to Playlist/Folder" (the dialog of the design):
+    // 1048 x 655, 23 above the middle. Only the panel: a popup takes every
+    // press inside its bounds, and the player under it is edited in place
+    // (its controls dragged around, Figma "Player - customize")
+    width: Math.min(VLCStyle.dp(1048, VLCStyle.scale), (parent ? parent.width : 0) - VLCStyle.dp(32, VLCStyle.scale))
+    height: Math.min(VLCStyle.dp(94 + 489 + 72, VLCStyle.scale), (parent ? parent.height : 0) - VLCStyle.dp(32, VLCStyle.scale))
+    x: Math.round(((parent ? parent.width : 0) - width) / 2)
+    y: Math.max(VLCStyle.dp(16, VLCStyle.scale),
+                Math.round(((parent ? parent.height : 0) - height) / 2 - VLCStyle.dp(23, VLCStyle.scale)))
+    margins: 0
     padding: 0
-    modal: true
-    dim: true
+    modal: false
+    dim: false
     focus: true
     closePolicy: Controls.Popup.CloseOnEscape
     background: Item {}
-    Controls.Overlay.modal: Rectangle { color: "#a6000000" }
 
     signal unload()
     property bool saved: false
     property bool previousGlobalShortcuts: true
-    readonly property ColorContext colorContext: ColorContext {
-        palette: VLCStyle.palette
-        colorSet: ColorContext.Window
-    }
+    // Held by the content item: the popup is not an item, the contexts of
+    // the controls (and of the editor views reparented here) look for one
+    // up their parent items, and without one they draw in magenta
+    readonly property ColorContext colorContext: scene.colorContext
 
     onOpened: {
+        VLCStyle.customizing = true
         saved = false
         previousGlobalShortcuts = MainCtx.useGlobalShortcuts
         MainCtx.useGlobalShortcuts = false
@@ -45,6 +51,7 @@ Controls.Popup {
         closeButton.forceActiveFocus(Qt.PopupFocusReason)
     }
     onClosed: {
+        VLCStyle.customizing = false
         if (!saved)
             MainCtx.controlbarProfileModel.reload()
         MainCtx.useGlobalShortcuts = previousGlobalShortcuts
@@ -75,6 +82,11 @@ Controls.Popup {
     contentItem: Item {
         id: scene
 
+        readonly property ColorContext colorContext: ColorContext {
+            palette: VLCStyle.palette
+            colorSet: ColorContext.Window
+        }
+
         // This strip sits over the actual player's control bar. Its editor
         // views are reparented here; no static screenshot or parallel model.
         Rectangle {
@@ -83,189 +95,222 @@ Controls.Popup {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            height: Math.min(VLCStyle.dp(52, VLCStyle.scale), scene.height * 0.20)
+            // the bar of the player is edited in place: no strip
+            visible: false
+            height: 0
             color: VLCStyle.redesign.color("#1b1b1b", root.colorContext.bg.primary)
             border.color: VLCStyle.redesign.color("#343434", root.colorContext.border)
             border.width: 1
         }
 
-        Rectangle {
+        // the panel: the whole popup
+        Item {
             id: panel
             objectName: "toolbarEditorPanel"
-            width: Math.min(VLCStyle.dp(1048, VLCStyle.scale), scene.width - VLCStyle.dp(32, VLCStyle.scale))
-            height: Math.min(VLCStyle.dp(624, VLCStyle.scale),
-                             scene.height - playerDropHost.height - VLCStyle.dp(32, VLCStyle.scale))
-            x: (scene.width - width) / 2
-            y: Math.max(VLCStyle.dp(16, VLCStyle.scale),
-                        (scene.height - playerDropHost.height - height) / 2)
-            radius: VLCStyle.dp(8, VLCStyle.scale)
-            color: VLCStyle.redesign.color("#0e0e0e", root.colorContext.bg.primary)
-            border.color: VLCStyle.redesign.color("#242424", root.colorContext.border)
+            anchors.fill: parent
+
+            readonly property real radius: VLCStyle.dp(14, VLCStyle.scale)
 
             MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons }
 
-            ColumnLayout {
+            // #0E0E0E 95 %, shadow 0 8 blur 15 #000000 46 %
+            Rectangle {
                 anchors.fill: parent
-                spacing: 0
+                radius: panel.radius
+                color: VLCStyle.redesign.color(Qt.rgba(14 / 255, 14 / 255, 14 / 255, 0.95), root.colorContext.bg.primary)
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: VLCStyle.dp(48, VLCStyle.scale)
-                    Layout.leftMargin: VLCStyle.dp(20, VLCStyle.scale)
-                    Layout.rightMargin: VLCStyle.dp(12, VLCStyle.scale)
+                Widgets.RoundedRectangleShadow {
+                    yOffset: VLCStyle.dp(8, VLCStyle.scale)
+                    blurRadius: 7.5 * VLCStyle.scale // (dp() rounds to whole pixels)
+                    color: Qt.rgba(0, 0, 0, 0.46)
+                }
+            }
+
+            // "Frame 120": #090909, radius 14 on top, padding 9, gap 12
+            Rectangle {
+                id: head
+                width: parent.width
+                height: VLCStyle.dp(94, VLCStyle.scale)
+                radius: panel.radius
+                color: VLCStyle.redesign.color("#090909", root.colorContext.bg.secondary)
+                Rectangle {
+                    anchors.bottom: parent.bottom
+                    width: parent.width
+                    height: panel.radius
+                    color: parent.color
+                }
+
+                // the title and the close button
+                Item {
+                    x: VLCStyle.dp(9, VLCStyle.scale)
+                    y: VLCStyle.dp(9, VLCStyle.scale)
+                    width: parent.width - 2 * x
+                    height: VLCStyle.dp(32, VLCStyle.scale)
+
                     Text {
-                        Layout.fillWidth: true
+                        id: titleText
+                        x: VLCStyle.dp(10, VLCStyle.scale)
+                        height: parent.height
                         text: qsTr("Customize Player")
-                        color: VLCStyle.redesign.color("#969696", root.colorContext.fg.primary)
+                        color: VLCStyle.redesign.color(VLCStyle.redesign.textMuted, root.colorContext.fg.primary)
                         font.family: VLCStyle.redesign.fontFamily
-                        font.pixelSize: VLCStyle.redesign.fontNormal
+                        font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+                        verticalAlignment: Text.AlignTop
+                        topPadding: VLCStyle.redesign.textBaseline(Math.round((height - Math.round(1.2109375 * font.pixelSize)) / 2),
+                                                                   font.pixelSize) - titleMetrics.ascent
+                        FontMetrics {
+                            id: titleMetrics
+                            font: titleText.font
+                        }
                     }
-                    Widgets.IconToolButton {
+
+                    T.Button {
                         id: closeButton
                         objectName: "toolbarEditorClose"
-                        description: qsTr("Cancel and close")
-                        text: VLCIcons.clear
+                        anchors.right: parent.right
+                        width: VLCStyle.dp(32, VLCStyle.scale)
+                        height: VLCStyle.dp(32, VLCStyle.scale)
+                        padding: VLCStyle.dp(4, VLCStyle.scale)
+                        Accessible.name: qsTr("Cancel and close")
                         onClicked: root.close()
+                        background: Rectangle {
+                            radius: VLCStyle.dp(4, VLCStyle.scale)
+                            color: (closeButton.hovered || closeButton.down)
+                                   ? VLCStyle.redesign.color(VLCStyle.redesign.controlHoverBackground, "#9c9c9b")
+                                   : "transparent"
+                            border.width: closeButton.visualFocus ? 1 : 0
+                            border.color: VLCStyle.redesign.focusColor
+                        }
+                        contentItem: Image {
+                            source: "qrc:///redesign/icons/close/default.png"
+                            sourceSize: Qt.size(VLCStyle.redesign.iconSize, VLCStyle.redesign.iconSize)
+                            fillMode: Image.Pad
+                            smooth: true
+                        }
+                    }
+                }
+
+                // the description
+                Text {
+                    id: descriptionText
+                    x: VLCStyle.dp(9 + 10, VLCStyle.scale)
+                    y: VLCStyle.dp(9 + 32 + 12, VLCStyle.scale)
+                    width: parent.width - x - VLCStyle.dp(9, VLCStyle.scale)
+                    height: VLCStyle.dp(32, VLCStyle.scale)
+                    text: qsTr("Drag items around and out of the box below to re-order them. Drag items into the box to remove them from the player.")
+                    elide: Text.ElideRight
+                    color: VLCStyle.redesign.color("#6B6B6B", root.colorContext.fg.secondary)
+                    font.family: VLCStyle.redesign.fontFamily
+                    font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+                    verticalAlignment: Text.AlignTop
+                    topPadding: VLCStyle.redesign.textBaseline(Math.round((height - Math.round(1.2109375 * font.pixelSize)) / 2),
+                                                               font.pixelSize) - descriptionMetrics.ascent
+                    FontMetrics {
+                        id: descriptionMetrics
+                        font: descriptionText.font
+                    }
+                }
+            }
+
+            // "Frame 124": the palette, padding 34
+            ToolbarEditor {
+                id: toolbarEditor
+                objectName: "toolbarEditorContents"
+                x: VLCStyle.dp(34, VLCStyle.scale)
+                y: head.height + VLCStyle.dp(34, VLCStyle.scale)
+                width: parent.width - 2 * x
+                height: parent.height - y - foot.height - VLCStyle.dp(34, VLCStyle.scale)
+                previewHost: playerDropHost
+            }
+
+            // "Frame 225": padding 20, Cancel and Save
+            Item {
+                id: foot
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: VLCStyle.dp(72, VLCStyle.scale)
+
+                readonly property bool changed: !!MainCtx.controlbarProfileModel.currentModel
+                                                && MainCtx.controlbarProfileModel.currentModel.dirty
+
+                T.Button {
+                    id: cancelButton
+                    objectName: "toolbarEditorCancel"
+                    x: VLCStyle.dp(20, VLCStyle.scale)
+                    y: VLCStyle.dp(20, VLCStyle.scale)
+                    width: VLCStyle.dp(100, VLCStyle.scale)
+                    height: VLCStyle.dp(32, VLCStyle.scale)
+                    text: qsTr("Cancel")
+                    activeFocusOnTab: true
+                    onClicked: root.close()
+                    background: Rectangle {
+                        radius: VLCStyle.dp(6, VLCStyle.scale)
+                        color: cancelButton.down || cancelButton.hovered
+                               ? VLCStyle.redesign.color(VLCStyle.redesign.controlHoverBackground, "#9c9c9b")
+                               : VLCStyle.redesign.color(VLCStyle.redesign.playerControlBackground, "#ababaa")
+                        border.width: cancelButton.visualFocus ? 1 : 0
+                        border.color: VLCStyle.redesign.focusColor
+                    }
+                    contentItem: Text {
+                        text: cancelButton.text
+                        color: VLCStyle.redesign.color(VLCStyle.redesign.textMuted, "#4d4d4d")
+                        font.family: VLCStyle.redesign.fontFamily
+                        font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+                        font.weight: Font.DemiBold
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
                     }
                 }
 
                 Text {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: VLCStyle.dp(20, VLCStyle.scale)
-                    Layout.rightMargin: VLCStyle.dp(20, VLCStyle.scale)
-                    Layout.preferredHeight: VLCStyle.dp(38, VLCStyle.scale)
-                    wrapMode: Text.WordWrap
-                    text: qsTr("Drag controls onto the player bar to add or reorder them. Drag them back here to remove.")
-                    color: VLCStyle.redesign.color("#747474", root.colorContext.fg.secondary)
+                    anchors.left: cancelButton.right
+                    anchors.leftMargin: VLCStyle.dp(16, VLCStyle.scale)
+                    anchors.right: saveButton.left
+                    anchors.rightMargin: VLCStyle.dp(16, VLCStyle.scale)
+                    anchors.verticalCenter: cancelButton.verticalCenter
+                    visible: !!MainCtx.controlbarProfileModel.lastError
+                    text: MainCtx.controlbarProfileModel.lastError
+                    color: "#e4a580"
                     font.family: VLCStyle.redesign.fontFamily
-                    font.pixelSize: VLCStyle.redesign.fontNormal
+                    font.pixelSize: VLCStyle.redesign.fontSmall
+                    elide: Text.ElideRight
+                    Accessible.role: Accessible.AlertMessage
                 }
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: VLCStyle.dp(20, VLCStyle.scale)
-                    Layout.rightMargin: VLCStyle.dp(20, VLCStyle.scale)
-                    Layout.preferredHeight: VLCStyle.dp(42, VLCStyle.scale)
-                    spacing: VLCStyle.margin_xsmall
-                    Text {
-                        text: qsTr("Profile")
-                        color: VLCStyle.redesign.color("#969696", root.colorContext.fg.primary)
+                // Figma: #371F06 and the accent; until something changed, at
+                // half its luminosity (the greys it gives over the dialog)
+                T.Button {
+                    id: saveButton
+                    objectName: "toolbarEditorSave"
+                    x: parent.width - width - VLCStyle.dp(20, VLCStyle.scale)
+                    y: VLCStyle.dp(20, VLCStyle.scale)
+                    width: VLCStyle.dp(100, VLCStyle.scale)
+                    height: VLCStyle.dp(32, VLCStyle.scale)
+                    text: qsTr("Save")
+                    enabled: foot.changed
+                    activeFocusOnTab: true
+                    onClicked: root.saveEditor()
+                    background: Rectangle {
+                        radius: VLCStyle.dp(6, VLCStyle.scale)
+                        color: !saveButton.enabled ? VLCStyle.redesign.color("#191919", "#b5b5b4")
+                               : saveButton.down ? Qt.lighter(VLCStyle.redesign.accentBackground, 1.15)
+                                                 : VLCStyle.redesign.accentBackground
+                        border.width: saveButton.visualFocus ? 1 : 0
+                        border.color: VLCStyle.redesign.focusColor
+                    }
+                    contentItem: Text {
+                        text: saveButton.text
+                        color: saveButton.enabled ? VLCStyle.redesign.accent
+                                                  : VLCStyle.redesign.color("#4C4C4C", "#8e8e8d")
                         font.family: VLCStyle.redesign.fontFamily
-                        font.pixelSize: VLCStyle.redesign.fontNormal
-                    }
-                    Widgets.ComboBoxExt {
-                        id: profilePicker
-                        objectName: "toolbarEditorProfile"
-                        Layout.preferredWidth: VLCStyle.dp(230, VLCStyle.scale)
-                        Layout.minimumHeight: VLCStyle.combobox_height_normal
-                        model: MainCtx.controlbarProfileModel
-                        currentIndex: MainCtx.controlbarProfileModel.selectedProfile
-                        onCurrentIndexChanged: MainCtx.controlbarProfileModel.selectedProfile = currentIndex
-                        displayText: {
-                            const profile = MainCtx.controlbarProfileModel.currentModel
-                            return profile ? root.markedName(profile.name, profile.dirty) : qsTr("No profile")
-                        }
-                        delegate: T.ItemDelegate {
-                            width: profilePicker.width
-                            contentItem: Text {
-                                text: root.markedName(model.name, model.dirty)
-                                color: profilePicker.color
-                                font: profilePicker.font
-                                elide: Text.ElideRight
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                        }
-                        Accessible.name: qsTr("Profiles")
-                    }
-                    Widgets.IconToolButton {
-                        description: qsTr("Clone selected profile")
-                        text: VLCIcons.ic_fluent_document_copy_24_regular
-                        onClicked: root.newProfile(MainCtx.controlbarProfileModel.cloneSelectedProfile)
-                    }
-                    Widgets.IconToolButton {
-                        description: qsTr("New profile")
-                        text: VLCIcons.ic_fluent_document_add_24_regular
-                        onClicked: root.newProfile(MainCtx.controlbarProfileModel.newProfile)
-                    }
-                    Widgets.IconToolButton {
-                        description: qsTr("Delete selected profile")
-                        text: VLCIcons.del
-                        onClicked: MainCtx.controlbarProfileModel.deleteSelectedProfile()
-                    }
-                    Item { Layout.fillWidth: true }
-                }
-
-                ToolbarEditor {
-                    id: toolbarEditor
-                    objectName: "toolbarEditorContents"
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.leftMargin: VLCStyle.dp(12, VLCStyle.scale)
-                    Layout.rightMargin: VLCStyle.dp(12, VLCStyle.scale)
-                    previewHost: playerDropHost
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: VLCStyle.dp(60, VLCStyle.scale)
-                    Layout.leftMargin: VLCStyle.dp(20, VLCStyle.scale)
-                    Layout.rightMargin: VLCStyle.dp(20, VLCStyle.scale)
-                    T.Button {
-                        objectName: "toolbarEditorCancel"
-                        Layout.preferredWidth: VLCStyle.dp(100, VLCStyle.scale)
-                        Layout.preferredHeight: VLCStyle.dp(34, VLCStyle.scale)
-                        text: qsTr("Cancel")
-                        activeFocusOnTab: true
-                        onClicked: root.close()
-                        background: Rectangle {
-                            radius: VLCStyle.redesign.controlRadius
-                            color: parent.down ? "#292929" : "#1b1b1b"
-                            border.color: parent.activeFocus ? VLCStyle.redesign.focusColor : "transparent"
-                        }
-                        contentItem: Text {
-                            text: parent.text
-                            color: "#969696"
-                            font.family: VLCStyle.redesign.fontFamily
-                            font.pixelSize: VLCStyle.redesign.fontNormal
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-                    Text {
-                        visible: !!MainCtx.controlbarProfileModel.lastError
-                        text: MainCtx.controlbarProfileModel.lastError
-                        color: "#e4a580"
-                        font.family: VLCStyle.redesign.fontFamily
-                        font.pixelSize: VLCStyle.redesign.fontSmall
-                        elide: Text.ElideRight
-                        Layout.fillWidth: true
-                        Accessible.role: Accessible.AlertMessage
-                    }
-                    Item { Layout.fillWidth: true }
-                    T.Button {
-                        objectName: "toolbarEditorSave"
-                        Layout.preferredWidth: VLCStyle.dp(100, VLCStyle.scale)
-                        Layout.preferredHeight: VLCStyle.dp(34, VLCStyle.scale)
-                        text: qsTr("Save")
-                        activeFocusOnTab: true
-                        onClicked: root.saveEditor()
-                        background: Rectangle {
-                            radius: VLCStyle.redesign.controlRadius
-                            color: parent.down ? Qt.lighter(VLCStyle.redesign.accentBackground, 1.15)
-                                               : VLCStyle.redesign.accentBackground
-                            border.color: parent.activeFocus ? VLCStyle.redesign.focusColor : "transparent"
-                        }
-                        contentItem: Text {
-                            text: parent.text
-                            color: VLCStyle.redesign.accent
-                            font.family: VLCStyle.redesign.fontFamily
-                            font.pixelSize: VLCStyle.redesign.fontNormal
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
+                        font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+                        font.weight: Font.DemiBold
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
                     }
                 }
             }
         }
     }
+
 }

@@ -64,10 +64,12 @@ Controls.Popup {
                     spacing: 10
                     Image {
                         Layout.preferredWidth: row.index === 0 ? 0 : 24; Layout.preferredHeight: 24
+                        // display can be undefined while the model is rebuilt
+                        readonly property string mode: String(row.model.display ?? "").toLowerCase()
                         source: row.index === 0 ? "" : "qrc:///redesign/icons/" +
-                            (row.model.display.toLowerCase().includes("spectrometer") ? "spectrometer" :
-                             row.model.display.toLowerCase().includes("spectrum") ? "spectrum" :
-                             row.model.display.toLowerCase().includes("scope") ? "scope" : "waveform") + "/default.png"
+                            (mode.includes("spectrometer") ? "spectrometer" :
+                             mode.includes("spectrum") ? "spectrum" :
+                             mode.includes("scope") ? "scope" : "waveform") + "/default.png"
                     }
                     Text {
                         Layout.fillWidth: true; verticalAlignment: Text.AlignVCenter
@@ -75,7 +77,7 @@ Controls.Popup {
                         font.family: VLCStyle.redesign.fontFamily; font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
                     }
                     Image { Layout.preferredWidth: 24; Layout.preferredHeight: 24
-                        source: "qrc:///redesign/icons/check/default.png"; visible: row.checked }
+                        source: "qrc:///redesign/track-check-active.png"; visible: row.checked }
                 }
             }
             Text {

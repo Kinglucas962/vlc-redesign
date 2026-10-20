@@ -78,25 +78,51 @@ T.Pane {
       console.assert(contentItem === root.row)
     }
 
+    // Figma home sections: "Continue Watching ›", regular weight; the
+    // title and the chevron open the full list
+    // Figma "Frame 500": gap 5, Inter 20 #969696 in a box of 24
     RowLayout {
         id: row
 
         anchors.fill: parent
+        spacing: VLCStyle.dp(5, VLCStyle.scale)
 
-        SubtitleLabel {
+        Text {
             id: label
 
-            Layout.fillWidth: true
+            Layout.maximumWidth: row.width - (button.visible ? button.width + row.spacing : 0)
+            Layout.preferredHeight: Math.round(1.2109375 * font.pixelSize)
 
-            color: theme.fg.primary
+            elide: Text.ElideRight
+            color: VLCStyle.redesign.color(VLCStyle.redesign.textSecondary, theme.fg.primary)
+            font.family: VLCStyle.redesign.fontFamily
+            font.pixelSize: VLCStyle.dp(20, VLCStyle.scale)
+            verticalAlignment: Text.AlignTop
+            topPadding: VLCStyle.redesign.textBaseline(0, font.pixelSize) - labelMetrics.ascent
+
+            FontMetrics {
+                id: labelMetrics
+                font: label.font
+            }
+
+            TapHandler {
+                enabled: button.visible
+                onTapped: root.seeAllButtonClicked(Qt.MouseFocusReason)
+            }
+            HoverHandler {
+                enabled: button.visible
+                cursorShape: Qt.PointingHandCursor
+            }
         }
 
-        TextToolButton {
+        T.Button {
             id: button
 
             visible: false
 
-            Layout.preferredWidth: implicitWidth
+            // the chevron of the icon set, 24
+            implicitWidth: VLCStyle.dp(24, VLCStyle.scale)
+            implicitHeight: implicitWidth
 
             focus: true
 
@@ -106,12 +132,29 @@ T.Pane {
             }
 
             text: qsTr("See All")
+            Accessible.name: text
 
-            font.pixelSize: VLCStyle.fontSize_large
+            background: Rectangle {
+                radius: VLCStyle.redesign.controlRadius
+                color: button.hovered ? VLCStyle.redesign.color(VLCStyle.redesign.controlHoverBackground, "#9c9c9b")
+                                      : "transparent"
+                border.width: button.visualFocus ? 1 : 0
+                border.color: VLCStyle.redesign.focusColor
+            }
+            contentItem: Image {
+                source: "qrc:///redesign/icons/chevron-right/default.png"
+                sourceSize: Qt.size(VLCStyle.redesign.iconSize, VLCStyle.redesign.iconSize)
+                fillMode: Image.Pad
+                smooth: false
+            }
 
             Navigation.parentItem: root
 
             onClicked: root.seeAllButtonClicked(focusReason)
+        }
+
+        Item {
+            Layout.fillWidth: true
         }
     }
 }

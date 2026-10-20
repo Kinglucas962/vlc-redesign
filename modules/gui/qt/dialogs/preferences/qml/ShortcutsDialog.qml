@@ -3,30 +3,26 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  ****************************************************************************/
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Templates as T
 import VLC.Dialogs
 import VLC.MainInterface
 import VLC.Style
+import VLC.Widgets as Widgets
 
-Dialog {
+// Figma "Keyboard Shortcuts" (2437:14832): 1048 x 800. The title bar holds
+// the search (fill) and "All Fields" (200); the content (padding 20 / 20 /
+// 22 / 20, 20 apart): "Action", "Hotkey", "Global Hotkey" (14 #6B6B6B),
+// a line, then each group: its title (Inter 16 #969696), its rows (33 high,
+// 14 apart: the action, Inter 14 #C6C6C6 in 290, the two keys in 270 wide
+// fields at the end and in the middle of the room left), a line.
+Widgets.RedesignDialog {
     id: root
     objectName: "redesignShortcutsDialog"
-    modal: true
-    focus: true
-    padding: 0
-    closePolicy: Popup.CloseOnEscape
-    width: Math.min(VLCStyle.dp(1048, VLCStyle.scale),
-                    parent ? parent.width - VLCStyle.dp(32, VLCStyle.scale)
-                           : VLCStyle.dp(1048, VLCStyle.scale))
-    height: Math.min(VLCStyle.dp(790, VLCStyle.scale),
-                     parent ? parent.height - VLCStyle.dp(32, VLCStyle.scale)
-                            : VLCStyle.dp(790, VLCStyle.scale))
-    anchors.centerIn: parent
 
     property bool saved: false
     property string profileError: ""
     property bool resetRequested: false
-    property bool previousGlobalShortcuts: true
     property string captureOption: ""
     property string captureAction: ""
     property bool captureGlobal: false
@@ -34,12 +30,52 @@ Dialog {
     property int capturedModifiers: 0
     property string conflictAction: ""
     readonly property bool dark: VLCStyle.palette.isDark
+    // the scroll bar and the fields look their colours up here
+    readonly property ColorContext colorContext: ColorContext {
+        colorSet: ColorContext.Window
+        palette: VLCStyle.palette
+    }
+    readonly property var actionLabels: ({
+        "key-toggle-fullscreen": qsTr("Toggle fullscreen"),
+        "key-leave-fullscreen": qsTr("Exit fullscreen / close dialog"),
+        "key-position": qsTr("Show playback position and time"),
+        "key-intf-popup-menu": qsTr("Show the menu"),
+        "key-intf-show": qsTr("Show interface controls in fullscreen"),
+        "key-play-pause": qsTr("Play / pause"),
+        "key-stop": qsTr("Stop playback"),
+        "key-next": qsTr("Next track"),
+        "key-prev": qsTr("Previous track"),
+        "key-program-sid-next": qsTr("Next program / Service ID")
+    })
+
+    title: qsTr("Keyboard Shortcuts")
+    preferredWidth: VLCStyle.dp(1048, VLCStyle.scale)
+    bodyHeight: VLCStyle.dp(632, VLCStyle.scale)
+    bodyHorizontalPadding: 0
+    bodyVerticalPadding: 0
+    acceptText: qsTr("Save")
+    acceptEnabled: shortcuts.dirty || !!root.profileError
+    // the restart notice closes it once saved
+    closeOnAccept: false
+
+    // "f" reads F as on a keyboard, "Ctrl+e" Ctrl+E
+    function displayKeys(sequence) {
+        if (!sequence)
+            return ""
+        return sequence.split("+").map(part => part.length === 1 ? part.toUpperCase()
+                                             : part === "Esc" ? "esc" : part).join("+")
+    }
+
     readonly property var scopes: [
-        { text: qsTr("All Fields"), value: "all" },
-        { text: qsTr("Action"), value: "action" },
-        { text: qsTr("Hotkey"), value: "hotkey" },
-        { text: qsTr("Global Hotkey"), value: "global" }
+        { label: qsTr("All Fields"), value: "all" },
+        { label: qsTr("Action"), value: "action" },
+        { label: qsTr("Hotkey"), value: "hotkey" },
+        { label: qsTr("Global Hotkey"), value: "global" }
     ]
+
+    function reject() {
+        root.close()
+    }
 
     function beginCapture(option, global, action) {
         captureOption = option
@@ -68,11 +104,21 @@ Dialog {
         else { resetRequested = true; open() }
     }
 
+    onAccepted: {
+        if (!root.profileError && !shortcuts.apply())
+            return
+        root.saved = true
+        if (!MainCtx.controlbarProfileModel.save()) {
+            root.profileError = MainCtx.controlbarProfileModel.lastError
+            return
+        }
+        root.profileError = ""
+        restartNotice.open()
+    }
+
     onOpened: {
         saved = false
         profileError = ""
-        previousGlobalShortcuts = MainCtx.useGlobalShortcuts
-        MainCtx.useGlobalShortcuts = false
         shortcuts.reload()
         searchField.text = ""
         scopePicker.currentIndex = 0
@@ -85,7 +131,6 @@ Dialog {
         restartNotice.close()
         if (!saved)
             shortcuts.cancel()
-        MainCtx.useGlobalShortcuts = previousGlobalShortcuts
     }
 
     ShortcutsModel {
@@ -95,365 +140,371 @@ Dialog {
         searchField: root.scopes[Math.max(0, scopePicker.currentIndex)].value
     }
 
-    background: Rectangle {
-        color: VLCStyle.redesign.color(VLCStyle.redesign.windowBackground,
-                                       VLCStyle.palette.lightGrey100)
-        border.color: root.dark ? "#222222" : "#d6d6d6"
-        radius: VLCStyle.dp(8, VLCStyle.scale)
+    // a line of text placed as Figma does (the glyphs centred on the line
+    // height, from the top of the box)
+    component FigmaText: Text {
+        id: figmaText
+
+        property real lineHeightPx: VLCStyle.dp(25, VLCStyle.scale)
+        // the line of the font (Inter: 1.2109 em, ascender 0.96875)
+        property real lineRatio: 1.2109375
+        property real ascentRatio: 0.96875
+
+        height: lineHeightPx
+        verticalAlignment: Text.AlignTop
+        elide: Text.ElideRight
+        font.family: VLCStyle.redesign.fontFamily
+        font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+        // the baseline on the whole pixel where Figma's glyphs land
+        topPadding: Math.round((lineHeightPx - lineRatio * font.pixelSize) / 2 + ascentRatio * font.pixelSize) - figmaMetrics.ascent
+
+        FontMetrics {
+            id: figmaMetrics
+            font: figmaText.font
+        }
     }
 
-    contentItem: Item {
-        Rectangle {
-            id: titlebar
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            height: VLCStyle.dp(43, VLCStyle.scale)
-            color: "transparent"
-            Label {
-                anchors.left: parent.left
-                anchors.leftMargin: VLCStyle.dp(18, VLCStyle.scale)
-                anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("Keyboard Shortcuts")
-                color: root.dark ? "#999999" : "#444444"
-                font.family: VLCStyle.redesign.fontFamily
-                font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+    // "Vector": 1 px "Dark/Divider/Dim" (#222222) centred on its place: half
+    // on two lines of pixels
+    component Divider: Rectangle {
+        height: VLCStyle.dp(2, VLCStyle.scale)
+        color: root.dark ? Qt.rgba(34 / 255, 34 / 255, 34 / 255, 0.5) : Qt.rgba(0.61, 0.61, 0.61, 0.5)
+    }
+
+    // Figma "Frame 162": 270 x 33, #090909, radius 6, the keys (DM Mono 14,
+    // #C6C6C6) in the middle, the edit icon (#404040) 5 from the end
+    component KeyField: T.Button {
+        id: keyField
+
+        property string keys
+
+        width: VLCStyle.dp(270, VLCStyle.scale)
+        height: VLCStyle.dp(33, VLCStyle.scale)
+        padding: 0
+
+        Accessible.name: keys
+
+        background: Rectangle {
+            radius: VLCStyle.dp(6, VLCStyle.scale)
+            color: keyField.hovered ? VLCStyle.redesign.color("#141414", "#e5e5e5")
+                                    : VLCStyle.redesign.color("#090909", "#fafafa")
+            border.width: keyField.visualFocus ? 1 : 0
+            border.color: VLCStyle.redesign.focusColor
+        }
+        contentItem: Item {
+            // Figma: the text box (its advance rounded up) centred in the
+            // 230 between the paddings of 20
+            FigmaText {
+                x: VLCStyle.dp(20, VLCStyle.scale) + (parent.width - VLCStyle.dp(40, VLCStyle.scale) - width) / 2
+                y: VLCStyle.dp(4, VLCStyle.scale)
+                width: Math.min(Math.ceil(implicitWidth - 0.05), parent.width - VLCStyle.dp(40, VLCStyle.scale))
+                text: keyField.keys
+                color: VLCStyle.redesign.color("#C6C6C6", "#333333")
+                // DM Mono (bundled): a line of 1.302 em, ascender 0.992
+                font.family: VLCStyle.redesign.monoFontFamily
+                lineRatio: 1.302
+                ascentRatio: 0.992
             }
-            Button {
-                anchors.right: parent.right
-                anchors.rightMargin: 13
-                anchors.verticalCenter: parent.verticalCenter
-                width: 30
-                height: 30
-                onClicked: root.reject()
-                background: Item {}
-                contentItem: Image {
-                    anchors.centerIn: parent
-                    width: 20
-                    height: 20
-                    source: "qrc:///redesign/icons/close/default.png"
-                }
+            Image {
+                x: parent.width - VLCStyle.dp(5, VLCStyle.scale) - width
+                y: VLCStyle.dp(4, VLCStyle.scale)
+                width: VLCStyle.redesign.iconSize
+                height: width
+                sourceSize: Qt.size(width, height)
+                source: "qrc:///redesign/icons/edit/dim.png"
+                smooth: false
             }
         }
+    }
 
-        Rectangle {
-            id: filterbar
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: titlebar.bottom
-            height: VLCStyle.dp(45, VLCStyle.scale)
-            color: "transparent"
+    // ---- the title bar: the search and the field it looks in ----------
+
+    headerContent: [
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.preferredHeight: VLCStyle.dp(34, VLCStyle.scale)
+            spacing: VLCStyle.dp(10, VLCStyle.scale)
+
+            // #151515, radius 6, padding 5 / 8, the icon then the text 10 after
             Rectangle {
-                anchors.left: parent.left
-                anchors.leftMargin: 8
-                anchors.right: scopePicker.left
-                anchors.rightMargin: 10
-                anchors.verticalCenter: parent.verticalCenter
-                height: VLCStyle.dp(34, VLCStyle.scale)
-                color: root.dark ? "#181818" : "#eeeeee"
-                radius: 4
+                Layout.fillWidth: true
+                Layout.preferredHeight: VLCStyle.dp(34, VLCStyle.scale)
+                radius: VLCStyle.dp(6, VLCStyle.scale)
+                color: VLCStyle.redesign.color("#151515", "#eeeeee")
+                border.width: searchField.activeFocus ? 1 : 0
+                border.color: VLCStyle.redesign.focusColor
+
                 Image {
-                    anchors.left: parent.left
-                    anchors.leftMargin: 12
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 20
-                    height: 20
+                    id: searchIcon
+                    x: VLCStyle.dp(8, VLCStyle.scale)
+                    y: VLCStyle.dp(5, VLCStyle.scale)
+                    width: VLCStyle.redesign.iconSize
+                    height: width
+                    sourceSize: Qt.size(width, height)
                     source: "qrc:///redesign/icons/search/default.png"
+                    smooth: false
                 }
-                TextField {
+                TextInput {
                     id: searchField
+
                     objectName: "shortcutsSearch"
-                    anchors.fill: parent
-                    leftPadding: 42
-                    rightPadding: 10
-                    placeholderText: qsTr("Search Keyboard Shortcuts...")
-                    color: root.dark ? "#dddddd" : "#222222"
+                    x: searchIcon.x + searchIcon.width + VLCStyle.dp(10, VLCStyle.scale)
+                    width: parent.width - x - VLCStyle.dp(8, VLCStyle.scale)
+                    height: parent.height
+                    clip: true
+                    selectByMouse: true
+                    verticalAlignment: TextInput.AlignTop
+                    topPadding: VLCStyle.redesign.textBaseline(Math.round((height - Math.round(1.2109375 * font.pixelSize)) / 2),
+                                                               font.pixelSize) - searchMetrics.ascent
+                    color: VLCStyle.redesign.color("#969696", "#222222")
+                    selectionColor: VLCStyle.redesign.accentBackground
                     font.family: VLCStyle.redesign.fontFamily
                     font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
-                    background: Item {}
+                    FontMetrics {
+                        id: searchMetrics
+                        font: searchField.font
+                    }
+                    Text {
+                        y: searchField.topPadding
+                        width: parent.width
+                        visible: searchField.length === 0
+                        text: qsTr("Search Keyboard Shortcuts...")
+                        color: VLCStyle.redesign.color(VLCStyle.redesign.textDisabled, "#7c7c7b")
+                        font: searchField.font
+                        elide: Text.ElideRight
+                    }
                 }
             }
-            ComboBox {
+
+            // Figma "target": 200 x 34, #151515, the text 12 in, the chevron
+            T.ComboBox {
                 id: scopePicker
+
                 objectName: "shortcutsSearchField"
-                anchors.right: parent.right
-                anchors.rightMargin: 8
-                anchors.verticalCenter: parent.verticalCenter
-                width: VLCStyle.dp(200, VLCStyle.scale)
-                height: VLCStyle.dp(34, VLCStyle.scale)
+                Layout.preferredWidth: VLCStyle.dp(200, VLCStyle.scale)
+                Layout.preferredHeight: VLCStyle.dp(34, VLCStyle.scale)
                 model: root.scopes
-                textRole: "text"
+                textRole: "label"
                 font.family: VLCStyle.redesign.fontFamily
                 font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
-                leftPadding: 12
-                rightPadding: 34
-                contentItem: Label {
+                leftPadding: VLCStyle.dp(12, VLCStyle.scale)
+                rightPadding: VLCStyle.dp(8 + 24, VLCStyle.scale)
+
+                background: Rectangle {
+                    radius: VLCStyle.dp(6, VLCStyle.scale)
+                    color: scopePicker.hovered || scopePicker.popup.visible ? VLCStyle.redesign.color("#1B1B1B", "#e5e5e5")
+                                                                            : VLCStyle.redesign.color("#151515", "#eeeeee")
+                    border.width: scopePicker.visualFocus ? 1 : 0
+                    border.color: VLCStyle.redesign.focusColor
+                }
+                contentItem: Text {
+                    id: scopeText
                     text: scopePicker.displayText
-                    color: root.dark ? "#d4d4d4" : "#292929"
+                    color: VLCStyle.redesign.color("#969696", "#292929")
                     font: scopePicker.font
-                    verticalAlignment: Text.AlignVCenter
                     elide: Text.ElideRight
+                    verticalAlignment: Text.AlignTop
+                    topPadding: VLCStyle.redesign.textBaseline(Math.round((height - Math.round(1.2109375 * font.pixelSize)) / 2),
+                                                               font.pixelSize) - scopeMetrics.ascent
+                    FontMetrics {
+                        id: scopeMetrics
+                        font: scopeText.font
+                    }
                 }
                 indicator: Image {
-                    x: scopePicker.width - width - 10
-                    y: (scopePicker.height - height) / 2
-                    width: 18
-                    height: 18
+                    x: scopePicker.width - VLCStyle.dp(8, VLCStyle.scale) - width
+                    y: Math.round((scopePicker.height - height) / 2)
+                    width: VLCStyle.redesign.iconSize
+                    height: width
+                    sourceSize: Qt.size(width, height)
                     source: "qrc:///redesign/icons/chevron-down/default.png"
+                    rotation: scopePicker.popup.visible ? 180 : 0
                 }
-                background: Rectangle {
-                    color: root.dark ? "#191919" : "#eeeeee"
-                    border.color: scopePicker.activeFocus ? VLCStyle.redesign.accent
-                                                           : (root.dark ? "#333333" : "#cccccc")
-                    radius: 4
-                }
-                delegate: ItemDelegate {
+                delegate: T.ItemDelegate {
                     required property var modelData
-                    width: scopePicker.width
-                    height: VLCStyle.dp(34, VLCStyle.scale)
-                    contentItem: Label {
-                        text: modelData.text
-                        color: root.dark ? "#d4d4d4" : "#292929"
+                    required property int index
+
+                    width: ListView.view ? ListView.view.width : scopePicker.width
+                    implicitHeight: VLCStyle.dp(32, VLCStyle.scale)
+                    leftPadding: VLCStyle.dp(12, VLCStyle.scale)
+                    highlighted: scopePicker.highlightedIndex === index
+                    contentItem: Text {
+                        text: modelData.label
+                        color: index === scopePicker.currentIndex ? VLCStyle.redesign.accent
+                                                                  : VLCStyle.redesign.color("#8F8F8F", "#292929")
                         font: scopePicker.font
                         verticalAlignment: Text.AlignVCenter
                         elide: Text.ElideRight
                     }
                     background: Rectangle {
-                        color: parent.highlighted ? (root.dark ? "#303030" : "#e5e5e5")
-                                                  : (root.dark ? "#191919" : "#f7f7f7")
+                        radius: VLCStyle.dp(4, VLCStyle.scale)
+                        color: parent.highlighted || parent.hovered ? VLCStyle.redesign.color("#222222", "#e5e5e5") : "transparent"
                     }
                 }
-                popup: Popup {
-                    y: scopePicker.height
+                popup: T.Popup {
+                    y: scopePicker.height + VLCStyle.dp(4, VLCStyle.scale)
                     width: scopePicker.width
-                    implicitHeight: Math.min(contentItem.implicitHeight,
-                                             VLCStyle.dp(180, VLCStyle.scale))
-                    padding: 1
+                    implicitHeight: contentItem.implicitHeight + topPadding + bottomPadding
+                    padding: VLCStyle.dp(2, VLCStyle.scale)
                     contentItem: ListView {
                         clip: true
                         implicitHeight: contentHeight
                         model: scopePicker.popup.visible ? scopePicker.delegateModel : null
                         currentIndex: scopePicker.highlightedIndex
-                        ScrollIndicator.vertical: ScrollIndicator {}
                     }
                     background: Rectangle {
-                        color: root.dark ? "#191919" : "#f7f7f7"
-                        border.color: root.dark ? "#383838" : "#cccccc"
-                        radius: 4
+                        radius: VLCStyle.dp(6, VLCStyle.scale)
+                        color: VLCStyle.redesign.color("#191919", "#f7f7f7")
+                        border.width: 1
+                        border.color: VLCStyle.redesign.color("#222222", "#cccccc")
                     }
                 }
             }
         }
+    ]
 
-        Rectangle {
-            id: tableHeader
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: filterbar.bottom
-            height: VLCStyle.dp(64, VLCStyle.scale)
-            color: root.dark ? "#171717" : "#eeeeee"
-            Label {
-                anchors.left: parent.left
-                anchors.leftMargin: 20
-                anchors.verticalCenter: parent.verticalCenter
+    // ---- "Frame 124": padding 20 / 20 / 22 / 20 -------------------------
+
+    Item {
+        id: content
+
+        Layout.fillWidth: true
+        // lower in a low window (the dialog within it)
+        Layout.fillHeight: true
+        Layout.preferredHeight: VLCStyle.dp(632, VLCStyle.scale)
+
+        readonly property real side: VLCStyle.dp(20, VLCStyle.scale)
+        readonly property real innerWidth: width - 2 * side
+        readonly property real labelWidth: VLCStyle.dp(290, VLCStyle.scale)
+        readonly property real fieldWidth: VLCStyle.dp(270, VLCStyle.scale)
+        // "space-between": the hotkey in the middle of the room left
+        readonly property real hotkeyX: labelWidth + (innerWidth - labelWidth - 2 * fieldWidth) / 2
+        readonly property real globalX: innerWidth - fieldWidth
+
+        // "Frame 503": the names of the columns
+        Item {
+            x: content.side
+            y: VLCStyle.dp(20, VLCStyle.scale)
+            width: content.innerWidth
+            height: VLCStyle.dp(25, VLCStyle.scale)
+
+            FigmaText {
+                width: content.labelWidth
                 text: qsTr("Action")
-                color: root.dark ? "#777777" : "#555555"
+                color: VLCStyle.redesign.color("#6B6B6B", "#555555")
             }
-            Label {
-                x: parent.width * 0.49
-                anchors.verticalCenter: parent.verticalCenter
+            // "Frame 503": Action 488 wide, Hotkey 332, then Global Hotkey
+            FigmaText {
+                x: VLCStyle.dp(488, VLCStyle.scale)
+                width: VLCStyle.dp(332, VLCStyle.scale)
                 text: qsTr("Hotkey")
-                color: root.dark ? "#777777" : "#555555"
+                color: VLCStyle.redesign.color("#6B6B6B", "#555555")
             }
-            Label {
-                x: parent.width * 0.81
-                anchors.verticalCenter: parent.verticalCenter
+            FigmaText {
+                x: VLCStyle.dp(488 + 332, VLCStyle.scale)
                 text: qsTr("Global Hotkey")
-                color: root.dark ? "#777777" : "#555555"
+                color: VLCStyle.redesign.color("#6B6B6B", "#555555")
             }
+        }
+
+        Divider {
+            x: content.side
+            y: VLCStyle.dp(20 + 25 + 20, VLCStyle.scale) - height / 2
+            width: content.innerWidth
         }
 
         ListView {
             id: shortcutList
+
             objectName: "shortcutsList"
-            anchors.left: parent.left
-            anchors.leftMargin: 20
-            anchors.right: parent.right
-            anchors.rightMargin: 20
-            anchors.top: tableHeader.bottom
-            anchors.bottom: footer.top
+            x: content.side
+            y: VLCStyle.dp(20 + 25 + 20 + 20, VLCStyle.scale)
+            width: content.innerWidth
+            // to the end of the content: Figma clips the rows at the frame
+            height: parent.height - y
             clip: true
             model: shortcuts
             spacing: 0
             boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
             section.property: "group"
             section.criteria: ViewSection.FullString
-            section.delegate: Item {
-                width: shortcutList.width
-                height: VLCStyle.dp(57, VLCStyle.scale)
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    height: 1
-                    color: root.dark ? "#252525" : "#dddddd"
-                }
-                Label {
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: section
-                    color: root.dark ? "#a0a0a0" : "#333333"
-                    font.family: VLCStyle.redesign.fontFamily
-                    font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
-                }
-            }
+
+            T.ScrollBar.vertical: Widgets.ScrollBarExt { }
+
             delegate: Item {
                 id: shortcutRow
+
+                required property int index
                 required property string key
                 required property string action
                 required property string hotkey
                 required property string globalHotkey
                 required property bool dirty
-                width: shortcutList.width
-                height: VLCStyle.dp(47, VLCStyle.scale)
+                // Names of the design for the actions it shows
+                readonly property string label: root.actionLabels[key] ?? action
+                // the first row of a group carries its title: the first
+                // group right under the names of the columns, the next ones
+                // after the room under the rows (5), a line, 20 around it
+                readonly property bool groupStart: ListView.section !== ListView.previousSection
+                readonly property real headerHeight: !groupStart ? 0
+                                                     : index === 0 ? VLCStyle.dp(28 + 20, VLCStyle.scale)
+                                                                   : VLCStyle.dp(5 + 20 - 14 + 20 + 28 + 20, VLCStyle.scale)
 
-                Label {
-                    anchors.left: parent.left
-                    anchors.right: hotkeyButton.left
-                    anchors.rightMargin: 16
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: shortcutRow.action
-                    color: shortcutRow.dirty ? VLCStyle.redesign.accent
-                                            : (root.dark ? "#b8b8b8" : "#333333")
-                    elide: Text.ElideRight
-                    font.family: VLCStyle.redesign.fontFamily
-                    font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+                width: shortcutList.width
+                // the row (33) and the 14 under it
+                height: headerHeight + VLCStyle.dp(33 + 14, VLCStyle.scale)
+
+                Divider {
+                    visible: shortcutRow.groupStart && shortcutRow.index > 0
+                    y: VLCStyle.dp(5 + 20 - 14, VLCStyle.scale) - height / 2
+                    width: parent.width
                 }
-                Button {
-                    id: hotkeyButton
-                    objectName: "hotkey_" + shortcutRow.key
-                    x: parent.width * 0.37
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width * 0.28
-                    height: VLCStyle.dp(34, VLCStyle.scale)
-                    onClicked: root.beginCapture(shortcutRow.key, false, shortcutRow.action)
-                    background: Rectangle {
-                        color: root.dark ? "#080808" : "#fafafa"
-                        radius: 5
-                    }
-                    contentItem: Item {
-                        Label {
-                            anchors.centerIn: parent
-                            width: parent.width - 40
-                            text: shortcutRow.hotkey
-                            color: root.dark ? "#c6c6c6" : "#333333"
-                            elide: Text.ElideRight
-                            horizontalAlignment: Text.AlignHCenter
-                            font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
-                        }
-                        Image {
-                            anchors.right: parent.right
-                            anchors.rightMargin: 7
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 18
-                            height: 18
-                            source: "qrc:///redesign/icons/edit/default.png"
-                        }
-                    }
+                FigmaText {
+                    visible: shortcutRow.groupStart
+                    y: shortcutRow.headerHeight - VLCStyle.dp(28 + 20, VLCStyle.scale)
+                    width: parent.width
+                    lineHeightPx: VLCStyle.dp(28, VLCStyle.scale)
+                    text: shortcutRow.ListView.section
+                    color: VLCStyle.redesign.color("#969696", "#333333")
+                    font.pixelSize: VLCStyle.dp(16, VLCStyle.scale)
                 }
-                Button {
-                    objectName: "globalHotkey_" + shortcutRow.key
-                    x: parent.width * 0.73
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width * 0.27
-                    height: VLCStyle.dp(34, VLCStyle.scale)
-                    onClicked: root.beginCapture(shortcutRow.key, true, shortcutRow.action)
-                    background: Rectangle {
-                        color: root.dark ? "#080808" : "#fafafa"
-                        radius: 5
+
+                Item {
+                    y: shortcutRow.headerHeight
+                    width: parent.width
+                    height: VLCStyle.dp(33, VLCStyle.scale)
+
+                    FigmaText {
+                        y: VLCStyle.dp(4, VLCStyle.scale)
+                        width: content.labelWidth
+                        text: shortcutRow.label
+                        color: shortcutRow.dirty ? VLCStyle.redesign.accent
+                                                 : VLCStyle.redesign.color("#C6C6C6", "#333333")
                     }
-                    contentItem: Item {
-                        Label {
-                            anchors.centerIn: parent
-                            width: parent.width - 40
-                            text: shortcutRow.globalHotkey
-                            color: root.dark ? "#c6c6c6" : "#333333"
-                            elide: Text.ElideRight
-                            horizontalAlignment: Text.AlignHCenter
-                            font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
-                        }
-                        Image {
-                            anchors.right: parent.right
-                            anchors.rightMargin: 7
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 18
-                            height: 18
-                            source: "qrc:///redesign/icons/edit/default.png"
-                        }
+                    KeyField {
+                        objectName: "hotkey_" + shortcutRow.key
+                        x: content.hotkeyX
+                        keys: root.displayKeys(shortcutRow.hotkey)
+                        onClicked: root.beginCapture(shortcutRow.key, false, shortcutRow.action)
+                    }
+                    KeyField {
+                        objectName: "globalHotkey_" + shortcutRow.key
+                        x: content.globalX
+                        keys: root.displayKeys(shortcutRow.globalHotkey)
+                        onClicked: root.beginCapture(shortcutRow.key, true, shortcutRow.action)
                     }
                 }
             }
         }
 
-        Rectangle {
-            id: footer
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: VLCStyle.dp(60, VLCStyle.scale)
-            color: "transparent"
-            Label {
-                anchors.left: resetButton.right
-                anchors.leftMargin: 12
-                anchors.right: saveButton.left
-                anchors.rightMargin: 12
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.profileError || shortcuts.error
-                visible: shortcuts.error.length > 0 || root.profileError.length > 0
-                color: "#df8950"
-                elide: Text.ElideRight
-                font.pixelSize: VLCStyle.dp(12, VLCStyle.scale)
-            }
-            ActionButton {
-                id: cancelButton
-                objectName: "shortcutsCancel"
-                anchors.left: parent.left
-                anchors.leftMargin: 20
-                anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("Cancel")
-                onClicked: root.reject()
-            }
-            ActionButton {
-                id: resetButton
-                objectName: "shortcutsResetAll"
-                anchors.left: cancelButton.right
-                anchors.leftMargin: 12
-                anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("Reset all")
-                onClicked: resetConfirmation.open()
-            }
-            ActionButton {
-                id: saveButton
-                objectName: "shortcutsSave"
-                anchors.right: parent.right
-                anchors.rightMargin: 20
-                anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("Save")
-                primary: true
-                enabled: shortcuts.dirty || !!root.profileError
-                onClicked: {
-                    if (!root.profileError && !shortcuts.apply())
-                        return
-                    root.saved = true
-                    if (!MainCtx.controlbarProfileModel.save()) {
-                        root.profileError = MainCtx.controlbarProfileModel.lastError
-                        return
-                    }
-                    root.profileError = ""
-                    restartNotice.open()
-                }
-            }
+        // what went wrong saving
+        FigmaText {
+            x: content.side
+            y: parent.height - height
+            width: content.innerWidth
+            visible: shortcuts.error.length > 0 || root.profileError.length > 0
+            text: root.profileError || shortcuts.error
+            color: "#df8950"
         }
     }
 
@@ -461,7 +512,9 @@ Dialog {
         id: capturePopup
         objectName: "shortcutCapturePopup"
         parent: root.contentItem
-        anchors.centerIn: parent
+        // centred on whole pixels: the text stays crisp
+        x: parent ? Math.round((parent.width - width) / 2) : 0
+        y: parent ? Math.round((parent.height - height) / 2) : 0
         width: Math.min(VLCStyle.dp(470, VLCStyle.scale), root.width - 30)
         captureGlobal: root.captureGlobal
         captureAction: root.captureAction
@@ -480,19 +533,18 @@ Dialog {
         id: resetConfirmation
         objectName: "shortcutsResetConfirmation"
         parent: root.contentItem
-        anchors.centerIn: parent
+        // centred on whole pixels: the text stays crisp
+        x: parent ? Math.round((parent.width - width) / 2) : 0
+        y: parent ? Math.round((parent.height - height) / 2) : 0
         width: Math.min(VLCStyle.dp(420, VLCStyle.scale), root.width - 30)
         onConfirmed: shortcuts.resetAll()
-        onClosed: {
-            if (root.visible)
-                resetButton.forceActiveFocus(Qt.PopupFocusReason)
-        }
     }
 
     ShortcutsRestartNotice {
         id: restartNotice
         parent: root.parent
-        anchors.centerIn: parent
+        x: parent ? Math.round((parent.width - width) / 2) : 0
+        y: parent ? Math.round((parent.height - height) / 2) : 0
         onAccepted: root.close()
     }
 }

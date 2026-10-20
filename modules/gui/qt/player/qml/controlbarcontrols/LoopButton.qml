@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (C) 2021 VLC authors and VideoLAN
+ * Copyright (C) 2026 VLC authors and VideoLAN
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,21 +17,15 @@
  *****************************************************************************/
 import QtQuick
 
-
-import VLC.Widgets as Widgets
-import VLC.Style
 import VLC.Playlist
 import VLC.Util
 
-Widgets.IconToolButton {
+RedesignIconButton {
     id: repeatBtn
-
     checked: MainPlaylistController.repeatMode !== PlaylistController.PLAYBACK_REPEAT_NONE
-    text: (MainPlaylistController.repeatMode === PlaylistController.PLAYBACK_REPEAT_CURRENT)
-          ? VLCIcons.repeat_one
-          : VLCIcons.repeat_all
+    iconSource: checked ? "qrc:///redesign/icons/repeat/active.png" : "qrc:///redesign/icons/repeat/default.png"
     onClicked: MainPlaylistController.toggleRepeatMode()
-    description: qsTr("Repeat")
-
+    description: MainPlaylistController.repeatMode === PlaylistController.PLAYBACK_REPEAT_CURRENT
+                 ? qsTr("Repeat one") : qsTr("Repeat")
     AccessibleCompat.id: "loopButton"
 }

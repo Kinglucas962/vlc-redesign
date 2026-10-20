@@ -1310,18 +1310,20 @@ void PlayerController::setRate( float new_rate )
         return;
 
     msg_Dbg( d->p_intf, "setRate %f", new_rate);
-    vlc_player_locker lock{ d->m_player };
-    if ( vlc_player_CanChangeRate( d->m_player ) )
     {
+        vlc_player_locker lock{ d->m_player };
+        if ( !vlc_player_CanChangeRate( d->m_player ) )
+            return;
         vlc_player_ChangeRate( d->m_player, new_rate );
-
-        // Until the timer notifies the change, we need to still change
-        // the rate, because player timer update may take a long time.
-        // For position, it is supposed to be interpolated but for rate
-        // the new value can be taken as is:
-        d->m_rate = new_rate;
-        emit rateChanged(d->m_rate);
     }
+
+    // Until the timer notifies the change, we need to still change
+    // the rate, because player timer update may take a long time.
+    // For position, it is supposed to be interpolated but for rate
+    // the new value can be taken as is.
+    // Emitted unlocked: slots may call back into the player.
+    d->m_rate = new_rate;
+    emit rateChanged(d->m_rate);
 }
 
 void PlayerController::slower()
@@ -1409,6 +1411,15 @@ void PlayerController::jumpBwd()
     vlc_player_JumpTime( d->m_player, vlc_tick_from_sec( -i_interval ) );
 }
 
+void PlayerController::jumpBy(int seconds)
+{
+    Q_D(PlayerController);
+    vlc_player_locker lock{ d->m_player };
+    if( !d->isCurrentItemSynced() )
+        return;
+    vlc_player_JumpTime( d->m_player, vlc_tick_from_sec( seconds ) );
+}
+
 void PlayerController::jumpTime(VLCTime i_time)
 {
     Q_D(PlayerController);
@@ -1464,8 +1475,11 @@ void PlayerController::setAudioDelay(VLCDuration delay)
 /*Q_INVOKABLE*/void PlayerController::addAudioDelay(VLCDuration delay)
 {
     Q_D(PlayerController);
-    vlc_player_locker lock{ d->m_player };
-    vlc_player_SetAudioDelay( d->m_player, delay.toVLCTick(), VLC_PLAYER_WHENCE_RELATIVE );
+    {
+        vlc_player_locker lock{ d->m_player };
+        vlc_player_SetAudioDelay( d->m_player, delay.toVLCTick(), VLC_PLAYER_WHENCE_RELATIVE );
+    }
+    // Emitted unlocked: slots may call back into the player.
     emit audioDelayChanged(delay);
 }
 
@@ -1481,8 +1495,11 @@ void PlayerController::setSubtitleDelay(VLCDuration delay)
 /*Q_INVOKABLE*/void PlayerController::addSubtitleDelay(VLCDuration delay)
 {
     Q_D(PlayerController);
-    vlc_player_locker lock{ d->m_player };
-    vlc_player_SetSubtitleDelay( d->m_player, delay.toVLCTick(), VLC_PLAYER_WHENCE_RELATIVE);
+    {
+        vlc_player_locker lock{ d->m_player };
+        vlc_player_SetSubtitleDelay( d->m_player, delay.toVLCTick(), VLC_PLAYER_WHENCE_RELATIVE);
+    }
+    // Emitted unlocked: slots may call back into the player.
     emit subtitleDelayChanged(delay);
 }
 
@@ -1500,12 +1517,15 @@ void PlayerController::setSecondarySubtitleDelay(VLCDuration delay)
 /*Q_INVOKABLE*/void PlayerController::addSecondarySubtitleDelay(VLCDuration delay)
 {
     Q_D(PlayerController);
-    vlc_player_locker lock{ d->m_player };
-    if (d->m_secondarySpuEsId.get() != NULL) {
+    {
+        vlc_player_locker lock{ d->m_player };
+        if (d->m_secondarySpuEsId.get() == NULL)
+            return;
         vlc_player_SetEsIdDelay(d->m_player, d->m_secondarySpuEsId.get(),
                                 delay.toVLCTick(), VLC_PLAYER_WHENCE_RELATIVE);
-        emit secondarySubtitleDelayChanged(delay);
     }
+    // Emitted unlocked: slots may call back into the player.
+    emit secondarySubtitleDelayChanged(delay);
 }
 
 int PlayerController::getAudioDelayMS() const

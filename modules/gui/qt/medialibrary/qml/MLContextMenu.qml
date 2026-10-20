@@ -57,58 +57,88 @@ NativeMenu {
 
     // Settings
 
+    // Figma "file context menu": Play, Mark as Watched, Favorite, Stream,
+    // Convert, Add to Queue, Add to Playlist, Show in File Explorer, Go to
+    // Source, Add Subtitle Tracks, Properties & Metadata; then the actions
+    // of VLC the design does not list
     actions: [{
             "text": qsTr("Play"),
+            "icon": "play",
             "action": addAndPlay
         }, {
-            "text": qsTr("Play as audio"),
+            "text": qsTr("Play as Audio"),
+            "icon": "audio",
             "action": playAsAudio,
             "visible": root.showPlayAsAudioAction
         }, {
-            "text": qsTr("Play as album"),
+            "text": qsTr("Play as Album"),
+            "icon": "album",
             "action": playAsAlbum,
             "visible": root.showPlayAsAlbumAction &&
                        (root.model instanceof MLAudioModel)
         }, {
-            "text": qsTr("Enqueue"),
+            "text": qsTr("Mark as Watched"),
+            "icon": "mark-watched",
+            "action": markSeen,
+            "visible": _showSeen
+        }, {
+            "text": qsTr("Mark as Unwatched"),
+            "icon": "mark-watched",
+            "action": markUnseen,
+            "visible": _showUnseen
+        }, {
+            "text": qsTr("Favorite"),
+            "icon": "favorite",
+            "action": addFavorite,
+            "visible": _showAddFavorite
+        }, {
+            "text": qsTr("Remove from Favorites"),
+            "icon": "favorite",
+            "action": removeFavorite,
+            "visible": _showRemoveFavorite
+        }, {
+            "text": qsTr("Stream"),
+            "icon": "streaming",
+            "action": function(dataList) { DialogsProvider.streamingDialog(_urlList(dataList), true) },
+            "visible": _hasUrls
+        }, {
+            "text": qsTr("Convert"),
+            "icon": "swap",
+            "action": function(dataList) { DialogsProvider.streamingDialog(_urlList(dataList), false) },
+            "visible": _hasUrls
+        }, {
+            "text": qsTr("Add to Queue"),
+            "icon": "queue",
             "action": enqueue
         }, {
-            "text": qsTr("Enqueue as album"),
+            "text": qsTr("Add Album to Queue"),
+            "icon": "queue",
             "action": enqueueAsAlbum,
             "visible": root.showPlayAsAlbumAction &&
                        (root.model instanceof MLAudioModel)
         }, {
-            "text": qsTr("Add to favorites"),
-            "action": addFavorite,
-            "visible": _showAddFavorite
-        }, {
-            "text": qsTr("Remove from favorites"),
-            "action": removeFavorite,
-            "visible": _showRemoveFavorite
-        }, {
-            "text": (root.showPlayAsAudioAction ? qsTr("Add to a video-only playlist") : qsTr("Add to an audio-only playlist")),
-            "action": (root.showPlayAsAudioAction ? root.addToVideoOnlyPlaylist : root.addToAudioOnlyPlaylist)
-        }, {
-            "text": qsTr("Add to a playlist"),
+            "text": qsTr("Add to Playlist"),
+            "icon": "playlist",
             "action": addToAPlaylist
         }, {
-            "text": qsTr("Mark as seen"),
-            "action": markSeen,
-            "visible": _showSeen
+            "text": (root.showPlayAsAudioAction ? qsTr("Add to a Video-only Playlist") : qsTr("Add to an Audio-only Playlist")),
+            "icon": "playlist",
+            "action": (root.showPlayAsAudioAction ? root.addToVideoOnlyPlaylist : root.addToAudioOnlyPlaylist)
         }, {
-            "text": qsTr("Mark as unseen"),
-            "action": markUnseen,
-            "visible": _showUnseen
-        }, {
-            "text": qsTr("Open Containing Folder"),
+            "text": qsTr("Show in File Explorer"),
+            "icon": "folder-open",
             "action": openContainingFolder,
             "visible": _openContainingFolder
         }, {
-            "text": qsTr("Delete"),
-            "action": deleteStream,
-            "visible": _deleteStream
+            "text": qsTr("Go to Source"),
+            "icon": "go-to",
+            "action": function(dataList, options, indexes) {
+                History.push(["folder"], { folderUrl: model.getParentURL(indexes[0]) }, Qt.MouseFocusReason)
+            },
+            "visible": _openContainingFolder
         }, {
-            "text": qsTr("Add subtitles…"),
+            "text": qsTr("Add Subtitle Tracks"),
+            "icon": "subtitles",
             "action": function(dataList) {
                 if (!root.subtitleDialog)
                     root.subtitleDialog = root.subtitleDialogComponent.createObject(g_mainDisplay)
@@ -116,15 +146,8 @@ NativeMenu {
             },
             "visible": function(dataList) { return root.showPlayAsAudioAction && dataList.length === 1 }
         }, {
-            "text": qsTr("Information"),
-            "action": _signalShowInformation,
-            "visible": showInformationAvailable
-        },{
-            "text": qsTr("Delete File From System"),
-            "action": deleteFileFromSource,
-            "visible": _deleteFileFromSource
-        },{
-            "text": qsTr("Media Information"),
+            "text": qsTr("Properties & Metadata"),
+            "icon": "info",
             "action": function(dataList, options, indexes) {
                 DialogsProvider.mediaInfoDialog(dataList[0][idDataRole])
             },
@@ -132,6 +155,21 @@ NativeMenu {
                 return (dataList.length === 1)
                         && !(dataList[0][idDataRole].hasParent())
             }
+        }, {
+            "text": qsTr("Information"),
+            "icon": "info",
+            "action": _signalShowInformation,
+            "visible": showInformationAvailable
+        }, {
+            "text": qsTr("Delete"),
+            "icon": "remove",
+            "action": deleteStream,
+            "visible": _deleteStream
+        }, {
+            "text": qsTr("Delete File From System"),
+            "icon": "remove",
+            "action": deleteFileFromSource,
+            "visible": _deleteFileFromSource
         }
     ]
 
@@ -269,6 +307,14 @@ NativeMenu {
     function _playerOptions(options, extraOptions) {
         const playerOpts = options?.["player-options"] ?? []
         return playerOpts.concat(extraOptions)
+    }
+
+    function _hasUrls(dataList) {
+        return dataList.length > 0 && dataList.every(data => !!data["mrl"])
+    }
+
+    function _urlList(dataList) {
+        return dataList.map(data => data["mrl"])
     }
 
     function _mlIDList(dataList, role = root.idDataRole) {

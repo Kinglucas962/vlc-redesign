@@ -32,6 +32,12 @@
 #include <QJSEngine>
 
 #include "mainctx.hpp"
+
+#include <algorithm>
+#ifdef _WIN32
+# include <windows.h>
+#endif
+#include "playlist/media.hpp"
 #include "mainctx_submodels.hpp"
 #include "medialibrary/mlhelper.hpp"
 
@@ -55,6 +61,7 @@
 #include "videosurface.hpp"
 
 #include "menus/menus.hpp"                            // Menu creation
+#include "menus/redesign_menu_style.hpp"
 
 #include "dialogs/toolbar/controlbar_profile_model.hpp"
 #include "dialogs/help/help.hpp"
@@ -81,6 +88,8 @@
 #ifdef _WIN32
 #include <QFileInfo>
 #endif
+
+#include <QThread>
 
 #include <vlc_interface.h>
 #include <vlc_preparser.h>
@@ -160,6 +169,11 @@ MainCtx::MainCtx(qt_intf_t *_p_intf)
 
     settings = getSettings();
     m_colorScheme = new ColorSchemeModel(this);
+    // Widget menus (right-click, tracks...) get the redesign look; the style
+    // lives with the application, as the menus using it may outlive MainCtx
+    auto *menuStyle = new RedesignMenuStyle(this);
+    menuStyle->setParent(qApp);
+    qApp->installEventFilter(menuStyle);
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
     connect(m_colorScheme, &ColorSchemeModel::currentChanged, qGuiApp, [colorScheme = m_colorScheme]() {
@@ -304,11 +318,29 @@ MainCtx::MainCtx(qt_intf_t *_p_intf)
 
     m_threadRunner = new ThreadRunner();
 
+    m_hotkeyThread = new QThread(this);
+    m_hotkeyThread->setObjectName("vlc-qt-hotkeys");
+    m_hotkeyContext = new QObject;
+    m_hotkeyContext->moveToThread(m_hotkeyThread);
+    connect(m_hotkeyThread, &QThread::finished, m_hotkeyContext, &QObject::deleteLater);
+    m_hotkeyThread->start();
+
     m_initialEffectiveMainInterfaceMode = getEffectiveMainInterfaceMode();
 }
 
 MainCtx::~MainCtx()
 {
+    /* The hotkeys left are dropped; an action still running ends first (as
+     * the callbacks it may call go below) */
+    m_hotkeyThread->quit();
+    if (!m_hotkeyThread->wait(QDeadlineTimer(3000)))
+    {
+        /* it waits for something that waits for this thread: left to the
+         * end of the process rather than destroyed running */
+        msg_Warn(p_intf, "hotkey action still running at exit");
+        m_hotkeyThread->setParent(nullptr);
+    }
+
     /* Save states */
 
     m_threadRunner->destroy();
@@ -451,11 +483,45 @@ void MainCtx::loadPrefs(const bool callSignals)
 
     loadFromVLCOption(m_pinVideoControls, "qt-pin-controls", &MainCtx::pinVideoControlsChanged);
 
+    loadFromVLCOption(m_seekThumbnail, "qt-seek-thumbnail", &MainCtx::seekThumbnailChanged);
+
     loadFromVLCOption(m_pinOpacity, "qt-fs-opacity", &MainCtx::pinOpacityChanged);
 
     loadFromVLCOption(m_safeArea, "qt-safe-area", &MainCtx::safeAreaChanged);
 
     loadFromVLCOption(m_mouseHideTimeout, "mouse-hide-timeout", &MainCtx::mouseHideTimeoutChanged);
+    loadFromVLCOption(m_fsSensitivity, "qt-fs-sensitivity", &MainCtx::fsSensitivityChanged);
+
+#ifdef _WIN32
+    /* "Process priority" of the settings (-2 idle ... 2 high); left alone
+     * while normal, for "high-priority" of VLC */
+    {
+        static const DWORD classes[] = { IDLE_PRIORITY_CLASS, BELOW_NORMAL_PRIORITY_CLASS,
+                                         NORMAL_PRIORITY_CLASS, ABOVE_NORMAL_PRIORITY_CLASS,
+                                         HIGH_PRIORITY_CLASS };
+        static int applied = 0;
+        const int priority = std::clamp( getSettings()->value( "redesign/process-priority", 0 ).toInt(), -2, 2 );
+        if( priority != applied )
+        {
+            SetPriorityClass( GetCurrentProcess(), classes[priority + 2] );
+            applied = priority;
+        }
+    }
+#endif
+
+    /* "Double click on the video" of the settings */
+    const int doubleClick = getSettings()->value( "redesign/double-click-action", 1 ).toInt();
+    if( doubleClick != m_doubleClickAction )
+    {
+        m_doubleClickAction = doubleClick;
+        if( callSignals )
+            emit doubleClickActionChanged();
+    }
+
+    /* "Never remember items matching" of the settings */
+    vlc::playlist::Media::historyFilter() = QRegularExpression(
+        getSettings()->value( "redesign/recentplay-filter" ).toString(),
+        QRegularExpression::CaseInsensitiveOption );
 }
 
 void MainCtx::loadFromSettingsImpl(const bool callSignals)
@@ -544,12 +610,26 @@ void MainCtx::sendHotkey(Qt::Key key , Qt::KeyboardModifiers modifiers)
 {
     QKeyEvent event(QEvent::KeyPress, key, modifiers );
     int vlckey = qtEventToVLCKey(&event);
-    var_SetInteger(vlc_object_instance(p_intf), "key-pressed", vlckey);
+    postHotkey(vlckey);
+}
+
+bool MainCtx::isHotkeyFree(Qt::Key key, Qt::KeyboardModifiers modifiers) const
+{
+    QKeyEvent event(QEvent::KeyPress, key, modifiers );
+    return !isVLCKeyBound(VLC_OBJECT(p_intf), qtEventToVLCKey(&event));
 }
 
 void MainCtx::sendVLCHotkey(int vlcHotkey)
 {
-    var_SetInteger(vlc_object_instance(p_intf), "key-pressed", vlcHotkey);
+    postHotkey(vlcHotkey);
+}
+
+void MainCtx::postHotkey(int vlcKey)
+{
+    libvlc_int_t *libvlc = vlc_object_instance(p_intf);
+    QMetaObject::invokeMethod(m_hotkeyContext, [libvlc, vlcKey]() {
+        var_SetInteger(libvlc, "key-pressed", vlcKey);
+    }, Qt::QueuedConnection);
 }
 
 void MainCtx::updateIntfScaleFactor()

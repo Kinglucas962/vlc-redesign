@@ -24,6 +24,11 @@ import VLC.Style
 
 Row {
     id: root
+
+    // Figma "Player - customize": the fullscreen button moved into the bar
+    property bool fullscreenHidden: false
+    // the control of the bar it becomes when dragged there (-1: not)
+    property int fullscreenControlId: -1
     spacing: 0
     padding: 0
     width: implicitWidth
@@ -63,9 +68,9 @@ Row {
                 isThemeDark: theme.palette.isDark
                 iconSource: {
                     switch (modelData.type) {
-                    case CSDButton.Minimize: return "qrc:///redesign/minimize.svg"
-                    case CSDButton.MaximizeRestore: return "qrc:///redesign/maximize.svg"
-                    case CSDButton.Close: return "qrc:///redesign/close.svg"
+                    case CSDButton.Minimize: return "qrc:///redesign/player/minimize.png"
+                    case CSDButton.MaximizeRestore: return "qrc:///redesign/player/maximize.png"
+                    case CSDButton.Close: return "qrc:///redesign/player/close.png"
                     }
                     return ""
                 }
@@ -79,6 +84,15 @@ Row {
                     return ""
                 }
                 onClicked: modelData.click()
+
+                // Figma "Player - customize": outlined (36 x 24)
+                DashedRect {
+                    anchors.centerIn: parent
+                    width: parent.width
+                    height: VLCStyle.dp(24, VLCStyle.scale)
+                    visible: VLCStyle.customizing
+                    color: VLCStyle.redesign.color("#6B6B6B", "#5a5a59")
+                }
 
                 // Preserve the native Windows hit-test/snap rectangles.
                 onWidthChanged: Qt.callLater(updateRect)
@@ -99,17 +113,29 @@ Row {
             CSDWindowButton {
                 id: fullscreenButton
                 height: root.height
-                visible: modelData.type === CSDButton.MaximizeRestore
+                visible: modelData.type === CSDButton.MaximizeRestore && !root.fullscreenHidden
                 color: root.color
                 hoverColor: root.hoverColor
                 isThemeDark: theme.palette.isDark
-                iconSource: "qrc:///redesign/fullscreen.svg"
+                iconSource: "qrc:///redesign/player/fullscreen.png"
                 description: qsTr("Fullscreen")
                 onClicked: {
                     if (Player.hasVideoOutput)
                         Player.fullscreen = !Player.fullscreen
                     else
                         MainCtx.toggleInterfaceFullScreen()
+                }
+
+                DashedRect {
+                    anchors.centerIn: parent
+                    width: parent.width
+                    height: VLCStyle.dp(24, VLCStyle.scale)
+                    visible: VLCStyle.customizing
+                    color: VLCStyle.redesign.color("#6B6B6B", "#5a5a59")
+                }
+                CustomizeDragArea {
+                    controlId: root.fullscreenControlId
+                    iconSource: "qrc:///redesign/player/fullscreen.png"
                 }
             }
         }

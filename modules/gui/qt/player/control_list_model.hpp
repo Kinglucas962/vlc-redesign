@@ -119,6 +119,19 @@ public:
         ZOOM_WIDGET = RESERVED_0X32,
         FAVORITE_BUTTON = RESERVED_0X33,
         DIVIDER_WIDGET = RESERVED_0X34,
+        // the controls of Figma "Customize Player" VLC had not
+        SKIP_FW_10_BUTTON = RESERVED_0X35,
+        SKIP_BACK_10_BUTTON = RESERVED_0X36,
+        PIP_BUTTON = RESERVED_0X37,
+        RIGHT_SIDEBAR_BUTTON = RESERVED_0X38,
+        HOME_BUTTON = RESERVED_0X39,
+        THUMBNAIL_WIDGET = RESERVED_0X3A,
+        FOLDER_NAME_WIDGET = RESERVED_0X3B,
+        PLAYLIST_NAME_WIDGET = RESERVED_0X3C,
+        REPLAY_BUTTON = RESERVED_0X3D,
+        CHAPTERS_BUTTON = RESERVED_0X3E,
+        BOOKMARKS_BUTTON = RESERVED_0X3F,
+        PLAYLISTS_BUTTON = RESERVED_0X1F,
     };
     Q_ENUM(ControlType)
 
@@ -165,6 +178,16 @@ public slots:
     Q_INVOKABLE void move(int src,int dest);
     Q_INVOKABLE void remove(int index);
     Q_INVOKABLE void clear();
+    // the control is in this zone (the top bar hides the items moved here)
+    Q_INVOKABLE bool contains(int control) const
+    {
+        return m_controls.contains(static_cast<ControlType>(control));
+    }
+    // how many times the control is in this zone
+    Q_INVOKABLE int countOf(int control) const
+    {
+        return m_controls.count(static_cast<ControlType>(control));
+    }
 };
 
 #endif // CONTROLLISTMODEL_HPP

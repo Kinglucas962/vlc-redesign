@@ -15,7 +15,7 @@ qt6_dep = dependency('qt6',
     # Note that Qt < 6.2.5 does not provide pc files!
     version: '>=6.2',
     modules: [
-        'Core', 'Gui', 'Widgets', 'Qml', 'Network',
+        'Core', 'Gui', 'Widgets', 'Qml',
         'Quick', 'QuickControls2'
         ],
     private_headers: true,
@@ -194,6 +194,7 @@ if qt6_dep.found()
         qt_extra_deps += [
             cc.find_library('dwmapi'),
             cc.find_library('comctl32'),
+            cc.find_library('winhttp'),
         ]
     endif
 

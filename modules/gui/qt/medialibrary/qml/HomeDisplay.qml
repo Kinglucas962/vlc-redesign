@@ -23,6 +23,7 @@ import QtQuick.Layouts
 import VLC.MediaLibrary
 
 import VLC.MainInterface
+import VLC.Style
 import VLC.Widgets as Widgets
 import VLC.Util
 
@@ -45,6 +46,9 @@ Widgets.PageLoader {
     }, {
         name: "newMusic",
         component: newMusicComponent
+    }, {
+        name: "listenAgain",
+        component: listenAgainComponent
     }]
 
     property int displayMarginBeginning: 0
@@ -65,8 +69,9 @@ Widgets.PageLoader {
             focus: true
             headerAction: Component {
                 RowLayout {
-                    OpenMediaButton {}
-                    LibrarySourceButton {}
+                    spacing: VLCStyle.dp(12, VLCStyle.scale)
+                    // Figma: the more button only (the add folder action is in its menu)
+                    OpenMediaButton { iconOnly: true; libraryFolder: true }
                 }
             }
 
@@ -185,6 +190,34 @@ Widgets.PageLoader {
                     model: newVideo.model
 
                     showPlayAsAudioAction: true
+                }
+
+                displayMarginBeginning: root.displayMarginBeginning
+                displayMarginEnd: root.displayMarginEnd
+
+                enableBeginningFade: root.enableBeginningFade
+                enableEndFade: root.enableEndFade
+            }
+        }
+    }
+
+    Component {
+        id: listenAgainComponent
+
+        Widgets.PageExt {
+            id: listenAgainPage
+
+            title: qsTr("Listen Again")
+
+            MediaView {
+                focus: true
+
+                anchors.fill: parent
+
+                model: MLRecentAudioModel {
+                    ml: MediaLib
+
+                    searchPattern: listenAgainPage.search.pattern
                 }
 
                 displayMarginBeginning: root.displayMarginBeginning

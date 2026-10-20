@@ -25,16 +25,12 @@ import VLC.Util
 
 
 RedesignIconButton {
-    iconSource: "qrc:///redesign/queue.svg"
+    iconSource: "qrc:///redesign/player/queue.png"
     id: playlistBtn
 
     text: VLCIcons.playlist
-    onClicked: {
-        MainCtx.playqueuePanel.visible = !MainCtx.playqueuePanel.visible
-        if (MainCtx.playqueuePanel.visible && MainCtx.playqueuePanel.docked) {
-            playlistWidget.gainFocus(playlistBtn)
-        }
-    }
+    // The player shows the queue card when the panel is visible
+    onClicked: MainCtx.playqueuePanel.visible = !MainCtx.playqueuePanel.visible
     checked: MainCtx.playqueuePanel.visible
 
     description: qsTr("Play Queue")

@@ -3,20 +3,25 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  ****************************************************************************/
 import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
+import QtQuick.Controls.Basic
 import VLC.MainInterface
 import VLC.Style
+import VLC.Util
 
-ColumnLayout {
+// Diagnostics section of the design: Developer mode first (the rows of the
+// log follow in the page)
+SettingsSectionTitle {
     id: root
+    text: qsTr("Diagnostics")
+
     property bool selected: false
     property bool initial: false
     readonly property bool dirty: selected !== initial
-    spacing: VLCStyle.dp(8, VLCStyle.scale)
 
     function begin() {
-        initial = Boolean(MainCtx.settingValue("redesign/developer-mode", false))
+        // the ini gives "true" / "false" back as text ("false" is truthy)
+        const value = MainCtx.settingValue("redesign/developer-mode", false)
+        initial = value === true || String(value) === "true"
         selected = initial
     }
     function cancel() { selected = initial }
@@ -25,43 +30,44 @@ ColumnLayout {
         MainCtx.setSettingValue("redesign/developer-mode", selected)
         initial = selected
     }
+    function c(value) { return VLCStyle.redesign.color(value, value) }
 
-    Label {
-        Layout.fillWidth: true
-        text: qsTr("Diagnostics")
-        color: VLCStyle.redesign.color("#EAEAEA", "#2e2e2e")
-        font.family: VLCStyle.redesign.fontFamily
-        font.pixelSize: VLCStyle.dp(16, VLCStyle.scale)
-    }
-    RowLayout {
-        Layout.fillWidth: true
-        implicitHeight: VLCStyle.dp(42, VLCStyle.scale)
-        Label {
-            Layout.fillWidth: true
-            text: qsTr("Developer mode")
-            color: VLCStyle.redesign.color("#8F8F8F", "#7c7c7b")
-            font.family: VLCStyle.redesign.fontFamily
-            font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
-        }
-        Switch {
-            id: developerSwitch
-            objectName: "settingsDeveloperMode"
-            Binding on checked { when: !developerSwitch.pressed; value: root.selected }
-            onClicked: root.selected = checked
-            indicator: Rectangle {
-                implicitWidth: VLCStyle.dp(40, VLCStyle.scale)
-                implicitHeight: VLCStyle.dp(22, VLCStyle.scale)
-                radius: height / 2
-                color: developerSwitch.checked ? VLCStyle.redesign.accent : "#373737"
-                Rectangle {
-                    x: developerSwitch.checked ? parent.width - width - 3 : 3
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: VLCStyle.dp(16, VLCStyle.scale)
-                    height: width
-                    radius: width / 2
-                    color: "#eaeaea"
-                }
+    Item {
+        width: parent.width
+        height: root.px(42)
+
+        Row {
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: root.px(10)
+            Text {
+                anchors.baseline: parent.verticalCenter
+                anchors.baselineOffset: VLCStyle.redesign.centeredBaseline(font.pixelSize)
+                text: qsTr("Developer mode")
+                color: root.c("#8F8F8F")
+                font.family: VLCStyle.redesign.fontFamily
+                font.pixelSize: root.px(14)
             }
+            Image {
+                anchors.verticalCenter: parent.verticalCenter
+                width: root.px(18)
+                height: width
+                sourceSize: Qt.size(width, height)
+                source: SVGColorImage.colorize("qrc:///redesign/duo/info-small.svg").color1(root.c("#404040")).uri()
+                HoverHandler { id: developerHelpHover }
+                ToolTip.visible: developerHelpHover.hovered
+                ToolTip.text: qsTr("Shows the advanced options of diagnostics and logging.")
+                ToolTip.delay: 650
+            }
+        }
+
+        SettingsToggle {
+            objectName: "settingsDeveloperMode"
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            checked: root.selected
+            onSwitched: (on) => root.selected = on
+            Accessible.name: qsTr("Developer mode")
         }
     }
 }

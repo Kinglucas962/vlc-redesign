@@ -75,6 +75,8 @@ QVariant MLBookmarkModel::data( const QModelIndex &index, int role ) const
         }
         case BookmarkRoles::DescriptionRole:
             return QVariant::fromValue( qfu( bookmark.psz_description ) );
+        case BookmarkRoles::MillisecondsRole:
+            return QVariant::fromValue<qint64>( bookmark.i_time );
         default:
             return QVariant{};
     }
@@ -150,7 +152,8 @@ QHash<int, QByteArray> MLBookmarkModel::roleNames() const{
         {BookmarkRoles::NameRole, QByteArrayLiteral("name")},
         {BookmarkRoles::TimeRole, QByteArrayLiteral("time")},
         {BookmarkRoles::PositionRole, QByteArrayLiteral("position")},
-        {BookmarkRoles::DescriptionRole, QByteArrayLiteral("description")}
+        {BookmarkRoles::DescriptionRole, QByteArrayLiteral("description")},
+        {BookmarkRoles::MillisecondsRole, QByteArrayLiteral("milliseconds")}
     };
 }
 
@@ -272,6 +275,13 @@ void MLBookmarkModel::add()
     [this](){
         refresh( MLBOOKMARKMODEL_REFRESH );
     });
+}
+
+void MLBookmarkModel::removeAt( int row )
+{
+    if ( row < 0 || row >= rowCount() )
+        return;
+    remove( { index( row, 0 ) } );
 }
 
 void MLBookmarkModel::remove( const QModelIndexList &indexes )

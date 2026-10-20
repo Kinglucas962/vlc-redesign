@@ -25,26 +25,15 @@ import QtQuick.Templates as T
 import VLC.MainInterface
 import VLC.Style
 
+// The ON / OFF toggle of the design (Figma "Toggle", as the settings): a
+// 68 x 32 well (#090909, radius 6) holding a 33 x 26 label (ON in Accent
+// Bright at 3 px, OFF in #191919 at 32 px, radius 3) and a 26 x 26 square
+// (Accent Dim at 39 px, #404040 at 3 px, radius 3)
 T.Switch {
     id: root
 
-    // Style
-
-    property int animationDuration: VLCStyle.duration_long
-
-    property color color: (checked) ? theme.bg.secondary
-                                    : theme.bg.primary
-
-    property color colorHandle: (checked) ? theme.fg.secondary
-                                          : theme.fg.primary
-
-
-    property color colorBorder:  (checked) ? "transparent"
-                                           : theme.border
-
-    // Private
-
-    property bool _update: true
+    function px(value) { return VLCStyle.dp(value, VLCStyle.scale) }
+    function c(value) { return VLCStyle.redesign.color(value, value) }
 
     // Settings
 
@@ -65,140 +54,48 @@ T.Switch {
 
     // Accessible
 
-    Accessible.onPressAction: control.clicked()
-    Accessible.onToggleAction: control.toggle()
-
-    // Events
-
-    onWidthChanged: {
-        animation.stop()
-
-        if (checked)
-            handle.x = handle.drag.maximumX
-        else
-            handle.x = 0
-    }
-
-    onCheckedChanged: {
-        if (_update === false)
-            return
-
-        const from = handle.x
-        let to
-
-        if (checked)
-            to = handle.drag.maximumX
-        else
-            to = 0
-
-        _animate(from, to)
-    }
-
-    // Functions
-
-    // Private
-
-    function _applyX(x) {
-        const from = handle.x
-        let to
-
-        _update = false
-
-        if (x < width / 2) {
-            to = 0
-
-            checked = false
-        } else {
-            to = handle.drag.maximumX
-
-            checked = true
-        }
-
-        _update = true
-
-        _animate(from, to)
-    }
-
-    function _animate(from, to) {
-        if (from === to)
-            return
-
-        animation.from = from
-        animation.to   = to
-
-        animation.restart()
-    }
-
-    // Animations
-
-    NumberAnimation {
-        id: animation
-
-        target: handle
-
-        property: "x"
-
-        duration: VLCStyle.duration_short
-
-        easing.type: Easing.OutQuad
-    }
+    Accessible.onPressAction: root.clicked()
+    Accessible.onToggleAction: root.toggle()
 
     // Children
 
-    readonly property ColorContext colorContext: ColorContext {
-        id: theme
-        colorSet: ColorContext.Switch
-
-        enabled: root.enabled
-        focused: root.visualFocus
-        hovered: root.hovered
-        pressed: root.down
+    background: Rectangle {
+        radius: root.px(6)
+        color: root.c("#090909")
+        border.width: root.visualFocus ? 1 : 0
+        border.color: VLCStyle.redesign.accent
     }
 
-    background: AnimatedBackground {
-        enabled: theme.initialized
-        border.color: root.visualFocus ? theme.visualFocus : Qt.alpha(theme.visualFocus, 0.0)
-    }
-
-    indicator: Rectangle {
+    indicator: Item {
         anchors.fill: parent
 
-        anchors.margins: VLCStyle.checkButton_margins
+        Rectangle {
+            x: root.checked ? root.px(3) : root.px(32)
+            y: root.px(3)
+            width: root.px(33)
+            height: root.px(26)
+            radius: root.px(3)
+            color: root.checked ? root.c(VLCStyle.redesign.accentBackground) : root.c("#191919")
 
-        radius: height / 2
-
-        color: root.color
-
-        border.color: root.colorBorder
-        border.width: VLCStyle.border
-        border.pixelAligned: (radius < Number.EPSILON)
-
-        MouseArea {
-            id: handle
-
-            width: Math.round(root.height - VLCStyle.checkButton_margins * 2)
-            height: width
-
-            drag.target: handle
-            drag.axis  : Drag.XAxis
-
-            drag.minimumX: 0
-            drag.maximumX: parent.width - width
-
-            onClicked: root.toggle()
-
-            // NOTE: We update the position when the drag has ended.
-            drag.onActiveChanged: if (drag.active === false) root._applyX(x + width / 2)
-
-            Rectangle {
-                anchors.fill: parent
-
-                anchors.margins: VLCStyle.checkButton_handle_margins
-
-                radius: height / 2
-
-                color: root.colorHandle
+            // ON at (10, 9) of the toggle, OFF at (36, 9), as the design
+            Text {
+                x: root.checked ? root.px(7) : root.px(4)
+                anchors.baseline: parent.top
+                anchors.baselineOffset: VLCStyle.redesign.textBaseline(root.px(6), font.pixelSize)
+                text: root.checked ? qsTr("ON") : qsTr("OFF")
+                color: root.checked ? VLCStyle.redesign.accent : root.c("#6B6B6B")
+                font.family: VLCStyle.redesign.fontFamily
+                font.pixelSize: root.px(12)
             }
+        }
+
+        Rectangle {
+            x: root.checked ? root.px(39) : root.px(3)
+            y: root.px(3)
+            width: root.px(26)
+            height: root.px(26)
+            radius: root.px(3)
+            color: root.checked ? VLCStyle.redesign.accentDim : root.c("#404040")
         }
     }
 }

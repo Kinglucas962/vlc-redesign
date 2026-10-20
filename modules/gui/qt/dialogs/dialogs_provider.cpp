@@ -60,6 +60,8 @@
 
 #include <vlc_url.h>
 
+#include <vector>
+
 #include <QEvent>
 #include <QApplication>
 #include <QSignalMapper>
@@ -247,7 +249,14 @@ bool DialogsProvider::eventFilter(QObject *watched, QEvent *event) {
 const QEvent::Type DialogEvent::DialogEvent_Type =
         (QEvent::Type)QEvent::registerEventType();
 
-void DialogsProvider::extendedDialog(int page) { emit effectsRequested(page == 1 ? 1 : 0); }
+void DialogsProvider::extendedDialog(int page)
+{
+    // as the preferences: the native effects without the main interface
+    if( p_intf->p_mi )
+        emit effectsRequested(page == 1 ? 1 : 0);
+    else
+        nativeEffectsDialog(page == 1 ? 1 : 0);
+}
 
 void DialogsProvider::synchroDialog()
 {
@@ -577,7 +586,12 @@ void DialogsProvider::openDiscDialog()
 }
 void DialogsProvider::openNetDialog()
 {
-    openDialog( OpenDialog::OPEN_NETWORK_TAB );
+    // The redesign opens streams in its own dialog (Figma "Open network
+    // stream"); without the main interface (skins), the Open dialog does
+    if( p_intf->p_mi )
+        networkStreamDialog();
+    else
+        openDialog( OpenDialog::OPEN_NETWORK_TAB );
 }
 void DialogsProvider::openCaptureDialog()
 {
@@ -698,7 +712,7 @@ void DialogsProvider::PLAppendDir()
 /****************
  * Playlist     *
  ****************/
-void DialogsProvider::savePlayingToPlaylist()
+QString DialogsProvider::askPlaylistFile( const QString& title, const char **module )
 {
     static const struct
     {
@@ -725,15 +739,14 @@ void DialogsProvider::savePlayingToPlaylist()
     }
 
     QString selected;
-    QString file = getSaveFileName( NULL,
-                                    qtr( "Save play queue as..." ),
+    QString file = getSaveFileName( NULL, title,
                                     p_intf->p_mi->getDialogFilePath(), filters.join( ";;" ),
                                     &selected );
     const char *psz_selected_module = NULL;
     const char *psz_last_playlist_ext = NULL;
 
     if( file.isEmpty() )
-        return;
+        return {};
 
     /* First test if the file extension is set, and different to selected filter */
     for( size_t i = 0; i < ARRAY_SIZE(types); i++)
@@ -762,15 +775,47 @@ void DialogsProvider::savePlayingToPlaylist()
         }
     }
 
-    if ( psz_selected_module )
-    {
-        vlc_playlist_Lock( p_intf->p_playlist  );
-        vlc_playlist_Export( p_intf->p_playlist,
-                             qtu( toNativeSeparators( file ) ),
-                             psz_selected_module );
-        vlc_playlist_Unlock( p_intf->p_playlist  );
-        getSettings()->setValue( "last-playlist-ext", psz_last_playlist_ext );
-    }
+    if ( !psz_selected_module )
+        return {};
+    getSettings()->setValue( "last-playlist-ext", psz_last_playlist_ext );
+    *module = psz_selected_module;
+    return file;
+}
+
+void DialogsProvider::savePlayingToPlaylist()
+{
+    const char *module = nullptr;
+    const QString file = askPlaylistFile( qtr( "Save play queue as..." ), &module );
+    if ( file.isEmpty() )
+        return;
+    vlc_playlist_Lock( p_intf->p_playlist  );
+    vlc_playlist_Export( p_intf->p_playlist, qtu( toNativeSeparators( file ) ), module );
+    vlc_playlist_Unlock( p_intf->p_playlist  );
+}
+
+/* The media of a library playlist written to a playlist file (Figma "Export
+ * Playlist"): the export modules write a playlist, so a playlist of these
+ * media only, without preparsing, is exported */
+void DialogsProvider::saveMediaToPlaylistFile( const QVector<vlc::playlist::Media>& medias )
+{
+    if ( medias.isEmpty() )
+        return;
+    const char *module = nullptr;
+    const QString file = askPlaylistFile( qtr( "Export playlist as..." ), &module );
+    if ( file.isEmpty() )
+        return;
+    vlc_playlist_t *playlist = vlc_playlist_New( VLC_OBJECT( p_intf ), VLC_PLAYLIST_PREPARSING_DISABLED, 1, 0 );
+    if ( !playlist )
+        return;
+    std::vector<input_item_t *> items;
+    items.reserve( medias.size() );
+    for ( const auto& media : medias )
+        items.push_back( media.raw() );
+    vlc_playlist_Lock( playlist );
+    if ( vlc_playlist_Append( playlist, items.data(), items.size() ) == VLC_SUCCESS )
+        vlc_playlist_Export( playlist, qtu( toNativeSeparators( file ) ), module );
+    vlc_playlist_Unlock( playlist );
+    vlc_playlist_Delete( playlist );
 }
 
 /****************************************************************************

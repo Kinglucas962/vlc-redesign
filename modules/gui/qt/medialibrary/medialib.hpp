@@ -57,6 +57,12 @@ public:
     Q_INVOKABLE void addAndPlay(const QString& mrl, const QStringList &options = {});
     Q_INVOKABLE void addAndPlay(const QUrl& mrl, const QStringList &options = {});
     Q_INVOKABLE void addAndPlay(const QVariantList&itemIdList, const QStringList &options = {});
+    // The media of the items in a random order, the first one played
+    // (Figma "Shuffle" of a playlist)
+    Q_INVOKABLE void addAndPlayShuffled(const QVariantList& itemIdList, const QStringList &options = {});
+    // The media of the items written to a playlist file the user chooses
+    // (Figma "Export Playlist")
+    Q_INVOKABLE void exportToFile(const QVariantList& itemIdList);
     Q_INVOKABLE void insertIntoPlaylist(size_t index, const QVariantList &itemIds /*QList<MLParentId>*/, const QStringList &options = {});
 
     Q_INVOKABLE void reload();

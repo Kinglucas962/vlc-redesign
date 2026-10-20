@@ -48,12 +48,14 @@ QString cropName(const QString& side) { return "crop-" + side; }
 }
 
 VideoEffects::VideoEffects(QObject* parent) : QObject(parent) {}
-VideoEffects::~VideoEffects() { if (m_transactionActive) cancel(); }
+// Destroyed with the interface: the preview is not saved, and restoring it
+// would change the filters of a video output being torn down
+VideoEffects::~VideoEffects() = default;
 MainCtx* VideoEffects::ctx() const { return m_ctx; }
 void VideoEffects::setCtx(MainCtx* ctx)
 {
     if (m_ctx == ctx) return;
-    if (m_transactionActive) cancel();
+    if (m_transactionActive && ctx) cancel();
     m_ctx = ctx;
     m_transactionActive = false;
     m_snapshotValues.clear();

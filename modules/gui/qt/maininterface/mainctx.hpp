@@ -56,6 +56,7 @@ class QStackedLayout;
 class QMenu;
 class QSize;
 class QTimer;
+class QThread;
 class QSystemTrayIcon;
 class StandardPLPanel;
 struct vlc_window;
@@ -120,6 +121,7 @@ class MainCtx : public QObject
     Q_PROPERTY(bool hasToolbarMenu READ hasToolbarMenu WRITE setHasToolbarMenu NOTIFY hasToolbarMenuChanged FINAL)
     Q_PROPERTY(bool canShowVideoPIP READ canShowVideoPIP CONSTANT FINAL)
     Q_PROPERTY(bool pinVideoControls READ pinVideoControls WRITE setPinVideoControls NOTIFY pinVideoControlsChanged FINAL)
+    Q_PROPERTY(bool seekThumbnail READ seekThumbnail NOTIFY seekThumbnailChanged FINAL)
     Q_PROPERTY(float pinOpacity READ pinOpacity WRITE setPinOpacity NOTIFY pinOpacityChanged FINAL)
     Q_PROPERTY(ControlbarProfileModel* controlbarProfileModel READ controlbarProfileModel CONSTANT FINAL)
     Q_PROPERTY(bool hasAcrylicSurface READ hasAcrylicSurface NOTIFY hasAcrylicSurfaceChanged FINAL)
@@ -130,6 +132,10 @@ class MainCtx : public QObject
     Q_PROPERTY(float safeArea READ safeArea NOTIFY safeAreaChanged FINAL)
     Q_PROPERTY(VideoSurfaceProvider* videoSurfaceProvider READ getVideoSurfaceProvider WRITE setVideoSurfaceProvider NOTIFY hasEmbededVideoChanged FINAL)
     Q_PROPERTY(int mouseHideTimeout READ mouseHideTimeout NOTIFY mouseHideTimeoutChanged FINAL)
+    // Pixels the mouse moves before the controls of the fullscreen show
+    Q_PROPERTY(int fsSensitivity READ fsSensitivity NOTIFY fsSensitivityChanged FINAL)
+    // "Double click on the video" of the settings: 0 nothing, 1 fullscreen
+    Q_PROPERTY(int doubleClickAction READ doubleClickAction NOTIFY doubleClickActionChanged FINAL)
     Q_PROPERTY(bool albumSections READ albumSections WRITE setAlbumSections NOTIFY albumSectionsChanged FINAL)
     Q_PROPERTY(bool lyricsMode READ lyricsMode WRITE setLyricsMode NOTIFY lyricsModeChanged FINAL)
     Q_PROPERTY(bool usingTouch READ usingTouch NOTIFY usingTouchChanged FINAL)
@@ -248,6 +254,7 @@ public:
     inline void setCanShowVideoPIP(bool canShowVideoPIP) { m_canShowVideoPIP = canShowVideoPIP; }
 
     inline bool pinVideoControls() const { return m_pinVideoControls; }
+    inline bool seekThumbnail() const { return m_seekThumbnail; }
     inline float pinOpacity() const { return m_pinOpacity; }
 
     inline ControlbarProfileModel* controlbarProfileModel() const { return m_controlbarProfileModel; }
@@ -279,10 +286,15 @@ public:
     void setVideoSurfaceProvider(VideoSurfaceProvider* videoSurfaceProvider);
 
     int mouseHideTimeout() const { return m_mouseHideTimeout; }
+    int fsSensitivity() const { return m_fsSensitivity; }
+    int doubleClickAction() const { return m_doubleClickAction; }
 
     bool usingTouch() const { return m_usingTouch; }
 
     Q_INVOKABLE bool backdropBlurRequested() const { return var_InheritBool(p_intf, "qt-backdrop-blur"); }
+
+    // no hotkey of VLC takes the key: the interface may (Q, L of the onboarding)
+    Q_INVOKABLE bool isHotkeyFree(Qt::Key key, Qt::KeyboardModifiers modifiers) const;
 
     Q_INVOKABLE static inline void setCursor(Qt::CursorShape cursor) { QApplication::setOverrideCursor(QCursor(cursor)); }
     Q_INVOKABLE static inline void restoreCursor(void) { QApplication::restoreOverrideCursor(); }
@@ -458,6 +470,7 @@ protected:
 
     /* Pinned */
     bool                 m_pinVideoControls = false;
+    bool                 m_seekThumbnail = true;
     float                m_pinOpacity       = 1.0f;
 
     bool                 m_useGlobalShortcuts = true;
@@ -486,6 +499,8 @@ protected:
     float m_safeArea = 0.0;
 
     int m_mouseHideTimeout = 1000;
+    int m_fsSensitivity = 3;
+    int m_doubleClickAction = 1;
 
     bool m_albumSections = true;
 
@@ -511,6 +526,13 @@ protected:
 #endif
 
     ThreadRunner* m_threadRunner = nullptr;
+
+    /* The hotkeys reach the core from a thread of their own, in their order:
+     * an action may wait for a video output that waits for this thread (to
+     * enable its window), the interface would freeze */
+    QThread* m_hotkeyThread = nullptr;
+    QObject* m_hotkeyContext = nullptr;
+    void postHotkey(int vlcKey);
 
 public slots:
     void toggleToolbarMenu();
@@ -588,6 +610,7 @@ signals:
     void intfDevicePixelRatioChanged();
 
     void pinVideoControlsChanged();
+    void seekThumbnailChanged();
     void pinOpacityChanged();
 
     void hasAcrylicSurfaceChanged(bool);
@@ -605,6 +628,8 @@ signals:
     void safeAreaChanged();
 
     void mouseHideTimeoutChanged();
+    void fsSensitivityChanged();
+    void doubleClickActionChanged();
 
     void navBoxToggled();
 

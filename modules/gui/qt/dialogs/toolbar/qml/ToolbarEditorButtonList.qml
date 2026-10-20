@@ -17,50 +17,49 @@
  *****************************************************************************/
 import QtQuick
 import QtQuick.Templates as T
-import QtQml.Models
 import QtQuick.Layouts
 
-
 import VLC.Player
+import VLC.PlayerControls
 import VLC.Style
 import VLC.Widgets as Widgets
 import VLC.Util
 
-GridView {
+// Figma "Customize Player" ("Frame 235"): the items of the palette, 86 wide,
+// 24 apart, rows 38 apart (each as high as its highest item)
+Flickable {
     id: root
     objectName: "toolbarEditorControlCatalog"
 
     clip: true
+    contentWidth: width
+    contentHeight: grid.implicitHeight
+    boundsBehavior: Flickable.StopAtBounds
 
     T.ScrollBar.vertical: Widgets.ScrollBarExt { }
-    model: PlayerControlbarControls.controlList.length
-
-    currentIndex: -1
-    highlightFollowsCurrentItem: false
-
-    // Nine controls fit the 1048px reference dialog; narrower windows retain
-    // usable drag targets instead of clipping columns.
-    cellWidth: Math.max(VLCStyle.dp(94, VLCStyle.scale),
-                        Math.floor(width / Math.max(1, Math.floor(width / VLCStyle.dp(108, VLCStyle.scale)))))
-    cellHeight: VLCStyle.dp(108, VLCStyle.scale)
-
-    boundsBehavior: Flickable.StopAtBounds
 
     property alias removeInfoRectVisible: removeInfoRect.visible
 
     signal controlDragStarted(int id)
     signal controlDragStopped(int id)
 
-
     readonly property ColorContext colorContext: ColorContext {
         id: theme
         colorSet: ColorContext.View
     }
 
+    // the items with a box of 28 in the design (32 for the others)
+    readonly property var _shortBoxes: [
+        ControlListModel.SKIP_FW_BUTTON, ControlListModel.SKIP_BACK_BUTTON, ControlListModel.QUIT_BUTTON,
+        ControlListModel.SETTINGS_BUTTON, ControlListModel.HOME_BUTTON, ControlListModel.THUMBNAIL_WIDGET,
+        ControlListModel.FILE_NAME_WIDGET, ControlListModel.ARTIST_NAME_WIDGET, ControlListModel.FOLDER_NAME_WIDGET,
+        ControlListModel.PLAYLIST_NAME_WIDGET, ControlListModel.INFO_BUTTON, ControlListModel.REPLAY_BUTTON,
+        ControlListModel.CHAPTERS_BUTTON, ControlListModel.FAVORITE_BUTTON, ControlListModel.BOOKMARKS_BUTTON
+    ]
+
     MouseArea {
         anchors.fill: parent
         z: -1
-
         preventStealing: true
     }
 
@@ -76,173 +75,181 @@ GridView {
         }
     }
 
+    // a control dropped here leaves the player
     DropArea {
         id: dropArea
-        anchors.fill: parent
-
+        width: root.width
+        height: Math.max(root.height, root.contentHeight)
         z: 3
 
         function isFromList() {
-            if (drag.source.objectName === "buttonsList")
-                return true
-            else
-                return false
+            return drag.source.objectName === "buttonsList"
         }
 
         onDropped: (drop) => {
             if (isFromList())
                 return
 
+            if (drop.source.objectName === "playerControl") {
+                // after the event: the zone left empty deletes the control
+                const fromZone = drop.source.zoneModel
+                const from = drop.source.sourceRow
+                Qt.callLater(() => {
+                    if (from >= 0 && from < fromZone.count)
+                        fromZone.remove(from)
+                })
+                drop.accept(Qt.MoveAction)
+                return
+            }
             drop.source.dndView.model.remove(drop.source.DelegateModel.itemsIndex)
             drop.accept(Qt.MoveAction)
         }
     }
 
+    // the controls of the player dragged over the palette
+    Binding {
+        target: removeInfoRect
+        property: "visible"
+        value: true
+        when: dropArea.containsDrag && dropArea.drag.source && dropArea.drag.source.objectName === "playerControl"
+    }
+
     Rectangle {
         id: removeInfoRect
-        anchors.fill: parent
+        width: root.width
+        height: root.height
         z: 2
-
         visible: false
+        radius: VLCStyle.dp(6, VLCStyle.scale)
+        color: Qt.rgba(14 / 255, 14 / 255, 14 / 255, 0.85)
 
-        opacity: 0.8
-        color: theme.bg.primary
-
-        border.color: theme.border
-        border.width: VLCStyle.dp(2, VLCStyle.scale)
-        border.pixelAligned: (radius < Number.EPSILON)
+        Widgets.DashedRect {
+            anchors.fill: parent
+            color: VLCStyle.redesign.accent
+        }
 
         Text {
             anchors.centerIn: parent
-
-            text: VLCIcons.del
-            verticalAlignment: Text.AlignVCenter
-            horizontalAlignment: Text.AlignHCenter
-
-            font.pointSize: VLCStyle.fontHeight_xxxlarge
-
-            font.family: VLCIcons.fontFamily
-            color: theme.fg.secondary
-        }
-
-        MouseArea {
-            anchors.fill: parent
-
-            cursorShape: visible ? Qt.DragMoveCursor : Qt.ArrowCursor
+            text: qsTr("Drop here to remove from the player")
+            color: VLCStyle.redesign.color(VLCStyle.redesign.textMuted, theme.fg.secondary)
+            font.family: VLCStyle.redesign.fontFamily
+            font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
         }
     }
 
     MouseArea {
-        anchors.fill: parent
+        width: root.width
+        height: Math.max(root.height, root.contentHeight)
         z: 1
-
         visible: buttonDragItem.Drag.active
-
         cursorShape: visible ? Qt.DragMoveCursor : Qt.ArrowCursor
     }
 
-    delegate: MouseArea {
-        width: cellWidth
-        height: cellHeight
+    // its own width: the columns 86 wide, 24 apart (no spare width spread)
+    GridLayout {
+        id: grid
+        columns: Math.max(1, Math.floor((root.width + columnSpacing) / (VLCStyle.dp(86, VLCStyle.scale) + columnSpacing)))
+        columnSpacing: VLCStyle.dp(24, VLCStyle.scale)
+        rowSpacing: VLCStyle.dp(38, VLCStyle.scale)
 
-        hoverEnabled: true
-        cursorShape: Qt.OpenHandCursor
+        Repeater {
+            model: PlayerControlbarControls.paletteList
 
-        objectName: "buttonsList"
+            delegate: MouseArea {
+                id: item
 
-        drag.target: buttonDragItem
+                required property int modelData
+                readonly property var entry: PlayerControlbarControls.control(modelData)
+                readonly property int mIndex: modelData
+                readonly property bool shortBox: root._shortBoxes.indexOf(modelData) >= 0
 
-        drag.smoothed: false
+                Layout.preferredWidth: VLCStyle.dp(86, VLCStyle.scale)
+                Layout.preferredHeight: column.implicitHeight
+                Layout.alignment: Qt.AlignTop | Qt.AlignLeft
 
-        readonly property int mIndex: PlayerControlbarControls.controlList[model.index].id
+                hoverEnabled: true
+                cursorShape: Qt.OpenHandCursor
+                objectName: "buttonsList"
 
-        readonly property ColorContext colorContext: ColorContext {
-            colorSet: ColorContext.Item
-        }
+                drag.target: buttonDragItem
+                drag.smoothed: false
 
-        drag.onActiveChanged: {
-            if (drag.active) {
-                root.controlDragStarted(mIndex)
-
-                buttonDragItem.text = PlayerControlbarControls.controlList[model.index].label
-                buttonDragItem.Drag.source = this
-                buttonDragItem.Drag.start()
-
-                GridView.delayRemove = true
-            } else {
-                buttonDragItem.Drag.drop()
-
-                root.controlDragStopped(mIndex)
-
-                GridView.delayRemove = false
-            }
-        }
-
-        onPressed: (mouse) => {
-            const pos = mapToItem(buttonDragItem.parent, mouseX, mouseY)
-            buttonDragItem.y = pos.y + VLCStyle.dragDelta
-            buttonDragItem.x = pos.x + VLCStyle.dragDelta
-        }
-
-        Rectangle {
-            anchors.fill: parent
-
-            implicitWidth: childrenRect.width
-            implicitHeight: childrenRect.height
-
-            color: "transparent"
-
-            radius: VLCStyle.redesign.controlRadius
-            border.width: VLCStyle.dp(1, VLCStyle.scale)
-            border.color: containsMouse && !buttonDragItem.Drag.active ? VLCStyle.redesign.accent
-                                                                       : "transparent"
-            border.pixelAligned: (radius < Number.EPSILON)
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: VLCStyle.dp(6, VLCStyle.scale)
-                spacing: VLCStyle.dp(8, VLCStyle.scale)
-
-                Rectangle {
-                    Layout.preferredWidth: VLCStyle.dp(32, VLCStyle.scale)
-                    Layout.preferredHeight: VLCStyle.dp(32, VLCStyle.scale)
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.topMargin: VLCStyle.dp(8, VLCStyle.scale)
-                    color: "transparent"
-                    border.width: VLCStyle.dp(1, VLCStyle.scale)
-                    border.color: VLCStyle.redesign.color("#6b6b6b", colorContext.border)
-
-                    Image {
-                        anchors.centerIn: parent
-                        width: VLCStyle.dp(24, VLCStyle.scale)
-                        height: width
-                        source: PlayerControlbarControls.controlList[model.index].icon || ""
-                        fillMode: Image.PreserveAspectFit
-                        visible: source.toString().length > 0
-                    }
-
-                    EditorDummyButton {
-                        visible: !PlayerControlbarControls.controlList[model.index].icon
-                        anchors.centerIn: parent
-                        color: VLCStyle.redesign.color("#969696", colorContext.fg.primary)
-                        text: PlayerControlbarControls.controlList[model.index].label
-                        font.pixelSize: VLCStyle.dp(23, VLCStyle.scale)
+                drag.onActiveChanged: {
+                    if (drag.active) {
+                        root.controlDragStarted(mIndex)
+                        buttonDragItem.text = item.entry.label ?? ""
+                        buttonDragItem.iconSource = item.entry.icon ?? ""
+                        buttonDragItem.Drag.source = this
+                        buttonDragItem.Drag.start()
+                    } else {
+                        buttonDragItem.Drag.drop()
+                        root.controlDragStopped(mIndex)
                     }
                 }
 
-                Text {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                // the item under the cursor, where it drops
+                onPressed: (mouse) => {
+                    const pos = mapToItem(buttonDragItem.parent, mouseX, mouseY)
+                    buttonDragItem.x = pos.x - buttonDragItem.width / 2
+                    buttonDragItem.y = pos.y - buttonDragItem.height / 2
+                }
 
-                    color: VLCStyle.redesign.color("#969696", colorContext.fg.secondary)
-                    elide: Text.ElideRight
-                    font.family: VLCStyle.redesign.fontFamily
-                    font.pixelSize: VLCStyle.redesign.fontNormal
-                    text: PlayerControlbarControls.controlList[model.index].text
-                    wrapMode: Text.WordWrap
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignTop
-                    maximumLineCount: 2
+                Column {
+                    id: column
+                    width: parent.width
+                    spacing: VLCStyle.dp(16, VLCStyle.scale)
+
+                    // Figma "Icon Wrapper": the dashed box, padding 4 (2 for
+                    // the boxes of 28), the icon of 24; 28 wide in the
+                    // palette (measured on 2107:5604)
+                    Item {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: item.modelData === ControlListModel.WIDGET_SPACER ? VLCStyle.dp(24, VLCStyle.scale)
+                                                                               : VLCStyle.dp(28, VLCStyle.scale)
+                        height: item.shortBox ? VLCStyle.dp(28, VLCStyle.scale) : VLCStyle.dp(32, VLCStyle.scale)
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: VLCStyle.dp(4, VLCStyle.scale)
+                            visible: item.containsMouse && !buttonDragItem.Drag.active
+                            color: VLCStyle.redesign.color(VLCStyle.redesign.controlHoverBackground, "#9c9c9b")
+                        }
+
+                        Widgets.DashedRect {
+                            anchors.fill: parent
+                            color: VLCStyle.redesign.color("#6B6B6B", "#5a5a59")
+                        }
+
+                        Image {
+                            x: Math.round((parent.width - width) / 2)
+                            y: item.shortBox ? VLCStyle.dp(2, VLCStyle.scale) : VLCStyle.dp(4, VLCStyle.scale)
+                            width: VLCStyle.redesign.iconSize
+                            height: width
+                            visible: source.toString().length > 0
+                            source: item.entry.icon ?? ""
+                            sourceSize: Qt.size(width, height)
+                            fillMode: Image.Pad
+                            // filtered: the dialog sits on a half pixel as in
+                            // the design (whole pixels: the same as unfiltered)
+                            smooth: true
+                        }
+                    }
+
+                    Text {
+                        id: label
+                        width: parent.width
+                        text: PlayerControlbarControls.paletteText[item.modelData] ?? (item.entry.text ?? "")
+                        color: VLCStyle.redesign.color(VLCStyle.redesign.textMuted, "#4d4d4d")
+                        font.family: VLCStyle.redesign.fontFamily
+                        font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
+                        maximumLineCount: 2
+                        elide: Text.ElideRight
+                        // lines of 17 (Inter 14, line height 100 %)
+                        lineHeightMode: Text.FixedHeight
+                        lineHeight: Math.round(1.2109375 * font.pixelSize)
+                    }
                 }
             }
         }

@@ -42,6 +42,16 @@ FocusScope {
         colorSet: ColorContext.Window
     }
 
+    // In a window, the video keeps the 12px frame of the player (Figma
+    // "Player - hide UI"); fullscreen fills the screen
+    readonly property bool _framed: MainCtx.intfMainWindow.visibility !== Window.FullScreen
+
+    Rectangle {
+        anchors.fill: parent
+        visible: MainCtx.hasEmbededVideo && root._framed
+        color: VLCStyle.redesign.color(VLCStyle.redesign.playerControlBackground, "#ababaa", VLCStyle.palette.isDark)
+    }
+
     VideoSurface {
         id: videoSurface
 
@@ -52,6 +62,7 @@ FocusScope {
         visible: MainCtx.hasEmbededVideo
 
         anchors.fill: parent
+        anchors.margins: root._framed ? VLCStyle.dp(12, VLCStyle.scale) : 0
 
         onMouseMoved: {
             mouseAutoHide.restart()

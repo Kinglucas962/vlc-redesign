@@ -202,7 +202,10 @@ void VideoSurface::mouseDoubleClickEvent(QMouseEvent* event)
     int vlc_button = qtMouseButton2VLC( event->button() );
     if( vlc_button >= 0 )
     {
-        emit mouseDblClicked(vlc_button);
+        if( m_doubleClickEnabled )
+            emit mouseDblClicked(vlc_button);
+        else
+            emit mousePressed(vlc_button);
         event->accept();
     }
     else

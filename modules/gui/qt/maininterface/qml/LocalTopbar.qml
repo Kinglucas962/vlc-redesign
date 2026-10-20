@@ -67,10 +67,9 @@ T.ToolBar {
         colorSet: ColorContext.Window
     }
 
-    background:  Widgets.AcrylicBackground {
-        enabled: root.useAcrylic
-        tintColor: VLCStyle.redesign.color(VLCStyle.redesign.controlBackground, theme.bg.primary)
-        alternativeColor: tintColor
+    // Figma "topbar": #1B1B1B (the same bar as the player)
+    background: Rectangle {
+        color: VLCStyle.redesign.color(VLCStyle.redesign.playerTopbarBackground, "#ababaa")
     }
 
     contentItem: Item {
@@ -88,7 +87,8 @@ T.ToolBar {
                 left: parent.left
                 top: parent.top
                 bottom: parent.bottom
-                leftMargin: VLCStyle.margin_xsmall
+                // the 6 px padding of the topbar of the design
+                leftMargin: VLCStyle.dp(6, VLCStyle.scale)
             }
 
             Navigation.parentItem: root
@@ -101,43 +101,87 @@ T.ToolBar {
 
                 Navigation.parentItem: root
 
-                Widgets.BannerCone {
-                    id: logo
-                    source: "qrc:///redesign/logo.svg"
+                // Figma "Frame 8": the cone, an icon in a 38 x 28 frame
+                Item {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: VLCStyle.dp(38, VLCStyle.scale)
+                    height: VLCStyle.dp(28, VLCStyle.scale)
 
-                    sourceSize.width: VLCStyle.bannerButton_height
-                    sourceSize.height: VLCStyle.bannerButton_height
-                    color: VLCStyle.redesign.logoColor
+                    Widgets.BannerCone {
+                        id: logo
+                        source: "qrc:///redesign/logo.svg"
+
+                        x: VLCStyle.dp(7, VLCStyle.scale)
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: VLCStyle.redesign.iconSize
+                        height: VLCStyle.redesign.iconSize
+                        sourceSize: Qt.size(width, height)
+                        color: VLCStyle.redesign.logoColor
+                    }
                 }
 
                 Widgets.IconToolButton {
-                    id: navigationVisibilty
+                    id: menuButton
                     contentItem: Image {
-                        source: "qrc:///redesign/sidebar.svg"
+                        source: "qrc:///redesign/icons/more/default.png"
                         sourceSize: Qt.size(VLCStyle.redesign.iconSize, VLCStyle.redesign.iconSize)
-                        fillMode: Image.PreserveAspectFit
-                        opacity: parent.enabled ? 1.0 : 0.4
+                        fillMode: Image.Pad
                     }
-                    color: VLCStyle.redesign.color(enabled ? VLCStyle.redesign.textMuted : VLCStyle.redesign.textDisabled,
-                                                   colorContext.fg.primary)
-                    backgroundColor: VLCStyle.redesign.color(hovered || down ? VLCStyle.redesign.controlHoverBackground : "transparent",
+                    backgroundColor: VLCStyle.redesign.color(hovered || down || mainMenu.opened
+                                                             ? VLCStyle.redesign.controlHoverBackground : "transparent",
                                                              colorContext.bg.primary)
                     radius: VLCStyle.redesign.controlRadius
 
                     focus: true
 
-                    text: VLCIcons.panel_left
+                    text: description
+                    description: qsTr("Menu")
+
+                    AccessibleCompat.id: "topBarMenuButton"
+
+                    // an icon of 24 with 2 px around
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: VLCStyle.dp(28, VLCStyle.scale)
+                    width: VLCStyle.dp(28, VLCStyle.scale)
+
+                    onClicked: mainMenu.popup(menuButton, 0, menuButton.height)
+
+                    Menus.MainMenu {
+                        id: mainMenu
+                    }
+
+                    Navigation.parentItem: navigationButtons
+                    Navigation.rightItem: navigationVisibilty
+                }
+
+                // Not in the design: the navigation stays shown, the
+                // toggle remains for small windows (the navigation hides)
+                Widgets.IconToolButton {
+                    id: navigationVisibilty
+                    visible: VLCStyle.isScreenSmall
+                    contentItem: Image {
+                        source: "qrc:///redesign/icons/sidebar/active.png"
+                        sourceSize: Qt.size(VLCStyle.redesign.iconSize, VLCStyle.redesign.iconSize)
+                        fillMode: Image.Pad
+                        opacity: navigationVisibilty.checked ? 1.0 : 0.6
+                    }
+                    backgroundColor: VLCStyle.redesign.color(hovered || down || checked
+                                                             ? VLCStyle.redesign.controlHoverBackground : "transparent",
+                                                             colorContext.bg.primary)
+                    radius: VLCStyle.redesign.controlRadius
+
+                    text: description
                     description: qsTr("Show navigation menu")
 
                     AccessibleCompat.id: "sidebarToggleButton"
 
-                    font.pixelSize: VLCStyle.redesign.iconSize
                     height: VLCStyle.bannerButton_height
                     width: VLCStyle.bannerButton_width
 
                     onClicked: root.toggleNavigationVisibility()
 
                     Navigation.parentItem: navigationButtons
+                    Navigation.leftItem: menuButton
                     Navigation.rightItem: historyBack
                 }
 
@@ -176,16 +220,27 @@ T.ToolBar {
         }
 
         Text {
-            anchors.centerIn: parent
+            id: titleText
+            anchors.horizontalCenter: parent.horizontalCenter
             width: Math.max(0, parent.width - 2 * Math.max(navigationButtons.width, root._showCSD ? csdButtons.width : 0)
                             - 2 * VLCStyle.margin_normal)
-            text: Player.title || qsTr("VLC media player")
+            height: parent.height
+            text: Player.title || qsTr("VLC Media Player")
             color: VLCStyle.redesign.color(VLCStyle.redesign.textMuted, theme.fg.primary)
             font.family: VLCStyle.redesign.fontFamily
             font.pixelSize: VLCStyle.redesign.fontNormal
             horizontalAlignment: Text.AlignHCenter
+            // the text box of the design (17 px) centred on a whole pixel
+            verticalAlignment: Text.AlignTop
+            topPadding: VLCStyle.redesign.textBaseline(Math.round((height - Math.round(1.2109375 * font.pixelSize)) / 2),
+                                                       font.pixelSize) - titleMetrics.ascent
             elide: Text.ElideRight
             Accessible.ignored: true
+
+            FontMetrics {
+                id: titleMetrics
+                font: titleText.font
+            }
         }
 
         Loader {
@@ -206,6 +261,8 @@ T.ToolBar {
         anchors {
             right: parent.right
             top: parent.top
+            // the 6 px padding of the topbar of the design
+            rightMargin: VLCStyle.dp(6, VLCStyle.scale)
         }
 
         height: VLCStyle.redesign.topbarHeight

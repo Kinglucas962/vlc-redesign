@@ -6,13 +6,10 @@
 #pragma once
 
 #include <QObject>
-#include <QNetworkAccessManager>
-#include <QPointer>
 #include <QVariantList>
 #include <QUrl>
 
-class QNetworkReply;
-class QNetworkRequest;
+#include "util/http_request.hpp"
 
 class MLOpenSubtitles : public QObject
 {
@@ -37,11 +34,11 @@ signals:
     void fileReady(const QUrl& url, const QString& filename);
 
 private:
-    void begin(QNetworkReply* reply);
+    void begin();
     void fail(const QString& message);
-    QNetworkRequest request(const QUrl& url, const QString& apiKey) const;
-    QNetworkAccessManager m_network;
-    QPointer<QNetworkReply> m_reply;
+    // Sends request; done runs only if no cancel/new request happened meanwhile.
+    void send(const HttpRequest& request, std::function<void(const HttpResponse&)> done);
+    HttpRequest request(const QUrl& url, const QString& apiKey) const;
     QVariantList m_results;
     QString m_error;
     bool m_busy = false;

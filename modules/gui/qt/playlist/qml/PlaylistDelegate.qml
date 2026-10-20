@@ -65,6 +65,10 @@ T.Control {
     // Optional
     property var contextMenu
 
+    // Rows of the queue card of the player: a drag handle (the playing state
+    // for the current item), one line of title and the duration
+    property bool compact: false
+
     // Optional, an item to show as drag target
     property Item dragItem
 
@@ -78,7 +82,7 @@ T.Control {
 
     hoverEnabled: true
 
-    verticalPadding: VLCStyle.margin_xxxsmall
+    verticalPadding: compact ? VLCStyle.dp(11, VLCStyle.scale) : VLCStyle.margin_xxxsmall
 
     leftPadding: VLCStyle.margin_normal
 
@@ -133,13 +137,21 @@ T.Control {
     }
 
     background: Widgets.AnimatedBackground {
-        color: selected ? theme.bg.highlight : theme.bg.primary
+        color: {
+            if (delegate.compact)
+                return (selected || delegate.hovered) ? VLCStyle.redesign.color(VLCStyle.redesign.controlHoverBackground, theme.bg.highlight)
+                                                      : "transparent"
+            return selected ? theme.bg.highlight : theme.bg.primary
+        }
+        radius: delegate.compact ? VLCStyle.redesign.controlRadius : 0
 
         enabled: theme.initialized
 
         border.color: delegate.visualFocus ? theme.visualFocus : Qt.alpha(theme.visualFocus, 0.0)
 
         Widgets.CurrentIndicator {
+            visible: !delegate.compact
+
             anchors {
                 left: parent.left
                 leftMargin: VLCStyle.margin_xxsmall
@@ -169,8 +181,8 @@ T.Control {
         Item {
             id: artworkItem
 
-            Layout.preferredHeight: VLCStyle.icon_playlistArt
-            Layout.preferredWidth: VLCStyle.icon_playlistArt
+            Layout.preferredHeight: delegate.compact ? VLCStyle.redesign.iconSize : VLCStyle.icon_playlistArt
+            Layout.preferredWidth: delegate.compact ? VLCStyle.redesign.iconSize : VLCStyle.icon_playlistArt
             Layout.alignment: Qt.AlignVCenter
 
             Accessible.role: Accessible.Graphic
@@ -185,13 +197,30 @@ T.Control {
                 return qsTr("Media cover")
             }
 
+            // Drag handle of the design: two lines
+            Column {
+                anchors.centerIn: parent
+                visible: delegate.compact && !statusIcon.visible
+                spacing: VLCStyle.dp(4, VLCStyle.scale)
+
+                Repeater {
+                    model: 2
+                    Rectangle {
+                        width: VLCStyle.dp(12, VLCStyle.scale)
+                        height: VLCStyle.dp(1.5, VLCStyle.scale)
+                        radius: height / 2
+                        color: VLCStyle.redesign.color(VLCStyle.redesign.textMuted, theme.fg.secondary)
+                    }
+                }
+            }
+
             Widgets.ImageExt {
                 id: artwork
 
                 anchors.fill: parent
                 fillMode: Image.PreserveAspectFit
-                source: defaultSource
-                visible: !statusIcon.visible
+                source: delegate.compact ? "" : defaultSource
+                visible: !delegate.compact && !statusIcon.visible
                 asynchronous: true
                 opacity: (status === Image.Ready ? 1.0 : 0.0)
                 radius: VLCStyle.listAlbumCover_radius
@@ -274,7 +303,7 @@ T.Control {
 
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.leftMargin: VLCStyle.margin_large
+            Layout.leftMargin: delegate.compact ? VLCStyle.dp(14, VLCStyle.scale) : VLCStyle.margin_large
             spacing: VLCStyle.margin_xxxsmall
 
             Widgets.ListLabel {
@@ -282,15 +311,24 @@ T.Control {
 
                 Layout.fillWidth: true
 
-                font.weight: delegate.isCurrent ? Font.Bold : Font.DemiBold
+                font.pixelSize: delegate.compact ? VLCStyle.dp(15, VLCStyle.scale) : VLCStyle.fontSize_normal
+                font.weight: delegate.compact ? Font.Normal
+                                              : (delegate.isCurrent ? Font.Bold : Font.DemiBold)
                 text: delegate.title || qsTr("Unknown Title")
-                color: theme.fg.primary
+                color: {
+                    if (!delegate.compact)
+                        return theme.fg.primary
+                    // The playing item takes the accent
+                    return delegate.isCurrent ? VLCStyle.redesign.accent
+                                              : VLCStyle.redesign.color("#C6C6C6", theme.fg.primary)
+                }
             }
 
             Widgets.ListSubtitleLabel {
                 id: textArtist
 
                 Layout.fillWidth: true
+                visible: !delegate.compact
 
                 text: delegate.artist || (delegate.title.length === 0 ? delegate.url : "")
                 color: theme.fg.primary
@@ -303,8 +341,10 @@ T.Control {
             text: delegate.duration.formatHMS()
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
-            color: theme.fg.primary
-            opacity: 0.5
+            font.pixelSize: delegate.compact ? VLCStyle.dp(14, VLCStyle.scale) : VLCStyle.fontSize_normal
+            color: delegate.compact ? VLCStyle.redesign.color(VLCStyle.redesign.textMuted, theme.fg.secondary)
+                                    : theme.fg.primary
+            opacity: delegate.compact ? 1.0 : 0.5
         }
     }
 

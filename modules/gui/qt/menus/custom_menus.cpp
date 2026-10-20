@@ -111,7 +111,17 @@ RendererMenu::RendererMenu( QMenu* parent, qt_intf_t* intf, PlayerController* pl
     addAction( qwa );
     m_statusAction = qwa;
 
-    connect( this, &RendererMenu::aboutToShow, m_renderManager, &RendererManager::StartScan );
+    // "Discover cast devices" of the settings: off, the search starts from
+    // its own entry only
+    QAction *scanAction = new QAction( qtr("Search for cast devices"), this );
+    insertAction( m_statusAction, scanAction );
+    connect( scanAction, &QAction::triggered, m_renderManager, &RendererManager::StartScan );
+    connect( this, &RendererMenu::aboutToShow, this, [this, scanAction]() {
+        const bool discover = getSettings()->value( "redesign/discover-cast-devices", true ).toBool();
+        scanAction->setVisible( !discover );
+        if( discover )
+            m_renderManager->StartScan();
+    } );
     connect( m_renderManager, &RendererManager::statusChanged, this, &RendererMenu::updateStatus );
     connect( m_renderManager, &RendererManager::scanRemainChanged, this, &RendererMenu::updateStatus );
     updateStatus();

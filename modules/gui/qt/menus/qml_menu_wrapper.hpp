@@ -405,6 +405,8 @@ public slots:
 
 signals:
     void requestDeleteSelectedPlaylists();
+    // Add Subtitle Tracks / Add Audio Tracks of a playlist (the QML dialog)
+    void requestTracksDialog(const QVariant & playlistId, bool audio);
 };
 
 class QmlAudioContextMenu : public VLCMenuBar

@@ -52,6 +52,7 @@ extern "C" char **environ;
 #endif
 
 #include <QApplication>
+#include <QFontDatabase>
 #include <QDate>
 #include <QMutex>
 #include <QtQuickControls2/QQuickStyle>
@@ -126,6 +127,25 @@ extern "C" char **environ;
 
 #ifndef X_DISPLAY_MISSING
 # include <vlc_xlib.h>
+#endif
+
+#if defined(_WIN32) && defined(__GNUC__) && !defined(__clang__)
+#include <cxxabi.h>
+
+/* GCC on MinGW keeps thread_local objects in emulated TLS. When a thread
+ * exits, winpthreads runs the pthread key destructors in key creation order,
+ * and the emutls key is normally created first: it frees the storage of the
+ * thread_local objects before libstdc++ runs their destructors, from its own
+ * key. Qt's thread_local QUnifiedTimer then crashes the interface thread on
+ * exit. Creating the libstdc++ key before this module uses any thread_local
+ * makes the destructors run while their storage is still there. */
+static void NoThreadExitCleanup(void *) {}
+
+__attribute__((constructor(101)))
+static void CreateThreadLocalDestructorKeyFirst()
+{
+    __cxxabiv1::__cxa_thread_atexit(NoThreadExitCleanup, nullptr, nullptr);
+}
 #endif
 
 /*****************************************************************************
@@ -264,6 +284,9 @@ static void ShowDialog   ( intf_thread_t *, int, int, intf_dialog_args_t * );
 #define QT_PIN_CONTROLS_TEXT N_("Pin video controls")
 #define QT_PIN_CONTROLS_LONGTEXT N_("Place video controls above and below the video instead of above")
 
+#define QT_SEEK_THUMBNAIL_TEXT N_("Show thumbnail while scrubbing")
+#define QT_SEEK_THUMBNAIL_LONGTEXT N_("Show the frame at the hovered position above the seek bar")
+
 #define FULLSCREEN_CONTROL_PIXELS N_( "Fullscreen controller mouse sensitivity" )
 
 #define QT_COMPOSITOR_TEXT N_("Select Qt video integration backend")
@@ -381,7 +404,8 @@ vlc_module_begin ()
                           nullptr )
         change_volatile()
 
-    add_bool( "qt-video-autoresize", true, KEEPSIZE_TEXT,
+    /* Off: the window keeps the size and position the user gave it */
+    add_bool( "qt-video-autoresize", false, KEEPSIZE_TEXT,
               KEEPSIZE_LONGTEXT )
     add_bool( "qt-name-in-title", true, TITLE_TEXT,
               TITLE_LONGTEXT )
@@ -427,7 +451,9 @@ vlc_module_begin ()
     add_bool( "qt-embedded-open", false, QT_NATIVEOPEN_TEXT,
                nullptr )
 
-    add_bool( "qt-pin-controls", false, QT_PIN_CONTROLS_TEXT, QT_PIN_CONTROLS_LONGTEXT )
+    /* On: the video sits between the bars, which only hide in fullscreen */
+    add_bool( "qt-pin-controls", true, QT_PIN_CONTROLS_TEXT, QT_PIN_CONTROLS_LONGTEXT )
+    add_bool( "qt-seek-thumbnail", true, QT_SEEK_THUMBNAIL_TEXT, QT_SEEK_THUMBNAIL_LONGTEXT )
 
 
     add_obsolete_bool( "qt-advanced-pref" ) /* since 4.0.0 */
@@ -454,7 +480,7 @@ vlc_module_begin ()
 
     add_bool( "qt-icon-change", true, ICONCHANGE_TEXT, ICONCHANGE_LONGTEXT )
 
-    add_integer_with_range( "qt-max-volume", 125, 60, 300, VOLUME_MAX_TEXT, nullptr)
+    add_integer_with_range( "qt-max-volume", 200, 60, 300, VOLUME_MAX_TEXT, nullptr)
 
     add_integer_with_range( "qt-fs-sensitivity", 3, 0, 4000, FULLSCREEN_CONTROL_PIXELS,
             nullptr)
@@ -956,6 +982,35 @@ static void *Thread( void *obj )
     /* Set application direction to locale direction,
      * necessary for  RTL locales */
     app.setLayoutDirection(QLocale().textDirection());
+
+    /* The redesign uses Inter everywhere: as the application font, it also
+     * reaches the widget dialogs and the QML text without a font family */
+    {
+        const int fontId = QFontDatabase::addApplicationFont( QStringLiteral(":/fonts/InterVariable.ttf") );
+        const QStringList families = QFontDatabase::applicationFontFamilies( fontId );
+        if( !families.isEmpty() )
+        {
+            QFont font = app.font();
+            font.setFamilies( { families.first() } );
+            // Grey scale text without hinting, as the design draws it: the
+            // distance field glyphs of Qt Quick come closest to Figma's
+            // rendering (measured against the frames of the design; the
+            // native glyphs of Windows add ClearType colour fringes and move
+            // the glyphs to the pixel grid)
+            QQuickWindow::setTextRenderType( QQuickWindow::QtTextRendering );
+            // emboldened less at small sizes than Qt does by default
+            // (0.065), as Figma draws the glyphs
+            if( !qEnvironmentVariableIsSet( "QT_DF_BASEDEVIATION" ) )
+                qputenv( "QT_DF_BASEDEVIATION", "0.02" );
+            // and grey scale: on an opaque window the distance field text
+            // otherwise takes sub-pixel colour fringes, which Figma never draws
+            if( !qEnvironmentVariableIsSet( "QSG_DISTANCEFIELD_ANTIALIASING" ) )
+                qputenv( "QSG_DISTANCEFIELD_ANTIALIASING", "gray" );
+            // and the advances of the font itself (not rounded to pixels)
+            font.setHintingPreference( QFont::PreferNoHinting );
+            app.setFont( font );
+        }
+    }
 
     /* All the settings are in the .conf/.ini style */
 #ifdef _WIN32

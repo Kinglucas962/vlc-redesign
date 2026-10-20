@@ -17,6 +17,7 @@
  *****************************************************************************/
 #include "qml_menu_wrapper.hpp"
 #include "menus.hpp"
+#include "redesign_menu_style.hpp"
 #include "medialibrary/medialib.hpp"
 #include "medialibrary/mlplaylistlistmodel.hpp"
 #include "medialibrary/mlplaylistmodel.hpp"
@@ -36,6 +37,7 @@
 #include <QScreen>
 #include <QActionGroup>
 #include <QAbstractProxyModel>
+#include <QPersistentModelIndex>
 
 namespace
 {
@@ -77,11 +79,18 @@ void StringListMenu::popup(const QPoint &point, const QVariantList &stringList)
 
     for (int i = 0; i != stringList.size(); ++i)
     {
-        const auto str = stringList[i].toString();
-        m->addAction(str, this, [this, i, str]()
+        // Entries are texts, or { text, icon } with an icon of the redesign set
+        const QVariant entry = stringList[i];
+        const QVariantMap map = entry.toMap();
+        const auto str = map.isEmpty() ? entry.toString() : map.value(QStringLiteral("text")).toString();
+        // Plain labels: '&' is not a mnemonic ("Properties & Metadata")
+        QAction *action = m->addAction(QString(str).replace('&', QLatin1String("&&")), this, [this, i, str]()
         {
             emit selected(i, str);
         });
+        const QString icon = map.value(QStringLiteral("icon")).toString();
+        if (!icon.isEmpty())
+            action->setIcon(RedesignMenuStyle::accentIcon(m_ctx, icon));
     }
 
     m->popup(point);
@@ -747,12 +756,12 @@ void QmlSubtitleMenu::beforePopup(QMenu * menu) /* override */
         emit triggered(Open);
     });
 
-    menu->addAction(QIcon(":/menu/sync.svg"), qtr("Synchronize"), this, [this]()
+    menu->addAction(RedesignMenuStyle::menuIcon(":/menu/sync.svg"), qtr("Synchronize"), this, [this]()
     {
         emit triggered(Synchronize);
     });
 
-    menu->addAction(ColorizedSvgIcon::colorizedIconForWidget(":/menu/download.svg", menu), qtr("Search online"), this, [this]()
+    menu->addAction(RedesignMenuStyle::menuIcon(":/menu/download.svg", menu), qtr("Search online"), this, [this]()
     {
         emit triggered(Download);
     });
@@ -784,7 +793,7 @@ void QmlAudioMenu::beforePopup(QMenu * menu) /* override */
         emit triggered(Open);
     });
 
-    menu->addAction(QIcon(":/menu/sync.svg"), qtr("Synchronize"), this, [this]()
+    menu->addAction(RedesignMenuStyle::menuIcon(":/menu/sync.svg"), qtr("Synchronize"), this, [this]()
     {
         emit triggered(Synchronize);
     });
@@ -826,40 +835,79 @@ void PlaylistListContextMenu::popup(const QModelIndexList & selected, QPoint pos
         return;
 
     QVariantList ids;
+    QList<QPersistentModelIndex> indexes;
+    bool allFavorite = !selected.isEmpty();
 
     for (const QModelIndex & modelIndex : selected)
+    {
         ids.push_back(m_model->data(modelIndex, MLPlaylistListModel::PLAYLIST_ID));
+        indexes.push_back(modelIndex);
+        allFavorite = allFavorite
+                      && m_model->data(modelIndex, MLPlaylistListModel::PLAYLIST_IS_FAVORITE).toBool();
+    }
 
     auto menu = newMenu();
 
     MediaLib * ml = m_model->ml();
 
-    QAction * action = menu->addAction(qtr("Add and play"));
+    // Figma "playlist context menu": Play, Favorite, Shuffle, Export Playlist,
+    // Add to Queue, Add Subtitle Tracks, Add Audio Tracks; then the actions of
+    // VLC the design does not list (Properties & Metadata: no dialog for a
+    // playlist)
+    const auto addAction = [this, menu](const char * icon, const QString & text)
+    {
+        QAction * action = menu->addAction(text);
+        action->setIcon(RedesignMenuStyle::accentIcon(m_ctx, QString::fromLatin1(icon)));
+        return action;
+    };
 
-    connect(action, &QAction::triggered, [ml, ids]() {
+    connect(addAction("play", qtr("Play")), &QAction::triggered, [ml, ids]() {
         ml->addAndPlay(ids);
     });
 
-    action = menu->addAction(qtr("Enqueue"));
+    connect(addAction("favorite", allFavorite ? qtr("Remove from Favorites") : qtr("Favorite")),
+            &QAction::triggered, this, [this, indexes, allFavorite]() {
+        for (const QPersistentModelIndex & index : indexes)
+        {
+            if (index.isValid())
+                m_model->setFavorite(index, !allFavorite);
+        }
+    });
 
-    connect(action, &QAction::triggered, [ml, ids]() {
+    connect(addAction("shuffle", qtr("Shuffle")), &QAction::triggered, [ml, ids]() {
+        ml->addAndPlayShuffled(ids);
+    });
+
+    connect(addAction("export", qtr("Export Playlist")), &QAction::triggered, [ml, ids]() {
+        ml->exportToFile(ids);
+    });
+
+    connect(addAction("queue", qtr("Add to Queue")), &QAction::triggered, [ml, ids]() {
         ml->addToPlaylist(ids);
     });
 
     if (ids.count() == 1)
     {
-        action = menu->addAction(qtr("Rename"));
+        const QVariant id = ids.first();
 
-        QModelIndex index = selected.first();
+        connect(addAction("subtitles", qtr("Add Subtitle Tracks")), &QAction::triggered, this, [this, id]() {
+            emit requestTracksDialog(id, false);
+        });
 
-        connect(action, &QAction::triggered, [this, index]() {
-            m_model->showDialogRename(index);
+        connect(addAction("audio", qtr("Add Audio Tracks")), &QAction::triggered, this, [this, id]() {
+            emit requestTracksDialog(id, true);
+        });
+
+        const QPersistentModelIndex index = selected.first();
+
+        connect(addAction("edit", qtr("Rename")), &QAction::triggered, this, [this, index]() {
+            if (index.isValid())
+                m_model->showDialogRename(index);
         });
     }
 
-    action = menu->addAction(qtr("Delete"));
-
-    connect(action, &QAction::triggered, this, &PlaylistListContextMenu::requestDeleteSelectedPlaylists);
+    connect(addAction("remove", qtr("Delete")), &QAction::triggered,
+            this, &PlaylistListContextMenu::requestDeleteSelectedPlaylists);
 
     menu->popup(pos);
 }
@@ -926,7 +974,7 @@ void PlaylistMediaContextMenu::popup(const QModelIndexList & selected, QPoint po
 
     action = menu->addAction(qtr("Remove Selected"));
 
-    action->setIcon(QIcon(":/menu/remove.svg"));
+    action->setIcon(RedesignMenuStyle::menuIcon(":/menu/remove.svg"));
 
     connect(action, &QAction::triggered, [this, selected]() {
         m_model->remove(selected);
@@ -1099,7 +1147,7 @@ void PlaylistContextMenu::popup(int selectedIndex, QPoint pos )
 
     if (selectedItem) {
         action = m_menu->addAction( qtr("Information") );
-        action->setIcon(QIcon(":/menu/info.svg"));
+        action->setIcon(RedesignMenuStyle::menuIcon(":/menu/info.svg"));
         connect(action, &QAction::triggered, [selectedItem]( ) {
             DialogsProvider::getInstance()->mediaInfoDialog(selectedItem);
         });
@@ -1107,7 +1155,7 @@ void PlaylistContextMenu::popup(int selectedIndex, QPoint pos )
         m_menu->addSeparator();
 
         action = m_menu->addAction( qtr("Show Containing Directory...") );
-        action->setIcon(QIcon(":/menu/folder.svg"));
+        action->setIcon(RedesignMenuStyle::menuIcon(":/menu/folder.svg"));
         connect(action, &QAction::triggered, [this, selectedItem]( ) {
             m_controler->explore(selectedItem);
         });
@@ -1117,19 +1165,19 @@ void PlaylistContextMenu::popup(int selectedIndex, QPoint pos )
 
     action = m_menu->addAction( qtr("Add File...") );
 
-    action->setIcon(ColorizedSvgIcon::colorizedIconForWidget(":/menu/add.svg", m_menu.get()));
+    action->setIcon(RedesignMenuStyle::menuIcon(":/menu/add.svg", m_menu.get()));
     connect(action, &QAction::triggered, []( ) {
         DialogsProvider::getInstance()->simpleOpenDialog(false);
     });
 
     action = m_menu->addAction( qtr("Add Directory...") );
-    action->setIcon(ColorizedSvgIcon::colorizedIconForWidget(":/menu/add.svg", m_menu.get()));
+    action->setIcon(RedesignMenuStyle::menuIcon(":/menu/add.svg", m_menu.get()));
     connect(action, &QAction::triggered, []( ) {
         DialogsProvider::getInstance()->PLAppendDir();
     });
 
     action = m_menu->addAction( qtr("Advanced Open...") );
-    action->setIcon(ColorizedSvgIcon::colorizedIconForWidget(":/menu/add.svg", m_menu.get()));
+    action->setIcon(RedesignMenuStyle::menuIcon(":/menu/add.svg", m_menu.get()));
     connect(action, &QAction::triggered, []( ) {
         DialogsProvider::getInstance()->PLAppendDialog();
     });
@@ -1146,7 +1194,7 @@ void PlaylistContextMenu::popup(int selectedIndex, QPoint pos )
         m_menu->addSeparator();
 
         action = m_menu->addAction( qtr("Remove Selected") );
-        action->setIcon(QIcon(":/menu/remove.svg"));
+        action->setIcon(RedesignMenuStyle::menuIcon(":/menu/remove.svg"));
         connect(action, &QAction::triggered, [this]( ) {
             m_model->removeItems(m_selectionModel->selectedIndexesFlat());
         });
@@ -1156,7 +1204,7 @@ void PlaylistContextMenu::popup(int selectedIndex, QPoint pos )
     if (m_model->rowCount() > 0)
     {
         action = m_menu->addAction( qtr("Clear the play queue") );
-        action->setIcon(QIcon(":/menu/clear.svg"));
+        action->setIcon(RedesignMenuStyle::menuIcon(":/menu/clear.svg"));
         connect(action, &QAction::triggered, [this]( ) {
             m_controler->clear();
         });
@@ -1193,7 +1241,7 @@ void PlaylistContextMenu::popup(int selectedIndex, QPoint pos )
         }
 
         action = m_menu->addAction( qtr("Shuffle the play queue") );
-        action->setIcon(ColorizedSvgIcon::colorizedIconForWidget(":/menu/ic_fluent_arrow_shuffle.svg", m_menu.get()));
+        action->setIcon(RedesignMenuStyle::menuIcon(":/menu/ic_fluent_arrow_shuffle.svg", m_menu.get()));
         connect(action, &QAction::triggered, this, [this]( ) {
             m_controler->shuffle();
         });
@@ -1309,7 +1357,7 @@ void NavigationBarContextMenu::popup(const QPoint &pos, bool setFirstActionAsAct
             const auto subMenu = menu->addMenu(menuTitle);
 
             if (menuIcon.length() > 0)
-                subMenu->setIcon(ColorizedSvgIcon::colorizedIconForWidget(menuIcon, subMenu));
+                subMenu->setIcon(RedesignMenuStyle::menuIcon(menuIcon, subMenu));
 
             populateMenuForChildren(subMenu, menuChildren, setFirstActionAsActive);
 
@@ -1322,7 +1370,7 @@ void NavigationBarContextMenu::popup(const QPoint &pos, bool setFirstActionAsAct
             });
 
             if (menuIcon.length() > 0)
-                action->setIcon(ColorizedSvgIcon::colorizedIconForWidget(menuIcon, qobject_cast<QWidget*>(menu)));
+                action->setIcon(RedesignMenuStyle::menuIcon(menuIcon, qobject_cast<QWidget*>(menu)));
 
             if (!activeActionSet && !menuAdded)
             {
@@ -1356,7 +1404,7 @@ void NavigationBarContextMenu::populateMenuForChildren(QMenu *menu, const QList<
         });
 
         if (childIcon.length() > 0)
-            action->setIcon(ColorizedSvgIcon::colorizedIconForWidget(childIcon, qobject_cast<QWidget*>(menu)));
+            action->setIcon(RedesignMenuStyle::menuIcon(childIcon, qobject_cast<QWidget*>(menu)));
 
         if (!activeActionSet)
         {

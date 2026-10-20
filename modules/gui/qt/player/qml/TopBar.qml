@@ -66,17 +66,41 @@ FocusScope{
 
     readonly property int _sideMargin: VLCStyle.margin_small + sideMargin
 
-    // Aliases
-
-    property alias resumeVisible: resumeDialog.visible
+    // The resume prompt is next to the playback controls (Player.qml)
+    readonly property bool resumeVisible: false
 
     property bool playlistVisible: false
+    property bool libraryVisible: false
+    // the icon of the library filled: the panel shows the library (Figma
+    // 187:328), not a folder (the folder button, Figma "Player - Light")
+    property bool libraryActive: libraryVisible
+
+    // Figma "Player - customize": the items moved into the control bar of
+    // the player leave the top bar
+    readonly property PlayerControlbarModel _barModel: MainCtx.controlbarProfileModel.currentModel
+        ? MainCtx.controlbarProfileModel.currentModel.getModel(PlayerControlbarModel.Videoplayer) : null
+    readonly property int _barRevision: _barModel ? _barModel.left.count + 100 * _barModel.center.count
+                                                    + 10000 * _barModel.right.count : 0
+    function _inBar(control) {
+        void root._barRevision
+        return !!root._barModel && (root._barModel.left.contains(control)
+                                    || root._barModel.center.contains(control)
+                                    || root._barModel.right.contains(control))
+    }
+    readonly property bool _menuInBar: { void _barRevision; return _inBar(ControlListModel.MENU_BUTTON) }
+    readonly property bool _libraryInBar: { void _barRevision; return _inBar(ControlListModel.BACK_BUTTON) }
+    readonly property bool _folderInBar: { void _barRevision; return _inBar(ControlListModel.FOLDER_NAME_WIDGET) }
+    readonly property bool _titleInBar: { void _barRevision; return _inBar(ControlListModel.FILE_NAME_WIDGET) }
+    readonly property bool _fullscreenInBar: { void _barRevision; return _inBar(ControlListModel.FULLSCREEN_BUTTON) }
 
     // Signals
 
     signal togglePlaylistVisibility()
     signal requestLockUnlockAutoHide(bool lock)
     signal backRequested()
+    // Library next to the video, see CompactLibrary
+    signal libraryToggled()
+    signal folderRequested()
 
     ///incomming signal to request all menu and popup to close
     signal forceUnlock()
@@ -240,98 +264,196 @@ FocusScope{
 
         anchors.left: root.left
         anchors.top: root.top
-        anchors.leftMargin:  root._sideMargin
+        // the 6 px padding of the topbar of the design
+        anchors.leftMargin: root.sideMargin + VLCStyle.dp(6, VLCStyle.scale)
 
-        implicitWidth: resumeVisible ? resumeDialog.implicitWidth
-                                     : logoGroup.implicitWidth
+        implicitWidth: logoGroup.implicitWidth
 
-        implicitHeight: {
-            if (root.resumeVisible) {
-                // Only if there are multiple lines use `resumeDialog`'s implicit height, otherwise the video
-                // window may get resized by few pixels unnecessarily when `resumeDialog` is no longer visible.
-                if (resumeDialog.implicitHeight >= (logoGroup.implicitHeight + resumeDialog.baselineOffset))
-                    return resumeDialog.implicitHeight
-                else
-                    return logoGroup.implicitHeight
-            } else if (_showTopBar)
-                return logoGroup.implicitHeight
-            else
-                return 0
-        }
+        implicitHeight: _showTopBar ? logoGroup.implicitHeight : 0
 
         onImplicitHeightChanged: root._layout()
 
-        Item {
+        // Figma "Player" topbar (padding 6): the cone (an icon in a 38 x 28
+        // frame, 7 px in), 7 px, the ⋯ menu and the library sidebar (icons
+        // 28 x 28, 10 px apart), the divider icon and the folder of the
+        // media (its icon 28 x 28, 4 px, its name, 4 px)
+        Row {
             id: logoGroup
 
             anchors.fill: parent
 
-            visible: (root._showTopBar && root.resumeVisible === false)
+            visible: root._showTopBar
 
-            implicitHeight: VLCStyle.redesign.topbarHeight
-            implicitWidth: backBtn.implicitWidth + logo.implicitWidth + VLCStyle.margin_xxsmall
-
-            Widgets.IconToolButton {
-                id: backBtn
-                color: VLCStyle.redesign.color(enabled ? VLCStyle.redesign.textMuted : VLCStyle.redesign.textDisabled,
-                                               colorContext.fg.primary, (colorContext.palette?.isDark ?? VLCStyle.darkPalette.isDark))
-                backgroundColor: VLCStyle.redesign.color(hovered || down ? VLCStyle.redesign.controlHoverBackground : "transparent",
-                                                         colorContext.bg.primary, (colorContext.palette?.isDark ?? VLCStyle.darkPalette.isDark))
-                radius: VLCStyle.redesign.controlRadius
-
+            Item {
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
+                width: VLCStyle.dp(38, VLCStyle.scale)
+                height: VLCStyle.dp(28, VLCStyle.scale)
 
-                objectName: "IconToolButton"
-                font.pixelSize: VLCStyle.redesign.iconSize
-                text: VLCIcons.back
-                description: qsTr("Back")
+                Widgets.BannerCone {
+                    id: logo
+                    source: "qrc:///redesign/logo.svg"
 
-                AccessibleCompat.id: "topBarBackButton"
+                    x: VLCStyle.dp(7, VLCStyle.scale)
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: VLCStyle.redesign.iconSize
+                    height: VLCStyle.redesign.iconSize
 
-                focus: true
-
-                Navigation.parentItem: root
-                onClicked: root.backRequested()
-
-                onHoveredChanged: root.requestLockUnlockAutoHide(hovered)
-            }
-
-            Widgets.BannerCone {
-                id: logo
-                source: "qrc:///redesign/logo.svg"
-
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: backBtn.right
-                anchors.leftMargin: VLCStyle.margin_xxsmall
-
-                color: VLCStyle.redesign.logoColor
-            }
-        }
-
-        ResumeDialog {
-            id: resumeDialog
-
-            anchors.fill: parent
-            //add aditional margin so it align with menubar text when visible (see MenuBar.qml)
-            anchors.leftMargin: VLCStyle.margin_xsmall
-
-            maxWidth: (root.showCSD ? csdDecorations.x : root.width)
-                - VLCStyle.applicationHorizontalMargin
-                - VLCStyle.margin_large
-
-            colorContext.palette: theme.palette
-
-            Navigation.parentItem: rootPlayer
-
-            onHidden: {
-                if (activeFocus) {
-                    backBtn.forceActiveFocus()
+                    color: VLCStyle.redesign.logoColor
                 }
             }
 
-            onVisibleChanged: {
-                root.requestLockUnlockAutoHide(visible)
+            Item {
+                width: VLCStyle.dp(7, VLCStyle.scale)
+                height: 1
+            }
+
+            TopBarButton {
+                id: menuButton
+
+                iconName: "more"
+                description: qsTr("Menu")
+                AccessibleCompat.id: "topBarMenuButton"
+
+                focus: true
+                Navigation.parentItem: root
+                Navigation.rightItem: libraryButton
+                onHoveredChanged: root.requestLockUnlockAutoHide(hovered)
+
+                onClicked: mainMenu.popup(menuButton, 0, menuButton.height)
+                visible: !root._menuInBar
+
+                Widgets.DashedRect {
+                    anchors.fill: parent
+                    visible: VLCStyle.customizing
+                    color: VLCStyle.redesign.color("#6B6B6B", "#5a5a59")
+                }
+                Widgets.CustomizeDragArea {
+                    controlId: ControlListModel.MENU_BUTTON
+                    iconSource: "qrc:///redesign/icons/more/default.png"
+                }
+
+                Menus.MainMenu {
+                    id: mainMenu
+                    onOpened: root.requestLockUnlockAutoHide(true)
+                    onClosed: root.requestLockUnlockAutoHide(false)
+                }
+            }
+
+            Item {
+                width: VLCStyle.dp(10, VLCStyle.scale)
+                height: 1
+                visible: menuButton.visible && libraryButton.visible
+            }
+
+            TopBarButton {
+                id: libraryButton
+
+                iconName: "sidebar"
+                // the panel of the icon filled while the library is shown
+                iconState: root.libraryActive ? "active" : "default"
+                description: qsTr("Library")
+                AccessibleCompat.id: "topBarLibraryButton"
+
+                Navigation.parentItem: root
+                Navigation.leftItem: menuButton
+                Navigation.rightItem: folderButton
+                onHoveredChanged: root.requestLockUnlockAutoHide(hovered)
+
+                onClicked: root.libraryToggled()
+                visible: !root._libraryInBar
+
+                Widgets.DashedRect {
+                    anchors.fill: parent
+                    visible: VLCStyle.customizing
+                    color: VLCStyle.redesign.color("#6B6B6B", "#5a5a59")
+                }
+                Widgets.CustomizeDragArea {
+                    controlId: ControlListModel.BACK_BUTTON
+                    iconSource: "qrc:///redesign/icons/sidebar/default.png"
+                }
+            }
+
+            Image {
+                anchors.verticalCenter: parent.verticalCenter
+                width: VLCStyle.redesign.iconSize
+                height: width
+                sourceSize: Qt.size(width, height)
+                source: "qrc:///redesign/icons/divider/default.png"
+                visible: folderButton.visible && (menuButton.visible || libraryButton.visible)
+
+                Widgets.DashedRect {
+                    anchors.centerIn: parent
+                    width: parent.width
+                    height: VLCStyle.dp(28, VLCStyle.scale)
+                    visible: VLCStyle.customizing
+                    color: VLCStyle.redesign.color("#6B6B6B", "#5a5a59")
+                }
+            }
+
+            Widgets.IconToolButton {
+                id: folderButton
+
+                // Parent folder of a local media: the name users recognize
+                readonly property string folderName: {
+                    const url = Player.url.toString()
+                    if (!url.startsWith("file://"))
+                        return ""
+                    const parts = decodeURIComponent(url).split("/")
+                    return parts.length > 1 ? parts[parts.length - 2] : ""
+                }
+
+                anchors.verticalCenter: parent.verticalCenter
+                visible: folderName !== "" && !root._folderInBar
+                width: folderText.x + Math.ceil(folderText.implicitWidth) + VLCStyle.dp(4, VLCStyle.scale)
+                height: VLCStyle.dp(28, VLCStyle.scale)
+
+                text: description
+                description: qsTr("Show %1 in the library").arg(folderName)
+                AccessibleCompat.id: "topBarFolderButton"
+
+                backgroundColor: VLCStyle.redesign.color(hovered || down ? VLCStyle.redesign.controlHoverBackground : "transparent",
+                                                         colorContext.bg.primary)
+                radius: VLCStyle.redesign.controlRadius
+
+                contentItem: Item {
+                    Image {
+                        x: VLCStyle.dp(2, VLCStyle.scale)
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: VLCStyle.redesign.iconSize
+                        height: width
+                        sourceSize: Qt.size(width, height)
+                        source: "qrc:///redesign/icons/folder/default.png"
+                    }
+                    Text {
+                        id: folderText
+                        x: VLCStyle.dp(32, VLCStyle.scale)
+                        // the text box of the design centred in the button,
+                        // on a whole pixel as Figma draws it
+                        anchors.baseline: parent.top
+                        anchors.baselineOffset: VLCStyle.redesign.textBaseline(
+                            Math.round((parent.height - Math.round(1.2109375 * font.pixelSize)) / 2), font.pixelSize)
+                        text: folderButton.folderName
+                        color: VLCStyle.redesign.color(VLCStyle.redesign.textMuted, theme.fg.primary)
+                        font.family: VLCStyle.redesign.fontFamily
+                        font.pixelSize: VLCStyle.redesign.fontNormal
+                    }
+                }
+
+                Navigation.parentItem: root
+                Navigation.leftItem: libraryButton
+
+                onClicked: root.folderRequested()
+                onHoveredChanged: root.requestLockUnlockAutoHide(hovered)
+
+                Widgets.DashedRect {
+                    anchors.fill: parent
+                    visible: VLCStyle.customizing
+                    color: VLCStyle.redesign.color("#6B6B6B", "#5a5a59")
+                }
+                Widgets.CustomizeDragArea {
+                    controlId: ControlListModel.FOLDER_NAME_WIDGET
+                    iconSource: "qrc:///redesign/icons/folder/default.png"
+                }
             }
         }
     }
@@ -341,11 +463,38 @@ FocusScope{
         centerWithinBounds: true
         leftLimit: logoOrResume.x + logoOrResume.width
         rightLimit: root.showCSD ? csdDecorations.x : root.width
-        visible: root._showCenterText && !root.resumeVisible
+        visible: root._showCenterText && !root.resumeVisible && !root._titleInBar
         enabled: visible
         text: root.title || (Player.isStarted && Player.name.length ? Player.name : qsTr("VLC Media Player"))
         Accessible.name: root.title || text
         colorContext.palette: theme.palette
+
+        // The text box of the design (17 px for 14 px) centred in the bar, on
+        // a whole pixel as Figma draws it
+        verticalAlignment: Text.AlignTop
+        topPadding: VLCStyle.redesign.textBaseline(Math.round((height - Math.round(1.2109375 * font.pixelSize)) / 2),
+                                                   font.pixelSize) - titleMetrics.ascent
+        FontMetrics {
+            id: titleMetrics
+            font: centerTitleText.font
+        }
+
+        // Figma "Player - customize": the text outlined, 8 around, 28 high
+        Widgets.DashedRect {
+            readonly property real textX: centerTitleText.horizontalAlignment === Text.AlignHCenter
+                                           ? (parent.width - centerTitleText.contentWidth) / 2 : 0
+            x: Math.round(textX - VLCStyle.dp(8, VLCStyle.scale))
+            y: Math.round((parent.height - height) / 2)
+            width: Math.round(centerTitleText.contentWidth + VLCStyle.dp(16, VLCStyle.scale))
+            height: VLCStyle.dp(28, VLCStyle.scale)
+            visible: VLCStyle.customizing
+            color: VLCStyle.redesign.color("#6B6B6B", "#5a5a59")
+
+            Widgets.CustomizeDragArea {
+                controlId: ControlListModel.FILE_NAME_WIDGET
+                iconSource: "qrc:///redesign/icons/file/default.png"
+            }
+        }
     }
 
     Title {
@@ -367,6 +516,8 @@ FocusScope{
 
         anchors.top: parent.top
         anchors.right: parent.right
+        // the 6 px padding of the topbar of the design
+        anchors.rightMargin: VLCStyle.dp(6, VLCStyle.scale)
 
         focus: false
         height: VLCStyle.redesign.topbarHeight
@@ -375,6 +526,19 @@ FocusScope{
         visible: root.showCSD
         source: "qrc:///qt/qml/VLC/Widgets/CSDWindowButtonSet.qml"
 
+        Binding {
+            target: csdDecorations.item
+            when: !!csdDecorations.item
+            property: "fullscreenHidden"
+            value: root._fullscreenInBar
+        }
+        Binding {
+            target: csdDecorations.item
+            when: !!csdDecorations.item
+            property: "fullscreenControlId"
+            value: ControlListModel.FULLSCREEN_BUTTON
+        }
+
         Connections {
             target: csdDecorations.item
             enabled: csdDecorations.status === Loader.Ready
@@ -382,4 +546,55 @@ FocusScope{
         }
     }
 
+    // Icon button of the top bar showing an icon of pixmaps/redesign/icons
+    // Figma "Player - customize": the items of the bar dropped on the top bar
+    // go back there (after the drop: their zone may empty)
+    DropArea {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: VLCStyle.redesign.topbarHeight
+        enabled: VLCStyle.customizing
+        onEntered: (drag) => {
+            const source = drag.source
+            drag.accepted = !!source && source.objectName === "playerControl"
+                            && [ControlListModel.MENU_BUTTON, ControlListModel.BACK_BUTTON,
+                                ControlListModel.FOLDER_NAME_WIDGET, ControlListModel.FILE_NAME_WIDGET,
+                                ControlListModel.FULLSCREEN_BUTTON].indexOf(source.controlId) >= 0
+        }
+        onDropped: (drop) => {
+            const zone = drop.source.zoneModel
+            const row = drop.source.sourceRow
+            if (!zone)
+                return
+            Qt.callLater(() => {
+                if (row >= 0 && row < zone.count)
+                    zone.remove(row)
+            })
+            drop.accept(Qt.MoveAction)
+        }
+    }
+
+    component TopBarButton: Widgets.IconToolButton {
+        id: topBarButton
+
+        property string iconName
+        property string iconState: "default"
+
+        // Drawn from an image, the text only names the button
+        text: description
+        anchors.verticalCenter: parent?.verticalCenter
+        width: VLCStyle.dp(28, VLCStyle.scale)
+        height: VLCStyle.dp(28, VLCStyle.scale)
+
+        radius: VLCStyle.redesign.controlRadius
+        backgroundColor: VLCStyle.redesign.color(hovered || down ? VLCStyle.redesign.controlHoverBackground
+                                                                 : "transparent", "#9c9c9b")
+
+        contentItem: Image {
+            source: "qrc:///redesign/icons/" + topBarButton.iconName + "/" + topBarButton.iconState + ".png"
+            sourceSize: Qt.size(VLCStyle.redesign.iconSize, VLCStyle.redesign.iconSize)
+            fillMode: Image.Pad
+        }
+    }
 }

@@ -18,7 +18,8 @@ ColumnLayout {
     readonly property bool dirty: audioDirty || videoDirty
     readonly property string error: audioEffects.lastError || videoEffects.lastError
     spacing: VLCStyle.dp(12, VLCStyle.scale)
-    visible: !searchActive && (category === "audio" || category === "video")
+    // the effects of the audio are options of the list (audio filters)
+    visible: !searchActive && category === "video"
 
     AudioEffects {
         id: audioEffects
@@ -39,8 +40,6 @@ ColumnLayout {
 
     function beginForCurrentCategory() {
         starting = true
-        if (category === "audio" && !audioEffects.transactionActive && audioEffects.activeAudio)
-            audioEffects.begin()
         if (category === "video" && !videoEffects.transactionActive && videoEffects.activeVideo)
             videoEffects.begin()
         starting = false

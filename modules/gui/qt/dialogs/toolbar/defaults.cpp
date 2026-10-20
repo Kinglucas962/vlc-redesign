@@ -108,9 +108,13 @@ decltype (ControlbarProfileModel::m_defaults)
                         PlayerControlbarModel::Audioplayer,
                         {
                             {
+                                // Figma "Player - Music": jumps around Play,
+                                // no subtitle or video settings
                                 {
                                     ControlListModel::PREVIOUS_BUTTON,
+                                    ControlListModel::SKIP_BACK_BUTTON,
                                     ControlListModel::PLAY_BUTTON,
+                                    ControlListModel::SKIP_FW_BUTTON,
                                     ControlListModel::NEXT_BUTTON
                                 },
                                 {
@@ -119,8 +123,6 @@ decltype (ControlbarProfileModel::m_defaults)
                                 {
                                     ControlListModel::VOLUME,
                                     ControlListModel::EXTENDED_BUTTON,
-                                    ControlListModel::LANG_BUTTON,
-                                    ControlListModel::SETTINGS_BUTTON,
                                     ControlListModel::PLAYLIST_BUTTON
                                 }
                             }
@@ -436,4 +438,3 @@ decltype (ControlbarProfileModel::m_defaults)
                 }
             }
         };
-

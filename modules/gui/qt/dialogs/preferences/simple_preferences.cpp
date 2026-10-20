@@ -27,6 +27,7 @@
 #endif
 
 #include "simple_preferences.hpp"
+#include "interface_language.hpp"
 #include "preferences_widgets.hpp"
 #include "dialogs/dialogs_provider.hpp"
 #include "maininterface/mainctx.hpp"
@@ -50,6 +51,9 @@
 #include <QStyleFactory>
 #include <QScreen>
 #include <QDir>
+#include <QCoreApplication>
+#include <QFile>
+#include <QFileInfo>
 
 #include <QSpinBox>
 #include <QCheckBox>
@@ -707,19 +711,8 @@ SPrefsPanel::SPrefsPanel( qt_intf_t *_p_intf, QWidget *_parent,
                 ui.langCombo->addItem( qfu( language_map[i].name ), language_map[i].iso );
             connect( ui.langCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &SPrefsPanel::langChanged );
 
-            HKEY h_key;
-            char *langReg = NULL;
-            if( RegOpenKeyEx( HKEY_CURRENT_USER, TEXT("Software\\VideoLAN\\VLC\\"), 0, KEY_READ, &h_key )
-                    == ERROR_SUCCESS )
-            {
-                WCHAR szData[256];
-                DWORD len = 256;
-                if( RegQueryValueEx( h_key, TEXT("Lang"), NULL, NULL, (LPBYTE) &szData, &len ) == ERROR_SUCCESS ) {
-                    langReg = FromWide( szData );
-                    ui.langCombo->setCurrentIndex( ui.langCombo->findData(qfu(langReg)) );
-                }
-            }
-            free( langReg);
+            // the registry, or the language of a portable copy
+            ui.langCombo->setCurrentIndex( ui.langCombo->findData( interfaceLanguage() ) );
 #endif
 
 //            ui.defaultLabel->setFont( italicFont );
@@ -1357,6 +1350,94 @@ void SPrefsPanel::changeStyle()
     }, Qt::QueuedConnection );
 }
 
+QVariantList interfaceLanguages()
+{
+    QVariantList languages;
+#ifdef _WIN32
+    for( size_t i = 0; i < ARRAY_SIZE( language_map ); i++ )
+    {
+        // "English" as the design names VLC's own (British English follows)
+        const bool english = !strcmp( language_map[i].iso, "en" );
+        languages.append( QVariantMap{ { QStringLiteral( "value" ), QString::fromLatin1( language_map[i].iso ) },
+                                       { QStringLiteral( "label" ), i == 0 ? qtr( language_map[i].name )
+                                                                    : english ? QStringLiteral( "English" )
+                                                                    : qfu( language_map[i].name ) } } );
+    }
+#endif
+    return languages;
+}
+
+#ifdef _WIN32
+// A portable copy (a "portable" folder next to vlc.exe) keeps its language in
+// portable/language, read by vlc.exe at startup, not in the registry it would
+// share with an installed VLC
+static QString portableLanguageFile()
+{
+    const QString portable = QCoreApplication::applicationDirPath() + QStringLiteral( "/portable" );
+    return QFileInfo( portable ).isDir() ? portable + QStringLiteral( "/language" ) : QString();
+}
+#endif
+
+QString interfaceLanguage()
+{
+    QString iso = QStringLiteral( "auto" );
+#ifdef _WIN32
+    QFile portable( portableLanguageFile() );
+    if( !portable.fileName().isEmpty() && portable.open( QIODevice::ReadOnly ) )
+    {
+        const QString code = QString::fromLatin1( portable.readAll() ).trimmed();
+        if( !code.isEmpty() )
+            return code;
+    }
+    HKEY h_key;
+    if( RegOpenKeyEx( HKEY_CURRENT_USER, TEXT("Software\\VideoLAN\\VLC\\"), 0, KEY_READ, &h_key )
+            == ERROR_SUCCESS )
+    {
+        WCHAR szData[256];
+        DWORD len = sizeof( szData ) - sizeof( WCHAR );
+        DWORD type;
+        if( RegQueryValueEx( h_key, TEXT("Lang"), NULL, &type, (LPBYTE) &szData, &len ) == ERROR_SUCCESS
+                && type == REG_SZ )
+        {
+            szData[len / sizeof( WCHAR )] = 0;
+            iso = QString::fromWCharArray( szData );
+        }
+        RegCloseKey( h_key );
+    }
+#endif
+    return iso;
+}
+
+bool setInterfaceLanguage( const QString &iso )
+{
+#ifdef _WIN32
+    if( iso == interfaceLanguage() )
+        return true;
+    for( size_t i = 0; i < ARRAY_SIZE( language_map ); i++ )
+    {
+        if( iso != QLatin1String( language_map[i].iso ) )
+            continue;
+        const QString portableFile = portableLanguageFile();
+        if( !portableFile.isEmpty() )
+        {
+            QFile portable( portableFile );
+            if( !portable.open( QIODevice::WriteOnly | QIODevice::Truncate ) )
+                return false;
+            return portable.write( QByteArray( language_map[i].iso ) ) > 0;
+        }
+        QVLCRegistry qvReg( HKEY_CURRENT_USER );
+        if( i == 0 )
+            qvReg.DeleteValue( "Software\\VideoLAN\\VLC\\", "Lang" );
+        else
+            qvReg.WriteRegistry( "Software\\VideoLAN\\VLC\\", "Lang", language_map[i].iso );
+        return true;
+    }
+#else
+    VLC_UNUSED( iso );
+#endif
+    return false;
+}
+
 void SPrefsPanel::langChanged( int i )
 {
     free( lang );
@@ -1377,6 +1458,12 @@ void SPrefsPanel::configML()
 #include "util/registry.hpp"
 
 void SPrefsPanel::cleanLang() {
+    const QString portableFile = portableLanguageFile();
+    if( !portableFile.isEmpty() )
+    {
+        QFile::remove( portableFile );
+        return;
+    }
     QVLCRegistry qvReg( HKEY_CURRENT_USER );
     qvReg.DeleteValue( "Software\\VideoLAN\\VLC\\", "Lang" );
     qvReg.DeleteKey( "Software\\VideoLAN\\", "VLC" );
@@ -1386,7 +1473,9 @@ void SPrefsPanel::cleanLang() {
 void SPrefsPanel::saveLang() {
     if( !lang ) return;
 
-    if( !strncmp( lang, "auto", 4 ) ) {
+    if( !portableLanguageFile().isEmpty() )
+        setInterfaceLanguage( QString::fromLatin1( lang ) );
+    else if( !strncmp( lang, "auto", 4 ) ) {
         cleanLang();
     }
     else

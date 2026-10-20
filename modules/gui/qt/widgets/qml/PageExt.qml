@@ -50,6 +50,10 @@ T.Page {
     property bool libraryHeader: false
     property string libraryTitle: title
     property int libraryItemCount: -1
+    // Address line of the library header (see LibraryHeader.crumbs)
+    property var libraryCrumbs: null
+
+    signal libraryCrumbClicked(int index)
 
     property int displayMarginBeginning: 0
     property int displayMarginEnd: 0
@@ -151,7 +155,9 @@ T.Page {
         LibraryHeader {
             title: root.libraryTitle
             itemCount: root.libraryItemCount
+            crumbs: root.libraryCrumbs
             headerAction: root.headerAction
+            onCrumbClicked: (index) => root.libraryCrumbClicked(index)
             sortMenu: root.sortMenu
             search: _searchCtx
             sort: _sortCtx

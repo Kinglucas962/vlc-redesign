@@ -78,7 +78,7 @@ T.ToolButton {
 
     // Events
 
-    Component.onCompleted: console.assert(text !== "", "text is empty")
+    Component.onCompleted: console.assert(text !== "", "text is empty: " + (description || objectName || control))
 
     // Children
 

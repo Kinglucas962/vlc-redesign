@@ -27,11 +27,12 @@ import VLC.Widgets as Widgets
 import VLC.Style
 import VLC.Util
 
-Widgets.IconToolButton {
+RedesignIconButton {
     id: root
 
     signal requestLockUnlockAutoHide(bool lock)
 
+    iconSource: "qrc:///redesign/icons/bookmark/default.png"
     text: VLCIcons.bookmark
     description: qsTr("Bookmarks")
 

@@ -16,6 +16,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
  *****************************************************************************/
 import QtQuick
+import QtQuick.Controls.impl as Impl
 import QtQuick.Layouts
 import QtQml.Models
 import QtQuick.Window
@@ -56,11 +57,34 @@ FocusScope {
 
     // Private
 
+    // Library next to the video (Figma "Player" with the sidebar open)
+    property bool libraryVisible: false
+    // Created on first use, then kept with its history
+    property bool _libraryCreated: false
+    onLibraryVisibleChanged: {
+        if (libraryVisible)
+            _libraryCreated = true
+        lockUnlockAutoHide(libraryVisible)
+    }
+
     property bool _controlsUnderVideo: (MainCtx.pinVideoControls
                                         &&
                                         (MainCtx.intfMainWindow.visibility !== Window.FullScreen))
 
     property bool _keyPressed: false
+
+    // The video is framed between the bars (Figma "Player", Frame 312: a
+    // 20 px border of the bar color centred on its edges, radius 19): 10 px
+    // of the bar color on its sides (none next to the compact library), 1 px
+    // under the top bar, corners of 9 px (19 less half the border)
+    // Without the bars (Figma "Player - hide UI") the frame is 10 px on
+    // every side
+    readonly property real _videoInset: MainCtx.hasEmbededVideo ? VLCStyle.dp(10, VLCStyle.scale) : 0
+    readonly property real _videoTopInset: !MainCtx.hasEmbededVideo ? 0
+                                           : _controlsUnderVideo ? VLCStyle.dp(1, VLCStyle.scale)
+                                                                 : _videoInset
+    readonly property real _videoBottomInset: (MainCtx.hasEmbededVideo && !_controlsUnderVideo) ? _videoInset : 0
+    readonly property real _videoRadius: VLCStyle.dp(9, VLCStyle.scale)
 
     // Settings
 
@@ -79,6 +103,20 @@ FocusScope {
             return
 
         _keyPressed = true
+
+        // the keys of the design (onboarding): Q the queue, L the library
+        if (event.modifiers === Qt.NoModifier
+                && (event.key === Qt.Key_Q || event.key === Qt.Key_L)
+                && MainCtx.isHotkeyFree(event.key, event.modifiers)) {
+            if (!event.isAutoRepeat) {
+                if (event.key === Qt.Key_Q)
+                    playlistVisibility.togglePlaylistVisibility()
+                else
+                    rootPlayer.libraryVisible = !rootPlayer.libraryVisible
+            }
+            event.accepted = true
+            return
+        }
 
         rootPlayer.Navigation.defaultKeyAction(event)
 
@@ -175,16 +213,82 @@ FocusScope {
     }
 
 
+    // Drawn beside the video only: anything over it would hide the video
+    // layer, which is under the interface
+    // left, right, top, bottom
+    Repeater {
+        model: rootPlayer._videoInset > 0 ? 4 : 0
+
+        Rectangle {
+            required property int index
+
+            x: {
+                if (index === 0)
+                    return playerSpecializationLoader.x - width
+                if (index === 1)
+                    return playerSpecializationLoader.x + playerSpecializationLoader.width
+                return playerSpecializationLoader.x - rootPlayer._videoInset
+            }
+            y: index === 3 ? playerSpecializationLoader.y + playerSpecializationLoader.height
+                           : playerSpecializationLoader.y - rootPlayer._videoTopInset
+            width: {
+                if (index >= 2)
+                    return playerSpecializationLoader.width + 2 * rootPlayer._videoInset
+                return (index === 0 && compactLibrary.visible) ? 0 : rootPlayer._videoInset
+            }
+            height: {
+                if (index === 2)
+                    return rootPlayer._videoTopInset
+                if (index === 3)
+                    return rootPlayer._videoBottomInset
+                return playerSpecializationLoader.height + rootPlayer._videoTopInset + rootPlayer._videoBottomInset
+            }
+            color: VLCStyle.redesign.color(VLCStyle.redesign.playerControlBackground, "#ababaa", VLCStyle.palette.isDark)
+        }
+    }
+
+    // The rounded corners of the frame of the video (radius 9): the bar color
+    // outside the quarter circle, its coverage as Figma draws it
+    Repeater {
+        model: rootPlayer._videoInset > 0 ? 4 : 0
+
+        // drawn 1:1 (a coloured icon is filtered half a pixel off)
+        Image {
+            required property int index
+
+            readonly property bool atRight: index === 1 || index === 3
+            readonly property bool atBottom: index >= 2
+
+            x: atRight ? playerSpecializationLoader.x + playerSpecializationLoader.width - width
+                       : playerSpecializationLoader.x
+            y: atBottom ? playerSpecializationLoader.y + playerSpecializationLoader.height - height
+                        : playerSpecializationLoader.y
+            width: rootPlayer._videoRadius
+            height: width
+            smooth: false
+            source: "qrc:///redesign/player/corner-" + (atBottom ? "b" : "t") + (atRight ? "r" : "l")
+                    + (VLCStyle.palette.isDark ? "-dark" : "-light") + ".png"
+        }
+    }
+
     Loader {
         id: playerSpecializationLoader
 
         objectName: "playerSpecializationLoader"
 
+        // Figma 187:328: the library opens over the video, which keeps its
+        // place and size (the music moves beside it)
+        readonly property bool besideLibrary: compactLibrary.visible && !MainCtx.hasEmbededVideo
+
         anchors {
-            left: parent.left
+            left: besideLibrary ? compactLibrary.right : parent.left
             right: parent.right
             top: (MainCtx.hasEmbededVideo && rootPlayer._controlsUnderVideo) ? topBar.bottom : parent.top
             bottom: (MainCtx.hasEmbededVideo && rootPlayer._controlsUnderVideo) ? controlBar.top : parent.bottom
+            leftMargin: besideLibrary ? 0 : rootPlayer._videoInset
+            rightMargin: rootPlayer._videoInset
+            topMargin: rootPlayer._videoTopInset
+            bottomMargin: rootPlayer._videoBottomInset
         }
 
         sourceComponent: MainCtx.hasEmbededVideo ? videoComponent : audioComponent
@@ -223,6 +327,21 @@ FocusScope {
 
                     cursorShape: playerSpecializationLoader.cursorShape
 
+                    doubleClickEnabled: MainCtx.doubleClickAction !== 0
+
+                    // "Fullscreen controls sensitivity": in fullscreen, the
+                    // controls show once the mouse moved that many pixels
+                    property point lastMove: Qt.point(-1, -1)
+                    function onMouseMove(x, y) {
+                        const threshold = MainCtx.fsSensitivity
+                        if (MainCtx.intfMainWindow.visibility === Window.FullScreen && threshold > 1
+                                && lastMove.x >= 0
+                                && Math.max(Math.abs(x - lastMove.x), Math.abs(y - lastMove.y)) < threshold)
+                            return
+                        lastMove = Qt.point(x, y)
+                        onMouseEvent()
+                    }
+
                     function onMouseEvent() {
                         //short interval for mouse events
                         if (Player.isInteractive)
@@ -232,7 +351,7 @@ FocusScope {
                     }
 
                     Component.onCompleted: {
-                        mouseMoved.connect(videoSurface.onMouseEvent)
+                        mouseMoved.connect(videoSurface.onMouseMove)
                         mousePressed.connect(videoSurface.onMouseEvent)
                         mouseReleased.connect(videoSurface.onMouseEvent)
                         mouseDblClicked.connect(videoSurface.onMouseEvent)
@@ -325,14 +444,8 @@ FocusScope {
                  ? rootPlayer.width - playlistpopup.width
                  : rootPlayer.width
 
-        // NOTE: With pinned controls, the top controls are hidden when switching to
-        //       fullScreen. Except when resume is visible
-        visible: (MainCtx.pinVideoControls === false
-                  ||
-                  MainCtx.intfMainWindow.visibility !== Window.FullScreen
-                  ||
-                  resumeVisible)
-
+        // In fullscreen both bars show on mouse moves and hide again, the
+        // title stays reachable (pinned or not).
         focus: true
         title: Player.title
 
@@ -344,7 +457,7 @@ FocusScope {
 
         plListView: {
             if (playlistpopup.active)
-                return playlistpopup.item
+                return playlistpopup.item?.queue ?? null
             else if (playlistWindowLoader?.status === Loader.Ready)
                 return playlistWindowLoader.item.playlistView
             else
@@ -369,6 +482,14 @@ FocusScope {
         }
 
         onTogglePlaylistVisibility: playlistVisibility.togglePlaylistVisibility()
+
+        libraryVisible: rootPlayer.libraryVisible
+        libraryActive: rootPlayer.libraryVisible && compactLibrary.item?.location?.section !== "folder"
+        onLibraryToggled: rootPlayer.libraryVisible = !rootPlayer.libraryVisible
+        onFolderRequested: {
+            rootPlayer.libraryVisible = true
+            compactLibrary.item.showFolder(compactLibrary.item.folderOf(Player.url))
+        }
 
         onRequestLockUnlockAutoHide: (lock) => {
             rootPlayer.lockUnlockAutoHide(lock)
@@ -406,6 +527,37 @@ FocusScope {
             tintColor: windowTheme.bg.primary
 
             visible: MainCtx.pinVideoControls || (MainCtx.hasEmbededVideo && !rootPlayer.displayFadeRectangles)
+        }
+    }
+
+    Loader {
+        id: compactLibrary
+
+        anchors {
+            left: parent.left
+            top: rootPlayer._controlsUnderVideo ? topBar.bottom : parent.top
+            bottom: rootPlayer._controlsUnderVideo ? controlBar.top : parent.bottom
+        }
+
+        active: rootPlayer._libraryCreated
+        visible: rootPlayer.libraryVisible
+        width: item ? item.implicitWidth : 0
+
+        sourceComponent: CompactLibrary {
+            onOpenLibraryRequested: (section) => {
+                const uris = {
+                    home: ["home"], videos: ["video", "all"], music: ["music"], network: ["network"],
+                    playlists: ["video", "playlists"], playlist: ["video", "playlists"],
+                    recent: ["home", "continueWatching"], folder: ["network"]
+                }
+                rootPlayer.libraryVisible = false
+                MainCtx.playerView = false
+                // A folder opens in the folder page of the library
+                if (section === "folder" && compactLibrary.item.location.folder)
+                    History.push(["folder"], { folderUrl: compactLibrary.item.location.folder })
+                else
+                    History.push(uris[section] ?? ["home"])
+            }
         }
     }
 
@@ -473,93 +625,47 @@ FocusScope {
             }
         }
 
-        sourceComponent: PlaylistPane {
-            id: playlistView
+        // The card of the design (Figma "Controls / queue"); it keeps its
+        // width while the loader grows, anchored to the right edge
+        sourceComponent: Item {
+            id: queueCardItem
 
-            property real maximumWidth: (rootPlayer.width + playlistView.rightPadding) / 2
+            // The play queue page, for the top bar
+            readonly property alias queue: queueCard.queue
 
-            implicitWidth: Helpers.clamp(MainCtx.playqueuePanel.width
-                                 , playlistView.minimumWidth
-                                 , playlistView.maximumWidth)
+            implicitWidth: queueCard.implicitWidth + VLCStyle.dp(20, VLCStyle.scale)
             height: playlistpopup.height
-
-            useAcrylic: false
             focus: true
 
-            wheelEnabled: true
-
-            rightPadding: VLCStyle.applicationHorizontalMargin
-            topPadding:  {
-                if (rootPlayer._controlsUnderVideo)
-                    return VLCStyle.margin_normal
-                else
-                    // NOTE: We increase the padding accordingly to avoid overlapping the TopBar.
-                    return topBar.reservedHeight
-            }
-            bottomPadding: 0
-
-            background: Rectangle {
-                color: windowTheme.bg.primary.alpha(0.8)
-            }
-
-            view.fadingEdge.pixelAlignedForDPR: !controlBar.visible
-
-            Navigation.parentItem: rootPlayer
-            Navigation.upItem: topBar
-            Navigation.downItem: Player.isInteractive ? toggleControlBarButton : controlBar
-            Navigation.leftAction: closePlaylist
-            Navigation.cancelAction: closePlaylist
-
-            function closePlaylist() {
-                playlistVisibility.togglePlaylistVisibility()
-                if (audioControls.visible)
-                    audioControls.forceActiveFocus()
-                else
-                    controlBar.forceActiveFocus()
-            }
-
-
-            Widgets.HorizontalResizeHandle {
-                id: resizeHandle
-
-                property bool _inhibitMainCtxUpdate: false
-
-                parent: playlistView
+            QueueCard {
+                id: queueCard
 
                 anchors {
+                    right: parent.right
                     top: parent.top
                     bottom: parent.bottom
-                    left: parent.left
+
+                    rightMargin: VLCStyle.dp(20, VLCStyle.scale)
+                    topMargin: (rootPlayer._controlsUnderVideo ? 0 : topBar.reservedHeight)
+                               + VLCStyle.dp(20, VLCStyle.scale)
+                    // The loader ends at the slider, within the control bar
+                    bottomMargin: (rootPlayer.positionSliderY - controlBar.y) + VLCStyle.dp(20, VLCStyle.scale)
                 }
+                width: implicitWidth
+                focus: true
 
-                atRight: false
-                currentWidth: playlistpopup.width
+                Navigation.parentItem: rootPlayer
+                Navigation.upItem: topBar
+                Navigation.downItem: Player.isInteractive ? toggleControlBarButton : controlBar
+                Navigation.leftAction: closeQueue
+                Navigation.cancelAction: closeQueue
 
-                maximumWidth: playlistView.maximumWidth
-                minimumWidth: playlistView.minimumWidth
-
-                onRequestedWidthChanged: {
-                    if (!_inhibitMainCtxUpdate)
-                        MainCtx.playqueuePanel.width = requestedWidth
-                }
-
-                Component.onCompleted:  _updateFromMainCtx()
-
-                function _updateFromMainCtx() {
-                    if (requestedWidth === MainCtx.playqueuePanel.width)
-                        return
-
-                    _inhibitMainCtxUpdate = true
-                    requestedWidth = MainCtx.playqueuePanel.width
-                    _inhibitMainCtxUpdate = false
-                }
-
-                Connections {
-                    target: MainCtx.playqueuePanel
-
-                    function onWidthChanged() {
-                        resizeHandle._updateFromMainCtx()
-                    }
+                function closeQueue() {
+                    playlistVisibility.togglePlaylistVisibility()
+                    if (audioControls.visible)
+                        audioControls.forceActiveFocus()
+                    else
+                        controlBar.forceActiveFocus()
                 }
             }
         }
@@ -736,6 +842,30 @@ FocusScope {
         FadeControllerStateGroup {
             target: controlBar
         }
+    }
+
+    // Next to the play button, where it is seen in the seconds it stays
+    ResumeDialog {
+        id: resumeDialog
+
+        anchors.left: controlBar.left
+        anchors.bottom: controlBar.top
+        anchors.leftMargin: VLCStyle.dp(16, VLCStyle.scale) + rootPlayer._videoInset
+        anchors.bottomMargin: VLCStyle.dp(12, VLCStyle.scale)
+        width: Math.min(implicitWidth, rootPlayer.width - anchors.leftMargin * 2)
+        height: implicitHeight
+        z: 2
+
+        Navigation.parentItem: rootPlayer
+        Navigation.downItem: controlBar
+
+        onHidden: {
+            if (activeFocus)
+                controlBar.forceActiveFocus()
+        }
+
+        // The controls stay shown while it is
+        onVisibleChanged: rootPlayer.lockUnlockAutoHide(visible)
     }
 
     QmlAudioContextMenu {

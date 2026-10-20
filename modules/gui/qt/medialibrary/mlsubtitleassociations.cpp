@@ -13,16 +13,17 @@
 
 #include "mlsubtitleassociations.hpp"
 
+#include <QDir>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHash>
-#include <QNetworkReply>
 #include <QSet>
 
 #include <utility>
 
 #include <vlc_input_item.h>
+#include <vlc_interface.h>
 #include <vlc_media_library.h>
 
 #include "medialib.hpp"
@@ -90,17 +91,14 @@ void MLSubtitleAssociations::cancel()
 {
     if (m_saving)
         return;
+    // Also drops the reply of a link download in flight.
     ++m_revision;
     ++m_targetRevision;
-    if (m_download)
-    {
-        m_download->abort();
-        m_download = nullptr;
-    }
     m_destinations.clear();
     m_sources.clear();
     m_targets.clear();
     m_selectedTarget = 0;
+    m_folder.clear();
     m_error.clear();
     m_busy = false;
     emit changed();
@@ -183,6 +181,8 @@ void MLSubtitleAssociations::loadTarget(const MLItemId& target)
             m_busy = false;
             if (m_destinations.isEmpty())
                 m_error = tr("No local media files were found in this destination.");
+            else
+                scanFolder(QUrl::fromLocalFile(QFileInfo(m_destinations.front().url.toLocalFile()).absolutePath()));
             match();
         });
 }
@@ -194,6 +194,57 @@ void MLSubtitleAssociations::openUrl(const QUrl& target)
     cancel();
     refreshTargets({{}, target, tr("This file")});
     loadUrlTarget(target);
+}
+
+void MLSubtitleAssociations::setAudio(bool audio)
+{
+    if (m_audio == audio || m_busy)
+        return;
+    m_audio = audio;
+    // the files listed were of the other kind
+    m_sources.clear();
+    m_error.clear();
+    emit changed();
+}
+
+bool MLSubtitleAssociations::accepts(const QString& filename) const
+{
+    enum slave_type type;
+    const QByteArray name = QFile::encodeName(filename);
+    return input_item_slave_GetType(name.constData(), &type)
+        && type == (m_audio ? SLAVE_TYPE_GENERIC : SLAVE_TYPE_SPU);
+}
+
+void MLSubtitleAssociations::openFolderUrl(const QUrl& folder)
+{
+    if (m_saving)
+        return;
+    cancel();
+    refreshTargets({{}, folder, tr("This folder")});
+
+    ++m_revision;
+    m_destinations.clear();
+    m_error.clear();
+    const QUrl url = fileUrl(folder);
+    const QDir dir(url.toLocalFile());
+    if (url.isEmpty() || !dir.exists())
+    {
+        setError(tr("Choose an existing local folder."));
+        return;
+    }
+    QStringList patterns;
+    // audio tracks go with the videos
+    const QString extensions = m_audio ? QStringLiteral(EXTENSIONS_VIDEO)
+                                       : QStringLiteral(EXTENSIONS_VIDEO ";" EXTENSIONS_AUDIO);
+    for (const QString& pattern : extensions.split(QLatin1Char(';'), Qt::SkipEmptyParts))
+        patterns.push_back(pattern.trimmed());
+    const auto entries = dir.entryInfoList(patterns, QDir::Files | QDir::Readable, QDir::Name);
+    for (const auto& info : entries)
+        m_destinations.push_back({0, QUrl::fromLocalFile(info.absoluteFilePath()), info.fileName()});
+    if (m_destinations.isEmpty())
+        m_error = tr("No local media files were found in this destination.");
+    scanFolder(QUrl::fromLocalFile(dir.absolutePath()));
+    match();
 }
 
 void MLSubtitleAssociations::loadUrlTarget(const QUrl& target)
@@ -210,6 +261,7 @@ void MLSubtitleAssociations::loadUrlTarget(const QUrl& target)
         return;
     }
     m_destinations.push_back({0, url, QFileInfo(url.toLocalFile()).fileName()});
+    scanFolder(QUrl::fromLocalFile(QFileInfo(url.toLocalFile()).absolutePath()));
     match();
 }
 
@@ -226,7 +278,8 @@ void MLSubtitleAssociations::addFiles(const QVariantList& urls)
         const QUrl url = fileUrl(value);
         if (url.isEmpty())
         {
-            setError(tr("Choose existing local subtitle files only."));
+            setError(m_audio ? tr("Choose existing local audio files only.")
+                             : tr("Choose existing local subtitle files only."));
             return;
         }
         if (seen.contains(url.toString(QUrl::FullyEncoded)))
@@ -234,14 +287,14 @@ void MLSubtitleAssociations::addFiles(const QVariantList& urls)
         const QFileInfo info(url.toLocalFile());
         if (!info.isFile() || !info.isReadable())
         {
-            setError(tr("A selected subtitle file is missing or unreadable: %1").arg(info.fileName()));
+            setError((m_audio ? tr("A selected audio file is missing or unreadable: %1")
+                              : tr("A selected subtitle file is missing or unreadable: %1")).arg(info.fileName()));
             return;
         }
-        enum slave_type type;
-        const QByteArray path = QFile::encodeName(info.fileName());
-        if (!input_item_slave_GetType(path.constData(), &type) || type != SLAVE_TYPE_SPU)
+        if (!accepts(info.fileName()))
         {
-            setError(tr("Unsupported subtitle file: %1").arg(info.fileName()));
+            setError((m_audio ? tr("Unsupported audio file: %1")
+                              : tr("Unsupported subtitle file: %1")).arg(info.fileName()));
             return;
         }
         seen.insert(url.toString(QUrl::FullyEncoded));
@@ -255,13 +308,64 @@ void MLSubtitleAssociations::addFiles(const QVariantList& urls)
 
 void MLSubtitleAssociations::chooseFiles()
 {
-    const auto urls = QFileDialog::getOpenFileUrls(nullptr, tr("Choose subtitle files"), {},
-                                                  tr("Subtitle files (*.srt *.ass *.ssa *.sub *.vtt *.ttml *.smi);;All files (*)"),
-                                                  nullptr, QFileDialog::Options(), {"file"});
+    const auto urls = m_audio
+        ? QFileDialog::getOpenFileUrls(nullptr, tr("Choose audio files"), {},
+                                       tr("Audio files (*.aac *.ac3 *.dts *.dtshd *.eac3 *.flac *.m4a *.mp3 *.pcm);;All files (*)"),
+                                       nullptr, QFileDialog::Options(), {"file"})
+        : QFileDialog::getOpenFileUrls(nullptr, tr("Choose subtitle files"), {},
+                                       tr("Subtitle files (*.srt *.ass *.ssa *.sub *.vtt *.ttml *.smi);;All files (*)"),
+                                       nullptr, QFileDialog::Options(), {"file"});
     QVariantList values;
     for (const auto& url : urls)
         values.push_back(url);
     addFiles(values);
+}
+
+void MLSubtitleAssociations::scanFolder(const QUrl& folder)
+{
+    // the files found before go, the ones chosen stay
+    QVector<Source> kept;
+    for (const auto& source : m_sources)
+        if (!source.scanned)
+            kept.push_back(source);
+    m_sources = std::move(kept);
+    m_folder = folder;
+
+    QSet<QString> seen;
+    for (const auto& source : m_sources)
+        seen.insert(source.url.toString(QUrl::FullyEncoded));
+    // one media: the files named after it (The_Wand_S01E01_English.srt)
+    const QString prefix = m_destinations.size() == 1 ? baseName(m_destinations.front().url) : QString();
+    const auto entries = QDir(folder.toLocalFile()).entryInfoList(QDir::Files | QDir::Readable, QDir::Name);
+    for (const auto& info : entries)
+    {
+        if (!accepts(info.fileName()))
+            continue;
+        if (!prefix.isEmpty() && !baseName(info.fileName()).startsWith(prefix))
+            continue;
+        const QUrl url = QUrl::fromLocalFile(info.absoluteFilePath());
+        if (seen.contains(url.toString(QUrl::FullyEncoded)))
+            continue;
+        Source source;
+        source.url = url;
+        source.label = info.fileName();
+        source.scanned = true;
+        m_sources.push_back(source);
+    }
+}
+
+void MLSubtitleAssociations::chooseFolder()
+{
+    if (m_busy)
+        return;
+    const QUrl folder = QFileDialog::getExistingDirectoryUrl(nullptr, m_audio ? tr("Choose the folder of the audio tracks")
+                                                                             : tr("Choose the folder of the subtitles"),
+                                                             m_folder, QFileDialog::ShowDirsOnly, {"file"});
+    if (!folder.isValid() || !folder.isLocalFile())
+        return;
+    m_error.clear();
+    scanFolder(folder);
+    match();
 }
 
 void MLSubtitleAssociations::match()
@@ -276,6 +380,13 @@ void MLSubtitleAssociations::match()
             continue;
         source.issue.clear();
         const auto matches = destinationsByName.value(baseName(source.label));
+        // the files found in the folder: the one of the same name only
+        if (source.scanned)
+        {
+            if (matches.size() == 1)
+                source.destination = matches.front();
+            continue;
+        }
         if (matches.size() == 1)
             source.destination = matches.front();
         else if (m_destinations.size() == 1)
@@ -290,8 +401,9 @@ void MLSubtitleAssociations::match()
 
 void MLSubtitleAssociations::assign(int sourceIndex, int destinationIndex)
 {
+    // -1 unchecks the file (not saved)
     if (m_busy || sourceIndex < 0 || sourceIndex >= m_sources.size() ||
-        destinationIndex < 0 || destinationIndex >= m_destinations.size())
+        destinationIndex < -1 || destinationIndex >= m_destinations.size())
         return;
     m_sources[sourceIndex].destination = destinationIndex;
     m_sources[sourceIndex].issue.clear();
@@ -303,27 +415,37 @@ void MLSubtitleAssociations::save()
 {
     if (!m_ml || m_busy || m_destinations.isEmpty() || m_sources.isEmpty())
     {
-        setError(tr("Choose a destination and at least one subtitle file."));
+        setError(m_audio ? tr("Choose a destination and at least one audio file.")
+                         : tr("Choose a destination and at least one subtitle file."));
         return;
     }
+    bool any = false;
     for (const auto& source : m_sources)
     {
+        // the files not checked are not saved
         if (source.destination < 0 || source.destination >= m_destinations.size())
-        {
-            setError(tr("Choose a destination for every subtitle file."));
-            return;
-        }
+            continue;
+        any = true;
         if (!QFileInfo(source.url.toLocalFile()).isReadable())
         {
-            setError(tr("A subtitle file is no longer readable: %1").arg(source.url.fileName()));
+            setError((m_audio ? tr("An audio file is no longer readable: %1")
+                              : tr("A subtitle file is no longer readable: %1")).arg(source.url.fileName()));
             return;
         }
+    }
+
+    if (!any)
+    {
+        setError(m_audio ? tr("Choose at least one audio file.") : tr("Choose at least one subtitle file."));
+        return;
     }
 
     struct Assignment { int64_t id; QByteArray mediaMrl; QByteArray subtitleMrl; };
     QVector<Assignment> assignments;
     for (const auto& source : m_sources)
     {
+        if (source.destination < 0 || source.destination >= m_destinations.size())
+            continue;
         const auto& destination = m_destinations[source.destination];
         assignments.push_back({destination.id,
                                destination.url.toString(QUrl::FullyEncoded).toUtf8(),
@@ -335,16 +457,19 @@ void MLSubtitleAssociations::save()
     m_error.clear();
     emit changed();
     const quint64 revision = m_revision;
+    const bool audio = m_audio;
+    const int fileType = audio ? VLC_ML_FILE_TYPE_SOUNDTRACK : VLC_ML_FILE_TYPE_SUBTITLE;
     struct Context { int saved = 0; QString error; };
     m_ml->runOnMLThread<Context>(this,
-        [assignments](vlc_medialibrary_t* ml, Context& ctx) {
+        [assignments, audio, fileType](vlc_medialibrary_t* ml, Context& ctx) {
             for (const auto& assignment : assignments)
             {
                 const QUrl subtitle = QUrl::fromEncoded(assignment.subtitleMrl);
                 const QFileInfo file(subtitle.toLocalFile());
                 if (!subtitle.isLocalFile() || !file.isFile() || !file.isReadable())
                 {
-                    ctx.error = QObject::tr("A subtitle file is missing or unreadable: %1")
+                    ctx.error = (audio ? QObject::tr("An audio file is missing or unreadable: %1")
+                                       : QObject::tr("A subtitle file is missing or unreadable: %1"))
                                     .arg(file.fileName());
                     return;
                 }
@@ -366,16 +491,17 @@ void MLSubtitleAssociations::save()
                     for (size_t i = 0; i < media->p_files->i_nb_items; ++i)
                     {
                         const auto& file = media->p_files->p_items[i];
-                        if (file.i_type == VLC_ML_FILE_TYPE_SUBTITLE && file.psz_mrl &&
+                        if (file.i_type == fileType && file.psz_mrl &&
                             assignment.subtitleMrl == file.psz_mrl)
                             exists = true;
                     }
                 if (exists)
                     continue;
                 if (vlc_ml_media_add_external_mrl(ml, media->i_id,
-                        assignment.subtitleMrl.constData(), VLC_ML_FILE_TYPE_SUBTITLE) != VLC_SUCCESS)
+                        assignment.subtitleMrl.constData(), fileType) != VLC_SUCCESS)
                 {
-                    ctx.error = QObject::tr("Could not save subtitle association for %1.")
+                    ctx.error = (audio ? QObject::tr("Could not save audio track association for %1.")
+                                       : QObject::tr("Could not save subtitle association for %1."))
                                     .arg(QUrl::fromEncoded(assignment.mediaMrl).fileName());
                     break;
                 }

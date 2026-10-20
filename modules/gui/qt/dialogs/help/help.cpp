@@ -96,7 +96,10 @@ AboutDialog::AboutDialog( qt_intf_t *_p_intf)
 
     ui.MainBlabla->setText("<html><head/><body>" +
     qtr( "<p>VLC media player is a free and open source media player, encoder, and streamer made by the volunteers of the <a href=\"https://www.videolan.org/\"><span style=\" text-decoration: underline; color:#0057ae;\">VideoLAN</span></a> community.</p><p>VLC uses its internal codecs, works on essentially every popular platform, and can read almost all files, CDs, DVDs, network streams, capture cards and other media formats!</p><p><a href=\"https://www.videolan.org/contribute/\"><span style=\" text-decoration: underline; color:#0057ae;\">Help and join us!</span></a>" ) +
-    "</p></body> </html>");
+    "</p>" +
+    /* CC BY 4.0 attribution of the redesign */
+    qtr( "<p><b>Unofficial redesign build.</b> Interface designed by <a href=\"https://www.youtube.com/@juxtopposed\"><span style=\" text-decoration: underline; color:#0057ae;\">Juxtopposed</span></a> (<a href=\"https://www.youtube.com/watch?v=ERFeOgqk324\"><span style=\" text-decoration: underline; color:#0057ae;\">watch the redesign video</span></a>), from the <a href=\"https://www.figma.com/community/file/1691465999134370980\"><span style=\" text-decoration: underline; color:#0057ae;\">VLC Redesign</span></a> Figma file under <a href=\"https://creativecommons.org/licenses/by/4.0/\"><span style=\" text-decoration: underline; color:#0057ae;\">CC BY 4.0</span></a>, adapted to Qt. Not affiliated with or endorsed by VideoLAN or Juxtopposed.</p>" ) +
+    "</body> </html>");
 
     const QDate today = QDate::currentDate();
     if( today.month() == 4 && today.day() == 1

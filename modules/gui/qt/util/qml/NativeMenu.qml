@@ -91,7 +91,8 @@ QtObject {
                     || (typeof action.visible === "boolean" && action.visible)
                     || (typeof action.visible === "function" && action.visible(_dataList, _options, _indexes))) {
                 _effectiveActions.push(action)
-                textStrings.push(action.text)
+                // An action can name an icon of the redesign set
+                textStrings.push(action.icon ? { "text": action.text, "icon": action.icon } : action.text)
             }
         }
 

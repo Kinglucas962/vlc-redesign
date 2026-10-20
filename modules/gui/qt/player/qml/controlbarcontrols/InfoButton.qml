@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (C) 2021 VLC authors and VideoLAN
+ * Copyright (C) 2026 VLC authors and VideoLAN
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,20 +17,15 @@
  *****************************************************************************/
 import QtQuick
 
-
-import VLC.Widgets as Widgets
-import VLC.Style
 import VLC.Player
 import VLC.Dialogs
 import VLC.Util
 
-Widgets.IconToolButton {
+RedesignIconButton {
     id: infoBtn
-
     enabled: Player.isStarted
-    text: VLCIcons.info
+    iconSource: "qrc:///redesign/icons/info/default.png"
     onClicked: DialogsProvider.mediaInfoDialog()
-    description: qsTr("Information")
-
+    description: qsTr("Properties")
     AccessibleCompat.id: "infoButton"
 }

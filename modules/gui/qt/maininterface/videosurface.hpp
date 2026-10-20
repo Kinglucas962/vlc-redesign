@@ -90,6 +90,9 @@ class VideoSurface : public ViewBlockingRectangle
     Q_OBJECT
     Q_PROPERTY(VideoSurfaceProvider* videoSurfaceProvider READ videoSurfaceProvider WRITE setVideoSurfaceProvider NOTIFY videoSurfaceProviderChanged FINAL)
     Q_PROPERTY(Qt::CursorShape cursorShape READ getCursorShape WRITE setCursorShape RESET unsetCursor FINAL)
+    // "Double click on the video: Nothing" of the settings: a double click
+    // is then a second click
+    Q_PROPERTY(bool doubleClickEnabled MEMBER m_doubleClickEnabled NOTIFY doubleClickEnabledChanged FINAL)
 
 public:
     VideoSurface( QQuickItem* parent = nullptr );
@@ -128,11 +131,13 @@ signals:
     void keyPressed(int key, Qt::KeyboardModifiers modifier);
 
     void videoSurfaceProviderChanged();
+    void doubleClickEnabledChanged();
 
 protected slots:
     void synchronize();
 
 private:
+    bool m_doubleClickEnabled = true;
     QPointF m_oldHoverPos;
 
     WheelToVLCConverter m_wheelEventConverter;

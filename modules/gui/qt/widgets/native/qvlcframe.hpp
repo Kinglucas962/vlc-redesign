@@ -63,7 +63,10 @@ class QVLCTools
                                            QPoint defPos = QPoint( 0, 0 ) );
 
 
-       static void saveWindowPosition(QSettings *settings, QWindow *window);
+       // geometry: the one to restore the window to, when it is not its own
+       // (saved maximized, or with borders Qt does not count)
+       static void saveWindowPosition(QSettings *settings, QWindow *window,
+                                      const QRect &geometry = QRect());
        static void restoreWindowPosition(QSettings *settings, QWindow *window,
                                           QSize defSize = QSize( 0, 0 ),
                                           QPoint defPos = QPoint( 0, 0 ) );

@@ -20,7 +20,10 @@
 #include "mlhelper.hpp"
 #include "playlist/playlist_controller.hpp"
 #include "util/shared_input_item.hpp"
+#include "dialogs/dialogs_provider.hpp"
 
+#include <algorithm>
+#include <random>
 #include <utility>
 
 #include <QQmlEngine>
@@ -215,6 +218,45 @@ void MediaLib::addAndPlay(const QVariantList& itemIdList, const QStringList &opt
     [this](quint64, Context& ctx){
         if (!ctx.medias.empty())
             m_playlistController->append(ctx.medias, true);
+    });
+}
+
+void MediaLib::addAndPlayShuffled(const QVariantList& itemIdList, const QStringList &options)
+{
+    struct Context {
+        QVector<vlc::playlist::Media> medias;
+    };
+    runOnMLThread<Context>(this,
+    //ML thread
+    [itemIdList, options]
+    (vlc_medialibrary_t* ml, Context& ctx)
+    {
+        convertQVariantListToPlaylistMedias(ml, itemIdList, options, ctx.medias);
+    },
+    //UI thread
+    [this](quint64, Context& ctx){
+        if (ctx.medias.empty())
+            return;
+        std::shuffle(ctx.medias.begin(), ctx.medias.end(), std::mt19937(std::random_device{}()));
+        m_playlistController->append(ctx.medias, true);
+    });
+}
+
+void MediaLib::exportToFile(const QVariantList& itemIdList)
+{
+    struct Context {
+        QVector<vlc::playlist::Media> medias;
+    };
+    runOnMLThread<Context>(this,
+    //ML thread
+    [itemIdList]
+    (vlc_medialibrary_t* ml, Context& ctx)
+    {
+        convertQVariantListToPlaylistMedias(ml, itemIdList, {}, ctx.medias);
+    },
+    //UI thread
+    [](quint64, Context& ctx){
+        DialogsProvider::getInstance()->saveMediaToPlaylistFile(ctx.medias);
     });
 }
 

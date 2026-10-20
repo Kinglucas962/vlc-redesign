@@ -28,6 +28,44 @@
 #include <QQmlProperty>
 #include <cmath>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+namespace {
+
+// The borders of the native window that Qt does not count in its frame: the
+// resize borders that the client side decoration keeps out of the client
+// area (WM_NCCALCSIZE) while Qt sees a frameless window
+QMargins extraBorders(QWindow *window)
+{
+#ifdef _WIN32
+    if (!window->handle())
+        return {};
+    const HWND hwnd = reinterpret_cast<HWND>(window->winId());
+    RECT frame, client;
+    POINT origin = { 0, 0 };
+    if (!GetWindowRect(hwnd, &frame) || !GetClientRect(hwnd, &client) || !ClientToScreen(hwnd, &origin))
+        return {};
+    const qreal dpr = window->devicePixelRatio();
+    const QMargins qt = window->frameMargins();
+    const QMargins extra(qRound((origin.x - frame.left) / dpr) - qt.left(),
+                         qRound((origin.y - frame.top) / dpr) - qt.top(),
+                         qRound((frame.right - origin.x - client.right) / dpr) - qt.right(),
+                         qRound((frame.bottom - origin.y - client.bottom) / dpr) - qt.bottom());
+    // only borders (none negative, a few pixels)
+    if (extra.left() < 0 || extra.top() < 0 || extra.right() < 0 || extra.bottom() < 0
+        || extra.left() > 32 || extra.top() > 32 || extra.right() > 32 || extra.bottom() > 32)
+        return {};
+    return extra;
+#else
+    Q_UNUSED(window);
+    return {};
+#endif
+}
+
+}
+
 namespace
 {
 
@@ -69,7 +107,37 @@ InterfaceWindowHandler::InterfaceWindowHandler(qt_intf_t *_p_intf, MainCtx* main
     m_window->setIcon( QApplication::windowIcon() );
     m_window->setOpacity( var_InheritFloat( p_intf, "qt-opacity" ) );
 
-    QVLCTools::restoreWindowPosition( getSettings(), m_window, QSize(600, 420) );
+    /* First run: a 16:9 window centered on the screen, within 80% of it */
+    const QRect available = m_window->screen()->availableGeometry();
+    const QSize defaultSize = QSize(1280, 720).boundedTo(available.size() * 0.8);
+    /* "Remember window size and position" of the settings */
+    if( getSettings()->value( "redesign/remember-window-geometry", true ).toBool() )
+        QVLCTools::restoreWindowPosition( getSettings(), m_window, defaultSize );
+    else
+        m_window->setGeometry( QRect( available.center() - QPoint( defaultSize.width() / 2,
+                                                                   defaultSize.height() / 2 ),
+                                      defaultSize ) );
+    /* The geometry to save when the window is closed maximized (or full
+     * screen): the one it had before (not shown yet, the window has the
+     * restored one even when it is to show maximized) */
+    m_normalGeometry = m_window->geometry();
+    const auto trackNormalGeometry = [this]()
+    {
+        // later: Windows sends the size of a maximize before the state
+        QMetaObject::invokeMethod(this, [this]()
+        {
+            if (m_window->isVisible()
+                && !(m_window->windowStates() & (Qt::WindowMaximized | Qt::WindowFullScreen | Qt::WindowMinimized)))
+            {
+                m_normalGeometry = m_window->geometry();
+                m_extraBorders = extraBorders(m_window);
+            }
+        }, Qt::QueuedConnection);
+    };
+    connect( m_window, &QWindow::xChanged, this, trackNormalGeometry );
+    connect( m_window, &QWindow::yChanged, this, trackNormalGeometry );
+    connect( m_window, &QWindow::widthChanged, this, trackNormalGeometry );
+    connect( m_window, &QWindow::heightChanged, this, trackNormalGeometry );
 
     // this needs to be called asynchronously
     // otherwise QQuickWidget won't initialize properly
@@ -176,7 +244,16 @@ InterfaceWindowHandler::~InterfaceWindowHandler()
 {
     m_window->removeEventFilter(this);
     /* Save this size */
-    QVLCTools::saveWindowPosition(getSettings(), m_window);
+    if (getSettings()->value("redesign/remember-window-geometry", true).toBool())
+    {
+        // maximized (or full screen, minimized): the geometry it had before,
+        // to get back to once restored maximized
+        const bool zoomed = m_window->windowStates() & (Qt::WindowMaximized | Qt::WindowFullScreen | Qt::WindowMinimized);
+        if (!zoomed && m_window->isVisible())
+            m_extraBorders = extraBorders(m_window);
+        const QRect geometry = (zoomed && m_normalGeometry.isValid()) ? m_normalGeometry : m_window->geometry();
+        QVLCTools::saveWindowPosition(getSettings(), m_window, geometry.marginsAdded(m_extraBorders));
+    }
     assert(qApp);
     if (!qApp->property("isDying").toBool())
     {

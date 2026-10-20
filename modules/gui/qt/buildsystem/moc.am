@@ -76,6 +76,8 @@ nodist_libqt_plugin_la_SOURCES = \
 	medialibrary/mlqmltypes.moc.cpp \
 	medialibrary/mlrecentmediamodel.moc.cpp \
 	medialibrary/mlrecentvideomodel.moc.cpp \
+	medialibrary/mlrecentaudiomodel.moc.cpp \
+	medialibrary/mlfrequentfoldersmodel.moc.cpp \
 	medialibrary/mlurlmodel.moc.cpp \
 	medialibrary/mlvideo.moc.cpp \
 	medialibrary/mlmediamodel.moc.cpp \
@@ -88,6 +90,7 @@ nodist_libqt_plugin_la_SOURCES = \
 	menus/custom_menus.moc.cpp \
 	menus/qml_menu_wrapper.moc.cpp \
 	menus/menus.moc.cpp \
+	menus/redesign_menu_style.moc.cpp \
 	network/addonsmodel.moc.cpp \
 	network/devicesourceprovider.moc.cpp \
 	network/networkdevicemodel.moc.cpp \
@@ -101,6 +104,7 @@ nodist_libqt_plugin_la_SOURCES = \
 	player/delay_estimator.moc.cpp \
 	player/input_models.moc.cpp \
 	player/waveform.moc.cpp \
+	player/local_folder_model.moc.cpp \
 	player/sleep_timer.moc.cpp \
 	player/player_controller.moc.cpp \
 	player/player_controlbar_model.moc.cpp \
@@ -118,6 +122,7 @@ nodist_libqt_plugin_la_SOURCES = \
 	util/ui_notifier.moc.cpp \
 	util/color_svg_image_provider.moc.cpp \
 	util/vlcaccess_image_provider.moc.cpp \
+	util/thumbnail_image_provider.moc.cpp \
 	util/imageluminanceextractor.moc.cpp \
 	util/csdbuttonmodel.moc.cpp \
 	util/csdmenu.moc.cpp \
@@ -178,4 +183,3 @@ nodist_libqt_plugin_la_SOURCES += \
 
 
 # windows compositor
-

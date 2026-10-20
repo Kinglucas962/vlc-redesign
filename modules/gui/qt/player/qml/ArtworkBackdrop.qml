@@ -18,6 +18,7 @@
 import QtQuick
 
 import VLC.MainInterface
+import VLC.Player
 import VLC.Style
 import VLC.Util
 import VLC.Widgets as Widgets
@@ -29,16 +30,22 @@ Widgets.DualKawaseBlur {
     readonly property real dar: parent && parent.height > 0 ? parent.width / parent.height : 1
     readonly property real sar: coverItem && coverItem.sar > 0 ? coverItem.sar : 1
 
-    mode: Widgets.DualKawaseBlur.Mode.SixPass
+    // Figma "Player - Music": the artwork 1952 x 1952 for 1920 x 1080 (the
+    // width and 1.67 %), centred, layer blur 20, no tint
+    mode: Widgets.DualKawaseBlur.Mode.FourPass
     radius: 2
     live: true
     anchors.centerIn: parent
-    width: (sar < dar) ? parent.width : parent.height * sar
-    height: (sar < dar) ? parent.width / sar : parent.height
+    width: ((sar < dar) ? parent.width : parent.height * sar) * 1952 / 1920
+    height: ((sar < dar) ? parent.width / sar : parent.height) * 1952 / 1920
     source: coverItem ? coverItem.sourceTextureProviderItem : null
     postprocess: true
     tint: bgtheme.palette.isDark ? "black" : "white"
-    tintStrength: 0.5
+    // the artwork as it is (Figma); the light placeholder of a media without
+    // one stays dimmed
+    readonly property bool _artwork: !!Player.artwork && Player.artwork.toString() !== ""
+                                     && !(coverItem && coverItem.status === Image.Error)
+    tintStrength: bgtheme.palette.isDark ? (_artwork ? 0.0 : 0.82) : 0.6
     backgroundColor: bgtheme.bg.primary
     viewportRect: Qt.rect((width - parent.width) / 2,
                           (height - parent.height) / 2, parent.width, parent.height)
@@ -56,7 +63,7 @@ Widgets.DualKawaseBlur {
                 ? Effects.url(Effects.ArtworkBlur, {
                     "source": blurredBackground.coverItem.source,
                     "tint": bgtheme.palette.isDark ? "black" : "white",
-                    "tintStrength": 0.5
+                    "tintStrength": blurredBackground.tintStrength
                 }) : ""
     }
 

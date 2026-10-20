@@ -1,3 +1,11 @@
+/*****************************************************************************
+ * Copyright (C) 2026 VLC authors and VideoLAN
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *****************************************************************************/
 /****************************************************************************
  * config_model.hpp : Staged VLC configuration for QML preferences
  ****************************************************************************/
@@ -27,6 +35,8 @@ class ConfigModel : public QAbstractListModel
     Q_PROPERTY(bool dirty READ dirty NOTIFY dirtyChanged)
     Q_PROPERTY(QString error READ error NOTIFY errorChanged)
     Q_PROPERTY(QStringList categories READ categories NOTIFY categoriesChanged)
+    // Changes with every staged value: for the bindings reading valueFor()
+    Q_PROPERTY(int revision READ revision NOTIFY revisionChanged)
 
 public:
     enum Role {
@@ -46,6 +56,7 @@ public:
     bool dirty() const;
     QString error() const { return m_error; }
     QStringList categories() const;
+    int revision() const { return m_revision; }
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role) const override;
@@ -55,6 +66,18 @@ public:
     Q_INVOKABLE bool setDirectoryUrl(const QString &key, const QUrl &url);
     Q_INVOKABLE QVariant valueFor(const QString &key) const;
     Q_INVOKABLE bool hasOption(const QString &key) const;
+    // What VLC uses when the option is empty (the folder of the recordings...)
+    Q_INVOKABLE QString defaultText(const QString &key) const;
+    // A folder as the design shows it: from the home of the user ("~/Videos")
+    Q_INVOKABLE QString displayPath(const QString &path) const;
+    // Regenerates the cache of the plugins (vlc-cache-gen) for the next start
+    Q_INVOKABLE bool rescanPlugins();
+    // The folder of vlcrc in the file manager
+    Q_INVOKABLE bool openConfigFolder();
+    // Every option of VLC and every setting of the interface to its default
+    Q_INVOKABLE void resetAll();
+    // The preamp then the 10 bands (dB) of an equalizer preset of VLC
+    Q_INVOKABLE QVariantList equalizerPreset(const QString &name) const;
     Q_INVOKABLE bool audioscrobblerAvailable() const;
     Q_INVOKABLE bool audioscrobblerEnabled() const;
     Q_INVOKABLE bool setAudioscrobblerEnabled(bool enabled);
@@ -72,6 +95,7 @@ signals:
     void dirtyChanged();
     void errorChanged();
     void categoriesChanged();
+    void revisionChanged();
 
 private:
     struct Entry {
@@ -79,7 +103,50 @@ private:
         QVariant current, staged, original, minimum, maximum;
         QVariantList choices;
         bool bounded = false;
+        // Kept in the settings of the interface (QSettings), not by VLC
+        bool qtSetting = false;
+        // A toggle showing a state of other options, written through them
+        QString proxyFor;
     };
+
+    // Dropdowns of the design standing for several VLC options
+    static constexpr const char *repeatKey = "x-repeat";
+    static constexpr const char *playbackEndKey = "x-playback-end";
+    static constexpr const char *seekPreciseKey = "x-seek-precise";
+    static constexpr const char *customSkinKey = "x-custom-skin";
+    static constexpr const char *rememberPositionKey = "x-remember-position";
+    static constexpr const char *wheelReverseKey = "x-wheel-reverse";
+    static constexpr const char *webRemoteKey = "x-web-remote";
+    // "x-filter:<module>": the module is in the audio filters
+    static constexpr const char *filterPrefix = "x-filter:";
+    static constexpr const char *nightModeKey = "x-night-mode";
+    static constexpr const char *subShadowKey = "x-sub-shadow";
+    static constexpr const char *subBackgroundKey = "x-sub-background";
+    // The opacity of the subtitle background, kept while there is none
+    static constexpr const char *subBackgroundOpacityKey = "redesign/subtitle-background-opacity";
+    static constexpr const char *fetchMetadataKey = "x-fetch-metadata";
+    static constexpr const char *bufferingKey = "x-buffering";
+    // "x-mirror:<key>": the row of another entry shown again (the scroll
+    // rows of the Remotes of the design)
+    static constexpr const char *mirrorPrefix = "x-mirror:";
+    // Visualization size (effect-width / effect-height), Ignore styling in
+    // ASS and SSA subtitles (the inverse of subsdec-formatted)
+    static constexpr const char *visualSizeKey = "x-visual-size";
+    static constexpr const char *ignoreAssStylingKey = "x-ignore-ass-styling";
+    // Video post-processing: the level of the postproc filter, 0 when it
+    // does not run
+    static constexpr const char *postprocKey = "x-postproc";
+    // Match window (the size of VLC, the window scales it), 1280 x 720,
+    // 1920 x 1080; then the size of the user
+    static constexpr qint64 visualSizes[3][2] = { { 800, 500 }, { 1280, 720 }, { 1920, 1080 } };
+    bool setFilter(const QString &module, bool on);
+    // Toggles standing for a state of other options (Entry::proxyFor)
+    int indexOfKey(const QString &key) const;
+    void syncDerived();
+    bool setDerived(int index, const QVariant &value);
+    void addCombinedEntries();
+    static bool combinedValues(const Entry &entry, QHash<QString, QVariant> *values,
+                               QHash<QString, QVariant> *expected);
 
     bool visible(const Entry &entry) const;
     void rebuildRows();
@@ -92,6 +159,7 @@ private:
     QString m_category, m_search, m_error;
     QVector<Entry> m_entries;
     QVector<int> m_rows;
+    int m_revision = 0;
 };
 
 #endif

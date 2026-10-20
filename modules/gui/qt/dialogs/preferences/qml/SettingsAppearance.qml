@@ -3,21 +3,26 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  ****************************************************************************/
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls.Basic
 import VLC.Dialogs
 import VLC.MainInterface
 import VLC.Style
 
-Item {
+SettingsSectionTitle {
     id: root
-    implicitHeight: VLCStyle.dp(210, VLCStyle.scale)
+    text: qsTr("Appearance")
     property int selectedTheme: 0
     property int initialTheme: 0
     property color selectedAccent: VLCStyle.redesign.accent
     property color initialAccent: VLCStyle.redesign.accent
+    property string selectedLanguage: "auto"
+    property string initialLanguage: "auto"
+    property bool languageSaved: false
+    readonly property var languages: themeBridge.interfaceLanguages()
     readonly property bool dark: VLCStyle.palette.isDark
     readonly property bool dirty: selectedTheme !== initialTheme
                                   || selectedAccent.toString() !== initialAccent.toString()
+                                  || selectedLanguage !== initialLanguage
 
     readonly property var themeChoices: [
         { text: qsTr("Dark"), index: 2 },
@@ -34,6 +39,8 @@ Item {
         selectedTheme = initialTheme
         initialAccent = VLCStyle.redesign.accent
         selectedAccent = initialAccent
+        initialLanguage = themeBridge.interfaceLanguage()
+        selectedLanguage = initialLanguage
     }
 
     function chooseTheme(index) {
@@ -49,6 +56,7 @@ Item {
     function resetDefaults() {
         chooseTheme(0)
         chooseAccent("#D37918")
+        selectedLanguage = "auto"
     }
 
     function cancel() {
@@ -56,106 +64,129 @@ Item {
         selectedTheme = initialTheme
         selectedAccent = initialAccent
         VLCStyle.redesign.accent = initialAccent
+        selectedLanguage = initialLanguage
     }
 
     function save() {
         themeBridge.acceptTheme()
         MainCtx.setSettingValue("redesign/accent", selectedAccent.toString())
+        if (selectedLanguage !== initialLanguage && themeBridge.setInterfaceLanguage(selectedLanguage))
+            languageSaved = true
         initialTheme = selectedTheme
         initialAccent = selectedAccent
+        initialLanguage = selectedLanguage
     }
 
-    Label {
-        text: qsTr("Appearance")
-        color: root.dark ? "#d2d2d2" : "#222222"
-        font.family: VLCStyle.redesign.fontFamily
-        font.pixelSize: VLCStyle.dp(16, VLCStyle.scale)
-        anchors.top: parent.top
-    }
+    function c(value) { return VLCStyle.redesign.color(value, value) }
 
     SettingsLanguageAction {
         width: parent.width
-        y: VLCStyle.dp(34, VLCStyle.scale)
+        languages: root.languages
+        language: root.selectedLanguage
+        changed: root.selectedLanguage !== root.initialLanguage
+        onChosen: (iso) => root.selectedLanguage = iso
     }
 
-    Label {
-        text: qsTr("Theme")
-        color: root.dark ? "#999999" : "#494949"
-        font.family: VLCStyle.redesign.fontFamily
-        font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
-        anchors.top: parent.top
-        anchors.topMargin: VLCStyle.dp(119, VLCStyle.scale)
+    // Theme: the Values component of the design (Dark, Light, System)
+    Item {
+        width: parent.width
+        height: root.px(46)
+        Text {
+            anchors.left: parent.left
+            anchors.baseline: parent.verticalCenter
+            anchors.baselineOffset: VLCStyle.redesign.centeredBaseline(font.pixelSize)
+            text: qsTr("Theme")
+            color: root.c("#8F8F8F")
+            font.family: VLCStyle.redesign.fontFamily
+            font.pixelSize: root.px(14)
+        }
+        SettingsSegmented {
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width: Math.min(root.px(320), parent.width * 0.46)
+            options: root.themeChoices.map(choice => ({ text: choice.text, value: choice.index }))
+            value: root.selectedTheme
+            onChosen: (value) => root.chooseTheme(value)
+        }
     }
 
-    Row {
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.topMargin: VLCStyle.dp(105, VLCStyle.scale)
-        spacing: 2
-        Repeater {
-            model: root.themeChoices
-            delegate: Button {
-                required property var modelData
-                width: VLCStyle.dp(103, VLCStyle.scale)
-                height: VLCStyle.dp(34, VLCStyle.scale)
-                text: modelData.text
-                onClicked: root.chooseTheme(modelData.index)
-                font.family: VLCStyle.redesign.fontFamily
-                font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
-                background: Rectangle {
-                    color: root.selectedTheme === modelData.index
-                           ? (root.dark ? "#371f06" : "#f7e2c9")
-                           : (root.dark ? "#191919" : "#eeeeee")
-                    border.color: root.dark ? "#232323" : "#cccccc"
-                    radius: 3
-                }
-                contentItem: Label {
-                    text: parent.text
-                    color: root.selectedTheme === modelData.index
-                           ? VLCStyle.redesign.accent : (root.dark ? "#858585" : "#555555")
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    font: parent.font
+    // Accent color: 9 cells of 31.56 x 32 (6 px padding, 4 px gap) in a
+    // 320 x 36 well; the chosen cell in Accent Bright, the others at 70 %
+    Item {
+        width: parent.width
+        height: root.px(46)
+        Text {
+            anchors.left: parent.left
+            anchors.baseline: parent.verticalCenter
+            anchors.baselineOffset: VLCStyle.redesign.centeredBaseline(font.pixelSize)
+            text: qsTr("Accent color")
+            color: root.c("#8F8F8F")
+            font.family: VLCStyle.redesign.fontFamily
+            font.pixelSize: root.px(14)
+        }
+        Rectangle {
+            id: accentWell
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width: Math.min(root.px(320), parent.width * 0.46)
+            height: root.px(36)
+            radius: root.px(6)
+            color: root.c("#090909")
+
+            Row {
+                anchors.fill: parent
+                anchors.margins: root.px(2)
+                spacing: root.px(4)
+                Repeater {
+                    model: root.accentChoices
+                    delegate: Button {
+                        id: swatch
+                        required property var modelData
+                        readonly property bool chosen: root.selectedAccent.toString().toLowerCase() === modelData.toLowerCase()
+                        width: (parent.width - root.px(4) * (root.accentChoices.length - 1)) / root.accentChoices.length
+                        height: parent.height
+                        padding: root.px(6)
+                        // (Basic adds 2 px each side otherwise: 16 wide, not 20)
+                        horizontalPadding: root.px(6)
+                        onClicked: root.chooseAccent(modelData)
+                        Accessible.name: qsTr("Accent color %1").arg(modelData)
+                        background: Rectangle {
+                            radius: root.px(4)
+                            color: swatch.chosen ? Qt.rgba(Qt.color(swatch.modelData).r * 0.26,
+                                                           Qt.color(swatch.modelData).g * 0.26,
+                                                           Qt.color(swatch.modelData).b * 0.26, 1)
+                                                 : "transparent"
+                            border.width: swatch.visualFocus ? 1 : 0
+                            border.color: VLCStyle.redesign.accent
+                        }
+                        contentItem: Item {
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: parent.width
+                                height: root.px(20)
+                                radius: root.px(1)
+                                color: swatch.modelData
+                                opacity: swatch.chosen ? 1.0 : 0.7
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
-    Label {
-        text: qsTr("Accent color")
-        color: root.dark ? "#999999" : "#494949"
+    // The language applies at the next start
+    Text {
+        id: languageNote
+        visible: root.languages.length === 0 || root.languageSaved
+                 || root.selectedLanguage !== root.initialLanguage
+        width: parent.width
+        text: root.languages.length > 0
+              ? qsTr("Restart VLC to use the new interface language.")
+              : qsTr("VLC follows the system language. Restart VLC after changing your system language.")
+        color: root.c("#6B6B6B")
         font.family: VLCStyle.redesign.fontFamily
-        font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
-        anchors.top: parent.top
-        anchors.topMargin: VLCStyle.dp(164, VLCStyle.scale)
-    }
-
-    Row {
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.topMargin: VLCStyle.dp(156, VLCStyle.scale)
-        spacing: 7
-        Repeater {
-            model: root.accentChoices
-            delegate: Button {
-                required property var modelData
-                width: VLCStyle.dp(30, VLCStyle.scale)
-                height: VLCStyle.dp(34, VLCStyle.scale)
-                onClicked: root.chooseAccent(modelData)
-                Accessible.name: qsTr("Accent color %1").arg(modelData)
-                background: Rectangle {
-                    color: root.selectedAccent.toString().toLowerCase() === modelData.toLowerCase()
-                           ? "#382208" : "transparent"
-                    radius: 3
-                }
-                contentItem: Rectangle {
-                    anchors.centerIn: parent
-                    width: VLCStyle.dp(20, VLCStyle.scale)
-                    height: VLCStyle.dp(20, VLCStyle.scale)
-                    color: modelData
-                    radius: 1
-                }
-            }
-        }
+        font.pixelSize: root.px(12)
+        elide: Text.ElideRight
     }
 }

@@ -111,8 +111,18 @@ void DialogsProvider::playerMenuDialog() { emit playerMenuRequested(); }
 void DialogsProvider::sleepTimerDialog() { emit sleepTimerRequested(); }
 void DialogsProvider::audioVisualizationDialog() { emit audioVisualizationRequested(); }
 void DialogsProvider::hdrOutputDialog() { emit hdrOutputRequested(); }
+void DialogsProvider::shortcutsDialog() { emit shortcutsRequested(); }
+void DialogsProvider::networkStreamDialog() { emit networkStreamRequested(); }
 
-void DialogsProvider::prefsDialog() { emit preferencesRequested(); }
+void DialogsProvider::prefsDialog()
+{
+    // The settings of the redesign live in the main interface; without it
+    // (a skin), its menu still opens the preferences
+    if( p_intf->p_mi )
+        emit preferencesRequested();
+    else
+        nativePrefsDialog();
+}
 void DialogsProvider::firstRunDialog() { emit setupRequested(); }
 
 void DialogsProvider::nativeEffectsDialog(int page)

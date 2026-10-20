@@ -40,7 +40,8 @@ public:
         PLAYLIST_COUNT,
         PLAYLIST_NB_AUDIO,
         PLAYLIST_NB_VIDEO,
-        PLAYLIST_NB_UNKNOWN
+        PLAYLIST_NB_UNKNOWN,
+        PLAYLIST_IS_FAVORITE
     };
     Q_ENUM(Roles)
 
@@ -77,6 +78,8 @@ public: // Interface
     Q_INVOKABLE bool deletePlaylists(const QVariantList & ids);
 
     Q_INVOKABLE bool showDialogRename(const QModelIndex & index);
+
+    Q_INVOKABLE void setFavorite(const QModelIndex & index, bool favorite);
 
     Q_INVOKABLE MLItemId getItemId(int index) const;
 

@@ -20,6 +20,7 @@ import QtQuick
 import QtQuick.Templates as T
 
 import VLC.Style
+import VLC.Util
 import VLC.Widgets as Widgets
 
 T.Control {
@@ -37,7 +38,7 @@ T.Control {
 
     default property alias contents: column.data
 
-    property alias cover: cover.source
+    property url cover
 
     property alias coverWidth: cover.width
     property alias coverHeight: cover.height
@@ -75,9 +76,11 @@ T.Control {
 
             fillMode: Image.PreserveAspectFit
 
-            Widgets.DefaultShadow {
-
-            }
+            // The light placeholders take the redesign colors in the dark theme
+            source: (VLCStyle.palette.isDark && root.cover.toString().startsWith("qrc:///placeholder/"))
+                    ? SVGColorImage.colorize(root.cover).any({ "#ECECEC": VLCStyle.redesign.controlBackground,
+                                                               "#979797": VLCStyle.redesign.border }).uri()
+                    : root.cover
         }
 
         T.Label {
@@ -90,10 +93,11 @@ T.Control {
 
             focus: false
 
-            color: theme.fg.primary
+            color: VLCStyle.redesign.color("#C6C6C6", theme.fg.primary)
 
-            font.pixelSize: VLCStyle.fontSize_xxlarge
-            font.weight: Font.DemiBold
+            font.family: VLCStyle.redesign.fontFamily
+            font.pixelSize: VLCStyle.dp(20, VLCStyle.scale)
+            font.weight: Font.Normal
         }
     }
 }

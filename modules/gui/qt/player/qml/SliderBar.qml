@@ -73,7 +73,9 @@ T.ProgressBar {
         onTriggered: control._isSeekPointsShown = false
     }
 
+    // The frame preview shows the time itself
     Widgets.PointingToolTipAttached.visible: (hoverHandler.hovered || control.visualFocus || dragHandler.active)
+                                             && !framePreview.visible
 
     Widgets.PointingToolTipAttached.text: {
         if (!Widgets.PointingToolTipAttached.instance?.visible)
@@ -97,6 +99,31 @@ T.ProgressBar {
 
     Widgets.PointingToolTipAttached.pos: Qt.point(hoverHandler.hovered ? Helpers.clamp(hoverHandler.point.position.x, 0, control.availableWidth)
                                                                        : (control.visualPosition * control.width), 0)
+
+    // Frame at the hovered position ("Show thumbnail while scrubbing").
+    // Local files only: a preview reopens the media for each frame.
+    SeekFramePreview {
+        id: framePreview
+
+        readonly property real _hoverPosition: control.width > 0
+            ? Helpers.clamp(hoverHandler.point.position.x / control.width, 0, 1) : 0
+
+        visible: control.redesign && MainCtx.seekThumbnail && hoverHandler.hovered
+                 && Player.hasVideoOutput && Player.seekable
+                 && Player.url.toString().startsWith("file:")
+        position: _hoverPosition
+        timeText: Player.length.scale(_hoverPosition)
+                      .formatHMS(VLCTick.ForceHours
+                                 | (Player.length.isSubSecond() ? VLCTick.SubSecondFormattedAsMS : 0))
+        darkTheme: theme.palette?.isDark ?? VLCStyle.darkPalette.isDark
+
+        width: implicitWidth
+        height: implicitHeight
+        // Centered on the pointer, kept over the bar at its ends
+        x: Helpers.clamp(_hoverPosition * control.width - width / 2, 0, Math.max(0, control.width - width))
+        y: -height - VLCStyle.dp(10, VLCStyle.scale)
+        z: 10
+    }
 
     FSM {
         id: fsm
@@ -227,6 +254,8 @@ T.ProgressBar {
         //placing the TapHandler directly in the Control doesn't work with 6.2
         TapHandler {
             acceptedButtons: Qt.LeftButton
+            // the timeline dragged while the player is customized, no seek
+            enabled: !VLCStyle.customizing
 
             gesturePolicy: TapHandler.WithinBounds
 
@@ -246,6 +275,7 @@ T.ProgressBar {
         DragHandler {
             id: dragHandler
             acceptedButtons: Qt.LeftButton
+            enabled: !VLCStyle.customizing
 
             // Make it easier to drag with touch screen:
             margin: MainCtx.usingTouch ? control.touchHandlerMargin : 0

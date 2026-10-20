@@ -31,13 +31,17 @@ Widgets.IconToolButton {
     onClicked: MainPlaylistController.prev()
     description: qsTr("Previous")
 
+    // Figma "Controls": a frame of 30 x 28 (3 px and 2 px around the icon)
+    implicitWidth: VLCStyle.dp(30, VLCStyle.scale)
+    implicitHeight: VLCStyle.dp(28, VLCStyle.scale)
+
     contentItem: Item {
         implicitWidth: VLCStyle.redesign.iconSize
         implicitHeight: VLCStyle.redesign.iconSize
 
         Image {
             anchors.centerIn: parent
-            source: "qrc:/redesign/previous.svg"
+            source: "qrc:///redesign/player/previous.png"
             width: VLCStyle.redesign.iconSize
             height: VLCStyle.redesign.iconSize
             fillMode: Image.PreserveAspectFit

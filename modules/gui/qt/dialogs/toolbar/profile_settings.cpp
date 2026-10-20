@@ -1,3 +1,11 @@
+/*****************************************************************************
+ * Copyright (C) 2026 VLC authors and VideoLAN
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *****************************************************************************/
 /****************************************************************************
  * profile_settings.cpp: Transactional per-profile preferences
  ****************************************************************************/
@@ -160,7 +168,8 @@ QVariantMap ProfileSettings::capture(MainCtx *ctx, QSettings *settings)
         if (safeOption(key)) values.insert(key, ConfigValues::read(key));
     return {{"version", 1}, {"config", values},
             {"accent", settings->value("redesign/accent", "#D37918")},
-            {"developerMode", settings->value("redesign/developer-mode", false)},
+            // the ini gives "true" / "false" back as text
+            {"developerMode", settings->value("redesign/developer-mode", false).toBool()},
             {"theme", ctx ? ctx->getColorScheme()->currentIndex() : 0}};
 }
 
@@ -177,10 +186,10 @@ bool ProfileSettings::apply(MainCtx *ctx, QSettings *settings,
     QVariantMap before;
     QVariantMap changes;
     for (auto it = targetConfig.cbegin(); it != targetConfig.cend(); ++it) {
-        if (!allowed.contains(it.key()) || !safeOption(it.key())) {
-            if (error) *error = QStringLiteral("Profile contains an unavailable setting: %1").arg(it.key());
-            return false;
-        }
+        // a setting the catalog no longer lists (renamed or removed) is
+        // left out: the rest of the profile still applies
+        if (!allowed.contains(it.key()) || !safeOption(it.key()))
+            continue;
         const QVariant current = ConfigValues::read(it.key());
         if (current != it.value()) {
             before.insert(it.key(), current);
@@ -192,7 +201,7 @@ bool ProfileSettings::apply(MainCtx *ctx, QSettings *settings,
     const int oldTheme = ctx->getColorScheme()->currentIndex();
     const QString accent = target.value("accent").toString();
     const int theme = target.value("theme").toInt();
-    if (!QColor::isValidColor(accent) || theme < 0
+    if (!QColor(accent).isValid() || theme < 0
         || theme >= ctx->getColorScheme()->rowCount(QModelIndex())) {
         if (error) *error = QStringLiteral("Profile appearance is invalid.");
         return false;
@@ -200,10 +209,10 @@ bool ProfileSettings::apply(MainCtx *ctx, QSettings *settings,
 
     const bool appearanceChanged = oldAccent.toString() != accent
         || oldTheme != theme
-        || oldDeveloperMode != target.value("developerMode", false);
+        || oldDeveloperMode.toBool() != target.value("developerMode", false).toBool();
     if (appearanceChanged) {
         settings->setValue("redesign/accent", accent);
-        settings->setValue("redesign/developer-mode", target.value("developerMode", false));
+        settings->setValue("redesign/developer-mode", target.value("developerMode", false).toBool());
         settings->setValue("MainWindow/color-scheme-index", theme);
         settings->sync();
     }

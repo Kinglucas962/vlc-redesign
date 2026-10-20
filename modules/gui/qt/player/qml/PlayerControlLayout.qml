@@ -43,6 +43,16 @@ FocusScope {
     readonly property Item inlineLeftItem: loaderLeftRight.item?.lastLeftControl ?? null
     readonly property Item inlineRightItem: loaderLeftRight.item?.firstRightControl ?? null
 
+    // Figma 2160:6137: the timeline on its row, nothing in the center (an
+    // invisible spacer keeps the two rows)
+    readonly property bool centerSpacerOnly: {
+        const center = model ? model.center : null
+        if (!center || center.count === 0)
+            return false
+        return center.countOf(ControlListModel.WIDGET_SPACER)
+               + center.countOf(ControlListModel.WIDGET_SPACER_EXTEND) === center.count
+    }
+
     readonly property PlayerControlbarModel model: {
         if (!!MainCtx.controlbarProfileModel.currentModel)
             return MainCtx.controlbarProfileModel.currentModel.getModel(identifier)
@@ -149,6 +159,11 @@ FocusScope {
                 Layout.minimumWidth: (containsVisibleItem(leftRepeater) && containsVisibleItem(rightRepeater)) ? playerControlLayout.layoutSpacing
                                                                                                                : 0
 
+                // Figma "Controls": the timeline 20 px from the buttons
+                // around it (the layout already spaces them)
+                Layout.leftMargin: playerControlLayout.inlineContentHost ? playerControlLayout.layoutSpacing - playerControlLayout.spacing : 0
+                Layout.rightMargin: Layout.leftMargin
+
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 visible: true
@@ -233,6 +248,91 @@ FocusScope {
                 requestLockUnlockAutoHide.connect(playerControlLayout.requestLockUnlockAutoHide)
                 menuOpened.connect(playerControlLayout.menuOpened)
                 playerControlLayout.forceUnlock.connect(leftControlLayout.forceUnlock)
+            }
+        }
+    }
+
+    // Figma "Player - customize": the free room of the zones of the two rows
+    // layout, dashed, where the controls drop (left of the center, right of
+    // it): 9 from the center, 6 from the controls of the zone, 36 high
+    Repeater {
+        // one area across the empty center (Figma 2160:6137)
+        model: (VLCStyle.customizing && loaderCenter.active) ? (playerControlLayout.centerSpacerOnly ? 1 : 2) : 0
+        delegate: Item {
+            id: emptyZone
+            required property int index
+            readonly property bool isLeft: index === 0
+            readonly property var zoneModel: playerControlLayout.model ? (isLeft ? playerControlLayout.model.left
+                                                                                : playerControlLayout.model.right) : null
+            readonly property real centerGap: VLCStyle.dp(8, VLCStyle.scale)
+            readonly property real controlsGap: VLCStyle.dp(5, VLCStyle.scale)
+            // the volume's outline is 5 wider (see ControlRepeater): 6 from it
+            readonly property real rightGap: {
+                const right = playerControlLayout.model ? playerControlLayout.model.right : null
+                if (!right || right.count === 0)
+                    return controlsGap
+                const first = right.data(right.index(0, 0), ControlListModel.ID_ROLE)
+                return first === ControlListModel.VOLUME ? VLCStyle.dp(5 + 6, VLCStyle.scale) : controlsGap
+            }
+            readonly property bool zoneFilled: !!zoneModel && zoneModel.count > 0
+            readonly property bool spanning: playerControlLayout.centerSpacerOnly
+            readonly property bool leftFilled: !!playerControlLayout.model && playerControlLayout.model.left.count > 0
+            readonly property bool rightFilled: !!playerControlLayout.model && playerControlLayout.model.right.count > 0
+            readonly property real start: (isLeft || spanning)
+                ? (leftFilled && loaderLeft.item ? loaderLeft.x + loaderLeft.item.lastControlRight + controlsGap : 0)
+                : loaderCenter.x + loaderCenter.width + centerGap
+            readonly property real end: (isLeft && !spanning)
+                ? loaderCenter.x - centerGap
+                : (rightFilled && loaderRight.item ? loaderRight.x + loaderRight.item.firstControlX - rightGap
+                                                   : playerControlLayout.width)
+            visible: !!zoneModel && width >= VLCStyle.dp(30, VLCStyle.scale)
+            x: start
+            width: Math.max(0, end - start)
+            height: VLCStyle.dp(36, VLCStyle.scale)
+            anchors.verticalCenter: parent.verticalCenter
+
+            Widgets.DashedRect {
+                anchors.fill: parent
+                stretch: true
+                corners: false
+                // Figma 2160:6137: across the empty center, darker (#373737)
+                color: emptyZone.spanning ? VLCStyle.redesign.color("#373737", "#8e8e8d")
+                                          : VLCStyle.redesign.color("#6B6B6B", "#5a5a59")
+            }
+
+            DropArea {
+                anchors.fill: parent
+                onDropped: (drop) => {
+                    const source = drop.source
+                    // the timeline back in the bar: one row again
+                    if (source.objectName === "timeline") {
+                        if (emptyZone.spanning) {
+                            const center = playerControlLayout.model.center
+                            Qt.callLater(() => center.clear())
+                            drop.accept(Qt.MoveAction)
+                        }
+                        return
+                    }
+                    // across the empty center: the controls go there
+                    const zone = emptyZone.spanning ? playerControlLayout.model.center : emptyZone.zoneModel
+                    // after the event (see ControlRepeater)
+                    if (source.objectName === "buttonsList") {
+                        const id = source.mIndex
+                        Qt.callLater(() => zone.insert(zone.count, { "id": id }))
+                        drop.accept(Qt.CopyAction)
+                    } else if (source.objectName === "playerControl" && source.zoneModel) {
+                        const id = source.controlId
+                        const fromZone = source.zoneModel
+                        const from = source.sourceRow
+                        Qt.callLater(() => {
+                            if (from < 0 || from >= fromZone.count)
+                                return
+                            fromZone.remove(from)
+                            zone.insert(zone.count, { "id": id })
+                        })
+                        drop.accept(Qt.MoveAction)
+                    }
+                }
             }
         }
     }

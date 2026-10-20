@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (C) 2021 VLC authors and VideoLAN
+ * Copyright (C) 2026 VLC authors and VideoLAN
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,19 +17,14 @@
  *****************************************************************************/
 import QtQuick
 
-
-import VLC.Widgets as Widgets
-import VLC.Style
 import VLC.Playlist
 import VLC.Util
 
-Widgets.IconToolButton {
+RedesignIconButton {
     id: randomBtn
-
     checked: MainPlaylistController.random
-    text: VLCIcons.shuffle
+    iconSource: checked ? "qrc:///redesign/icons/shuffle/active.png" : "qrc:///redesign/icons/shuffle/default.png"
     onClicked: MainPlaylistController.toggleRandom()
-    description: qsTr("Random")
-
+    description: qsTr("Shuffle")
     AccessibleCompat.id: "randomButton"
 }

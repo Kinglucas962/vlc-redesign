@@ -47,6 +47,11 @@ T.Control {
 
     property bool _keyOkPressed: false
 
+    // Playing: the pause variant of the design (Figma "play" type=pause)
+    readonly property bool _redesignPlaying: !paintOnly
+                                             && Player.playingState !== Player.PLAYING_STATE_PAUSED
+                                             && Player.playingState !== Player.PLAYING_STATE_STOPPED
+
     // Aliases
 
     property alias cursorInside: mouseArea.cursorInside
@@ -173,12 +178,8 @@ T.Control {
         text: {
             const state = Player.playingState
 
-            if (!paintOnly
-                    && state !== Player.PLAYING_STATE_PAUSED
-                    && state !== Player.PLAYING_STATE_STOPPED)
-                return VLCIcons.pause_filled
-            else
-                return ""
+            // drawn by the images of the design
+            return ""
         }
 
         color: VLCStyle.redesign.color(VLCStyle.redesign.windowBackground, theme.fg.primary, theme.palette?.isDark ?? VLCStyle.darkPalette.isDark)
@@ -192,13 +193,24 @@ T.Control {
 
         Accessible.ignored: true
 
+        // Figma "play": the triangle in the 22 px between the paddings of
+        // 17 and 15 px, the pause bars in the middle
         Image {
             anchors.centerIn: parent
+            anchors.horizontalCenterOffset: visible ? VLCStyle.dp(1, VLCStyle.scale) : 0
             source: "qrc:/redesign/play.svg"
             width: VLCStyle.redesign.iconSize
             height: VLCStyle.redesign.iconSize
-            visible: root.paintOnly || Player.playingState === Player.PLAYING_STATE_PAUSED
-                     || Player.playingState === Player.PLAYING_STATE_STOPPED
+            visible: !root._redesignPlaying
+        }
+
+        Image {
+            anchors.centerIn: parent
+            source: "qrc:///redesign/player/pause.png"
+            width: VLCStyle.redesign.iconSize
+            height: VLCStyle.redesign.iconSize
+            sourceSize: Qt.size(width, height)
+            visible: root._redesignPlaying
         }
 
         DelayedBehavior on color {
@@ -226,8 +238,14 @@ T.Control {
         Rectangle {
             id: innerRectangle
             anchors.fill: parent
+            // Figma "Player - customize": the pill 48 wide in its frame of 54
+            anchors.leftMargin: VLCStyle.customizing ? VLCStyle.dp(3, VLCStyle.scale) : 0
+            anchors.rightMargin: anchors.leftMargin
             radius: VLCStyle.redesign.controlRadius
-            color: VLCStyle.redesign.color(VLCStyle.redesign.accent, theme.accent, theme.palette?.isDark ?? VLCStyle.darkPalette.isDark)
+            // Figma "play" type=pause: a grey pill while playing
+            color: root._redesignPlaying
+                   ? VLCStyle.redesign.color("#6B6B6B", "#9c9c9b", theme.palette?.isDark ?? VLCStyle.darkPalette.isDark)
+                   : VLCStyle.redesign.color(VLCStyle.redesign.accent, theme.accent, theme.palette?.isDark ?? VLCStyle.darkPalette.isDark)
             opacity: state === "diminished" ? 0.75 : 1
         }
     }

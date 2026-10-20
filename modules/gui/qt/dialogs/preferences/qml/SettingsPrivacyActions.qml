@@ -3,15 +3,16 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  ****************************************************************************/
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls.Basic
 import VLC.MainInterface
 import VLC.MediaLibrary
 import VLC.Style
+import VLC.Util
 
 Item {
     id: root
     objectName: "privacyHistoryActions"
-    implicitHeight: VLCStyle.dp(48, VLCStyle.scale)
+    implicitHeight: VLCStyle.dp(42, VLCStyle.scale)
     readonly property bool available: MainCtx.mediaLibraryAvailable
     readonly property bool dark: VLCStyle.palette.isDark
 
@@ -20,47 +21,42 @@ Item {
         ml: MediaLib
     }
 
-    Label {
+    // Clear history now: label, (i) and the 100 px Clear button of the design
+    Row {
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
-        text: qsTr("Clear history now")
-        color: root.dark ? "#969696" : "#444444"
-        font.family: VLCStyle.redesign.fontFamily
-        font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+        spacing: VLCStyle.dp(10, VLCStyle.scale)
+        Text {
+            anchors.baseline: parent.verticalCenter
+            anchors.baselineOffset: VLCStyle.redesign.centeredBaseline(font.pixelSize)
+            text: qsTr("Clear history now")
+            color: VLCStyle.redesign.color("#8F8F8F", "#8F8F8F")
+            font.family: VLCStyle.redesign.fontFamily
+            font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+        }
+        Image {
+            anchors.verticalCenter: parent.verticalCenter
+            width: VLCStyle.dp(18, VLCStyle.scale)
+            height: width
+            sourceSize: Qt.size(width, height)
+            source: SVGColorImage.colorize("qrc:///redesign/duo/info-small.svg")
+                                 .color1(VLCStyle.redesign.color("#404040", "#404040")).uri()
+            HoverHandler { id: clearHelpHover }
+            ToolTip.visible: clearHelpHover.hovered
+            ToolTip.text: root.available ? qsTr("Removes the recently played items of the media library.")
+                                         : qsTr("Media library unavailable")
+            ToolTip.delay: 650
+        }
     }
 
-    Button {
+    SettingsButton {
         id: clearButton
         objectName: "clearRecentHistory"
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        width: VLCStyle.dp(100, VLCStyle.scale)
-        height: VLCStyle.dp(34, VLCStyle.scale)
         text: qsTr("Clear")
         enabled: root.available
         onClicked: confirmClear.open()
-        background: Rectangle {
-            color: root.dark ? "#1a1a1a" : "#e9e9e9"
-            radius: 4
-        }
-        contentItem: Label {
-            text: parent.text
-            color: parent.enabled ? (root.dark ? "#aaaaaa" : "#444444") : "#777777"
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            font.family: VLCStyle.redesign.fontFamily
-            font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
-        }
-    }
-
-    Label {
-        visible: !root.available
-        anchors.right: clearButton.left
-        anchors.rightMargin: 10
-        anchors.verticalCenter: parent.verticalCenter
-        text: qsTr("Media library unavailable")
-        color: "#777777"
-        font.pixelSize: VLCStyle.dp(12, VLCStyle.scale)
     }
 
     Dialog {
@@ -68,6 +64,8 @@ Item {
         objectName: "confirmClearRecentHistory"
         parent: root.parent
         anchors.centerIn: parent
+        // The wrapped label has no implicit width of its own (binding loop)
+        width: VLCStyle.dp(420, VLCStyle.scale)
         modal: true
         title: qsTr("Clear playback history?")
         standardButtons: Dialog.Cancel | Dialog.Ok

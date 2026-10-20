@@ -23,14 +23,16 @@ import VLC.Style
 Widgets.IconToolButton {
     id: root
     required property url iconSource
+    // the icon is the image below: the text only names the button
+    text: description
 
     font.pixelSize: VLCStyle.redesign.iconSize
     implicitWidth: VLCStyle.dp(30, VLCStyle.scale)
     implicitHeight: VLCStyle.dp(32, VLCStyle.scale)
     color: VLCStyle.redesign.color(checked ? VLCStyle.redesign.accent : VLCStyle.redesign.textMuted,
-                                   colorContext.fg.primary, colorContext.palette?.isDark ?? true)
+                                   colorContext.fg.primary)
     backgroundColor: VLCStyle.redesign.color(hovered || down ? VLCStyle.redesign.controlHoverBackground : "transparent",
-                                             colorContext.bg.primary, colorContext.palette?.isDark ?? true)
+                                             colorContext.bg.primary)
     radius: VLCStyle.dp(4, VLCStyle.scale)
     contentItem: Item {
         implicitWidth: VLCStyle.redesign.iconSize

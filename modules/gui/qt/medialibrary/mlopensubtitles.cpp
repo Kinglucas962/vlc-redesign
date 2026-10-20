@@ -13,8 +13,6 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QNetworkReply>
-#include <QNetworkRequest>
 #include <QUrlQuery>
 
 namespace {
@@ -28,29 +26,30 @@ QString apiMessage(const QByteArray& body, const QString& fallback)
     return message.isEmpty() ? fallback : message;
 }
 
-bool replyOk(QNetworkReply* reply)
+bool replyOk(const HttpResponse& reply)
 {
-    const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    return reply->error() == QNetworkReply::NoError && status >= 200 && status < 300;
+    return reply.error.isEmpty() && reply.status >= 200 && reply.status < 300
+        && reply.body.size() <= maxJsonBytes;
 }
 }
 
-QNetworkRequest MLOpenSubtitles::request(const QUrl& url, const QString& apiKey) const
+HttpRequest MLOpenSubtitles::request(const QUrl& url, const QString& apiKey) const
 {
-    QNetworkRequest result(url);
-    result.setRawHeader("Api-Key", apiKey.toUtf8());
-    result.setRawHeader("User-Agent", "VLC-Redesign/1.0");
-    result.setRawHeader("Accept", "application/json");
-    result.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    result.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                        QNetworkRequest::NoLessSafeRedirectPolicy);
-    result.setTransferTimeout(30000);
+    HttpRequest result;
+    result.url = url;
+    result.headers = {
+        {"Api-Key", apiKey.toUtf8()},
+        {"User-Agent", "VLC-Redesign/1.0"},
+        {"Accept", "application/json"},
+        {"Content-Type", "application/json"},
+    };
+    result.timeoutMs = 30000;
+    result.maxBytes = maxJsonBytes;
     return result;
 }
 
-void MLOpenSubtitles::begin(QNetworkReply* reply)
+void MLOpenSubtitles::begin()
 {
-    m_reply = reply;
     m_busy = true;
     m_error.clear();
     emit changed();
@@ -63,13 +62,21 @@ void MLOpenSubtitles::fail(const QString& message)
     emit changed();
 }
 
+void MLOpenSubtitles::send(const HttpRequest& request,
+                           std::function<void(const HttpResponse&)> done)
+{
+    begin();
+    const quint64 revision = m_revision;
+    httpRequestAsync(this, request, [this, revision, done = std::move(done)](const HttpResponse& reply) {
+        if (revision == m_revision)
+            done(reply);
+    });
+}
+
 void MLOpenSubtitles::cancel()
 {
+    // A request in flight cannot be interrupted; its reply is ignored.
     ++m_revision;
-    auto* reply = m_reply.data();
-    m_reply = nullptr;
-    if (reply)
-        reply->abort();
     m_busy = false;
     m_error.clear();
     emit changed();
@@ -80,6 +87,11 @@ void MLOpenSubtitles::search(const QString& query, const QString& language,
 {
     cancel();
     m_results.clear();
+    if (!httpRequestSupported())
+    {
+        fail(tr("Online subtitle search is not available in this build."));
+        return;
+    }
     if (apiKey.trimmed().isEmpty() || query.trimmed().isEmpty())
     {
         fail(tr("Enter an OpenSubtitles API key and a title to search."));
@@ -91,21 +103,13 @@ void MLOpenSubtitles::search(const QString& query, const QString& language,
     if (!language.trimmed().isEmpty())
         params.addQueryItem(QStringLiteral("languages"), language.trimmed().toLower());
     url.setQuery(params);
-    auto* reply = m_network.get(request(url, apiKey.trimmed()));
-    begin(reply);
-    const quint64 revision = m_revision;
-    connect(reply, &QNetworkReply::finished, this, [this, reply, revision]() {
-        reply->deleteLater();
-        if (revision != m_revision || reply != m_reply)
-            return;
-        m_reply = nullptr;
-        const QByteArray body = reply->read(maxJsonBytes + 1);
-        if (!replyOk(reply) || body.size() > maxJsonBytes)
+    send(request(url, apiKey.trimmed()), [this](const HttpResponse& reply) {
+        if (!replyOk(reply))
         {
-            fail(apiMessage(body, tr("OpenSubtitles search failed. Check the API key and network.")));
+            fail(apiMessage(reply.body, tr("OpenSubtitles search failed. Check the API key and network.")));
             return;
         }
-        const QJsonDocument doc = QJsonDocument::fromJson(body);
+        const QJsonDocument doc = QJsonDocument::fromJson(reply.body);
         if (!doc.isObject())
         {
             fail(tr("OpenSubtitles returned an invalid search response."));
@@ -147,24 +151,17 @@ void MLOpenSubtitles::download(int index, const QString& apiKey,
     }
     const auto choice = m_results[index].toMap();
     const int fileId = choice.value(QStringLiteral("fileId")).toInt();
-    auto* login = m_network.post(request(apiUrl.resolved(QUrl(QStringLiteral("login"))), apiKey.trimmed()),
-        QJsonDocument(QJsonObject{{"username", username.trimmed()}, {"password", password}})
-            .toJson(QJsonDocument::Compact));
-    begin(login);
-    const quint64 revision = m_revision;
-    connect(login, &QNetworkReply::finished, this,
-            [this, login, revision, fileId, apiKey, choice]() {
-        login->deleteLater();
-        if (revision != m_revision || login != m_reply)
-            return;
-        m_reply = nullptr;
-        const QByteArray body = login->read(maxJsonBytes + 1);
-        if (!replyOk(login) || body.size() > maxJsonBytes)
+    HttpRequest login = request(apiUrl.resolved(QUrl(QStringLiteral("login"))), apiKey.trimmed());
+    login.method = "POST";
+    login.body = QJsonDocument(QJsonObject{{"username", username.trimmed()}, {"password", password}})
+                     .toJson(QJsonDocument::Compact);
+    send(login, [this, fileId, apiKey, choice](const HttpResponse& reply) {
+        if (!replyOk(reply))
         {
-            fail(apiMessage(body, tr("OpenSubtitles login failed. Check your account credentials.")));
+            fail(apiMessage(reply.body, tr("OpenSubtitles login failed. Check your account credentials.")));
             return;
         }
-        const auto loginData = QJsonDocument::fromJson(body).object();
+        const auto loginData = QJsonDocument::fromJson(reply.body).object();
         const QString token = loginData.value(QStringLiteral("token")).toString();
         const QUrl base = openSubtitlesApiBase(loginData.value(QStringLiteral("base_url")).toString());
         if (token.isEmpty() || base.isEmpty())
@@ -172,25 +169,18 @@ void MLOpenSubtitles::download(int index, const QString& apiKey,
             fail(tr("OpenSubtitles returned an invalid login session."));
             return;
         }
-        QNetworkRequest downloadRequest = request(base.resolved(QUrl(QStringLiteral("download"))), apiKey.trimmed());
-        downloadRequest.setRawHeader("Authorization", QByteArray("Bearer ") + token.toUtf8());
-        auto* downloadReply = m_network.post(downloadRequest,
-            QJsonDocument(QJsonObject{{"file_id", fileId}, {"sub_format", "srt"}})
-                .toJson(QJsonDocument::Compact));
-        begin(downloadReply);
-        connect(downloadReply, &QNetworkReply::finished, this,
-                [this, downloadReply, revision, choice]() {
-            downloadReply->deleteLater();
-            if (revision != m_revision || downloadReply != m_reply)
-                return;
-            m_reply = nullptr;
-            const QByteArray body = downloadReply->read(maxJsonBytes + 1);
-            if (!replyOk(downloadReply) || body.size() > maxJsonBytes)
+        HttpRequest download = request(base.resolved(QUrl(QStringLiteral("download"))), apiKey.trimmed());
+        download.method = "POST";
+        download.headers.append({"Authorization", QByteArray("Bearer ") + token.toUtf8()});
+        download.body = QJsonDocument(QJsonObject{{"file_id", fileId}, {"sub_format", "srt"}})
+                            .toJson(QJsonDocument::Compact);
+        send(download, [this, choice](const HttpResponse& reply) {
+            if (!replyOk(reply))
             {
-                fail(apiMessage(body, tr("OpenSubtitles download failed. Check your quota.")));
+                fail(apiMessage(reply.body, tr("OpenSubtitles download failed. Check your quota.")));
                 return;
             }
-            const auto payload = QJsonDocument::fromJson(body).object();
+            const auto payload = QJsonDocument::fromJson(reply.body).object();
             const QUrl link(payload.value(QStringLiteral("link")).toString());
             QString filename = payload.value(QStringLiteral("file_name")).toString();
             if (filename.isEmpty())

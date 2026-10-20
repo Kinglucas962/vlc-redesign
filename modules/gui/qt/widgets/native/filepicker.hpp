@@ -24,6 +24,10 @@ public:
     void setCtx(MainCtx* ctx) { m_ctx = ctx; }
     Q_INVOKABLE QVariantList chooseFiles(const QString& title = {});
     Q_INVOKABLE QString chooseSaveFile(const QString& title, const QString& initialFile = {});
+    // One existing local file (a skin...), its native path
+    Q_INVOKABLE QString chooseOpenFile(const QString& title, const QString& filter = {});
+    // A color (0xRRGGBB), or -1 when cancelled
+    Q_INVOKABLE int chooseColor(int initial, const QString& title = {});
     Q_INVOKABLE QUrl chooseFolder(const QString& title = {});
 private:
     MainCtx* m_ctx = nullptr;

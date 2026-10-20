@@ -53,6 +53,12 @@ public:
     Q_INVOKABLE bool finish(const QVariantList& folderUrls, bool metadataNetworkAccess);
     Q_INVOKABLE bool skip();
     Q_INVOKABLE QVariantList activeShortcuts() const;
+    // A folder as the design writes it: "~/Videos" in the home folder
+    Q_INVOKABLE QString displayPath(const QUrl& folder) const;
+    // Interface language (settings, Appearance), applied at the next start
+    Q_INVOKABLE QVariantList interfaceLanguages() const;
+    Q_INVOKABLE QString interfaceLanguage() const;
+    Q_INVOKABLE bool setInterfaceLanguage(const QString& iso);
 
 signals:
     void ctxChanged();

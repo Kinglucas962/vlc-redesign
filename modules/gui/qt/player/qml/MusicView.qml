@@ -50,8 +50,8 @@ FocusScope {
     AudioContent {
         id: centerContent
         anchors.fill: parent
-        anchors.topMargin: VLCStyle.margin_xsmall + audioFocusScope.topPadding
-        anchors.bottomMargin: VLCStyle.margin_xsmall + audioFocusScope.bottomPadding
+        anchors.topMargin: audioFocusScope.topPadding
+        anchors.bottomMargin: audioFocusScope.bottomPadding
         musicView: audioFocusScope
         playerRoot: audioFocusScope.playerRoot
         topBarItem: audioFocusScope.topBarItem

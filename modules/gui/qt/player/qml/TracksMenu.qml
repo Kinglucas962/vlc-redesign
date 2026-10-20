@@ -145,7 +145,7 @@ T.Popup {
                     Layout.fillWidth: true
                     spacing: VLCStyle.dp(8, VLCStyle.scale)
 
-                    SectionTitle { text: qsTr("Embedded tracks") }
+                    SectionTitle { text: qsTr("Embedded Tracks") }
                     TrackRow {
                         objectName: "audioOffButton"
                         Layout.fillWidth: true
@@ -180,7 +180,40 @@ T.Popup {
                         }
                     }
                     SectionDivider { }
-                    SectionTitle { text: qsTr("Output device") }
+                    RowLayout {
+                        Layout.fillWidth: true
+
+                        SectionTitle {
+                            Layout.fillWidth: true
+                            text: qsTr("Output Device")
+                        }
+
+                        T.Button {
+                            id: refreshDevices
+                            objectName: "refreshOutputDevices"
+                            implicitWidth: VLCStyle.dp(32, VLCStyle.scale)
+                            implicitHeight: VLCStyle.dp(32, VLCStyle.scale)
+                            focusPolicy: Qt.StrongFocus
+                            Accessible.name: qsTr("Refresh output devices")
+                            T.ToolTip.visible: hovered
+                            T.ToolTip.text: Accessible.name
+                            T.ToolTip.delay: VLCStyle.delayToolTipAppear
+                            onActiveFocusChanged: if (activeFocus) root.ensureVisible(this)
+                            onClicked: Player.audioDevices.refresh()
+                            background: Rectangle {
+                                radius: VLCStyle.redesign.controlRadius
+                                color: refreshDevices.hovered || refreshDevices.down
+                                       ? VLCStyle.redesign.controlHoverBackground : "transparent"
+                                border.width: refreshDevices.visualFocus ? 1 : 0
+                                border.color: VLCStyle.redesign.focusColor
+                            }
+                            contentItem: Image {
+                                source: "qrc:///redesign/icons/refresh/default.png"
+                                sourceSize: Qt.size(VLCStyle.redesign.iconSize, VLCStyle.redesign.iconSize)
+                                fillMode: Image.Pad
+                            }
+                        }
+                    }
                     EmptyLabel {
                         visible: outputRows.count === 0
                         text: qsTr("No output device available")
@@ -208,12 +241,34 @@ T.Popup {
                     Layout.fillWidth: true
                     spacing: VLCStyle.dp(8, VLCStyle.scale)
 
-                    SectionTitle { text: qsTr("Embedded tracks") }
+                    SectionTitle { text: qsTr("Embedded Tracks") }
+                    TrackRow {
+                        objectName: "videoOffButton"
+                        Layout.fillWidth: true
+                        visible: Player.videoTracks.count > 0
+                        text: qsTr("None")
+                        checked: {
+                            for (let i = 0; i < videoRows.count; ++i) {
+                                const row = videoRows.itemAt(i)
+                                if (row && row.checked)
+                                    return false
+                            }
+                            return true
+                        }
+                        onClicked: {
+                            for (let i = 0; i < videoRows.count; ++i) {
+                                const row = videoRows.itemAt(i)
+                                if (row && row.checked)
+                                    row.disable()
+                            }
+                        }
+                    }
                     EmptyLabel {
                         visible: Player.videoTracks.count === 0
                         text: qsTr("No video tracks in this media")
                     }
                     Repeater {
+                        id: videoRows
                         model: Player.videoTracks
                         delegate: TrackChoice {
                             objectName: "videoTrack" + index

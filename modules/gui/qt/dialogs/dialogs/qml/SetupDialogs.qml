@@ -8,16 +8,19 @@ import VLC.Playlist
 Item {
     id: root
     SleepTimerController { id: sleepTimer; player: Player; playlist: MainPlaylistController }
-    PlayerMenu { id: playerMenu; parent: root; anchors.centerIn: parent }
-    SleepTimerMenu { id: timerMenu; parent: root; anchors.centerIn: parent; timerController: sleepTimer }
-    AudioVisualizationDialog { id: visualization; parent: root; anchors.centerIn: parent }
-    HdrOutputDialog { id: hdr; parent: root; anchors.centerIn: parent }
+    PlayerMenu { id: playerMenu; parent: root; x: root.centeredX(width); y: root.centeredY(height) }
+    SleepTimerMenu { id: timerMenu; parent: root; x: root.centeredX(width); y: root.centeredY(height); timerController: sleepTimer }
+    AudioVisualizationDialog { id: visualization; parent: root; x: root.centeredX(width); y: root.centeredY(height) }
+    HdrOutputDialog { id: hdr; parent: root; x: root.centeredX(width); y: root.centeredY(height) }
     OnboardingController {
         id: setupState
         ctx: MainCtx
         onNeedsSetupChanged: if (needsSetup && (!setup.item || !setup.item.visible))
                                  Qt.callLater(() => root.show(setup))
     }
+    // centred on whole pixels: the text stays crisp
+    function centeredX(width) { return Math.round((root.width - width) / 2) }
+    function centeredY(height) { return Math.round((root.height - height) / 2) }
     function show(loader) {
         if (!loader.active) loader.active = true
         else if (loader.item) {
@@ -28,6 +31,8 @@ Item {
     Connections {
         target: DialogsProvider
         function onPreferencesRequested() { root.show(preferences) }
+        function onShortcutsRequested() { root.show(shortcuts) }
+        function onNetworkStreamRequested() { root.show(networkStream) }
         function onSetupRequested() { if (!setup.item || !setup.item.visible) root.show(setup) }
         function onEffectsRequested(page) {
             effects.requestedTab = page
@@ -52,6 +57,20 @@ Item {
         active: false
         source: "qrc:/qt/qml/VLC/Dialogs/SettingsDialog.qml"
         onLoaded: { item.parent = root; item.openSettings("general") }
+    }
+    Loader {
+        id: shortcuts
+        anchors.fill: parent
+        active: false
+        source: "qrc:/qt/qml/VLC/Dialogs/ShortcutsDialog.qml"
+        onLoaded: { item.parent = root; item.open() }
+    }
+    Loader {
+        id: networkStream
+        anchors.fill: parent
+        active: false
+        source: "qrc:/qt/qml/VLC/Dialogs/NetworkStreamDialog.qml"
+        onLoaded: { item.parent = root; item.open() }
     }
     Loader {
         id: effects

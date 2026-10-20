@@ -65,27 +65,55 @@ Widgets.PageLoader {
 
             headerAction: Component {
                 RowLayout {
-                    spacing: VLCStyle.margin_xsmall
+                    spacing: VLCStyle.dp(12, VLCStyle.scale)
 
+                    // Figma library toolbar: "+" creates, "⋯" acts on the selection
                     Widgets.ButtonExt {
                         objectName: "videoNewPlaylistButton"
                         text: qsTr("New playlist")
+                        colorContext.palette: VLCStyle.palette
+                        padding: 0
+                        contentItem: Image {
+                            source: "qrc:///redesign/add.svg"
+                            sourceSize: Qt.size(VLCStyle.redesign.iconSize, VLCStyle.redesign.iconSize)
+                        }
                         onClicked: playlistView.openCreateDialog()
                     }
 
                     Widgets.ButtonExt {
-                        objectName: "videoRenamePlaylistButton"
-                        text: qsTr("Rename")
-                        enabled: playlistView.selectionModel.selectedIndexes.length === 1
-                        onClicked: playlistView.model.showDialogRename(
-                                       playlistView.selectionModel.selectedIndexes[0])
-                    }
+                        id: actionsButton
 
-                    Widgets.ButtonExt {
-                        objectName: "videoDeletePlaylistButton"
-                        text: qsTr("Delete")
-                        enabled: playlistView.selectionModel.hasSelection
-                        onClicked: playlistView.deleteSelectedPlaylists()
+                        objectName: "videoPlaylistActionsButton"
+                        text: qsTr("Playlist actions")
+                        colorContext.palette: VLCStyle.palette
+                        padding: 0
+                        contentItem: Image {
+                            source: "qrc:///redesign/icons/more/default.png"
+                            sourceSize: Qt.size(VLCStyle.redesign.iconSize, VLCStyle.redesign.iconSize)
+                        }
+                        onClicked: actionsMenu.popup(actionsButton, 0, actionsButton.height)
+
+                        Widgets.RedesignMenu {
+                            id: actionsMenu
+
+                            menuWidth: VLCStyle.dp(240, VLCStyle.scale)
+
+                            Widgets.RedesignMenuItem {
+                                objectName: "videoRenamePlaylistButton"
+                                text: qsTr("Rename")
+                                iconName: "edit"
+                                enabled: playlistView.selectionModel.selectedIndexes.length === 1
+                                onTriggered: playlistView.model.showDialogRename(
+                                                 playlistView.selectionModel.selectedIndexes[0])
+                            }
+                            Widgets.RedesignMenuItem {
+                                objectName: "videoDeletePlaylistButton"
+                                text: qsTr("Delete")
+                                iconName: "remove"
+                                enabled: playlistView.selectionModel.hasSelection
+                                onTriggered: playlistView.deleteSelectedPlaylists()
+                            }
+                        }
                     }
                 }
             }

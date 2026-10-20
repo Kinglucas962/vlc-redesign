@@ -3,132 +3,83 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  ****************************************************************************/
 import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
+import QtQuick.Controls.Basic
 import VLC.Style
 
-ColumnLayout {
+// Picture section of the video page of the design: Hue, Brightness,
+// Contrast, Saturation, Gamma sliders and Reset picture. Moving a slider
+// turns the adjust filter on, Reset turns it off.
+SettingsSectionTitle {
     id: root
+    text: qsTr("Picture")
+
     required property var effects
     readonly property var adjustments: [
         { id: "hue", title: qsTr("Hue") },
         { id: "brightness", title: qsTr("Brightness") },
         { id: "contrast", title: qsTr("Contrast") },
-        { id: "saturation", title: qsTr("Saturation") },
-        { id: "gamma", title: qsTr("Gamma") }
+        // ticks at the whole values, as the design draws them
+        { id: "saturation", title: qsTr("Saturation"), ticks: [1, 2] },
+        { id: "gamma", title: qsTr("Gamma"), ticks: [1, 2, 3, 4, 5, 6, 7, 8, 9] }
     ]
-    readonly property var parameters: effects.parameters("adjust")
-    spacing: VLCStyle.dp(11, VLCStyle.scale)
-    visible: effects.filterAvailable("adjust")
+    // Re-read once the effects have their interface (the ranges of the
+    // sliders: 0..1 and disabled without them)
+    readonly property var parameters: { effects.revision; return effects.parameters("adjust") }
+    visible: { effects.revision; return effects.filterAvailable("adjust") }
 
-    RowLayout {
-        Layout.fillWidth: true
-        Label {
-            Layout.fillWidth: true
-            text: qsTr("Picture")
-            color: VLCStyle.redesign.color("#EAEAEA", "#2e2e2e")
-            font.family: VLCStyle.redesign.fontFamily
-            font.pixelSize: VLCStyle.dp(16, VLCStyle.scale)
-        }
-        Switch {
-            id: enabledSwitch
-            objectName: "settingsPictureEnabled"
-            Accessible.name: qsTr("Enable picture adjustments")
-            Binding on checked {
-                when: !enabledSwitch.pressed
-                value: { root.effects.revision; return root.effects.filterEnabled("adjust") }
-            }
-            onClicked: root.effects.setFilterEnabled("adjust", checked)
-            indicator: Rectangle {
-                implicitWidth: VLCStyle.dp(40, VLCStyle.scale)
-                implicitHeight: VLCStyle.dp(22, VLCStyle.scale)
-                radius: height / 2
-                color: enabledSwitch.checked ? VLCStyle.redesign.accent : "#373737"
-                Rectangle {
-                    x: enabledSwitch.checked ? parent.width - width - 3 : 3
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: VLCStyle.dp(16, VLCStyle.scale)
-                    height: width
-                    radius: width / 2
-                    color: "#eaeaea"
-                }
-            }
-        }
-    }
+    function c(value) { return VLCStyle.redesign.color(value, value) }
+
     Repeater {
         model: root.adjustments
-        RowLayout {
+        Item {
             id: row
             required property var modelData
-            Layout.fillWidth: true
-            implicitHeight: VLCStyle.dp(32, VLCStyle.scale)
             readonly property var parameter: root.parameters.find(p => p.id === modelData.id)
-            Label {
-                Layout.fillWidth: true
+            width: root.width
+            height: root.px(42)
+
+            Text {
+                anchors.left: parent.left
+                anchors.baseline: parent.verticalCenter
+                anchors.baselineOffset: VLCStyle.redesign.centeredBaseline(font.pixelSize)
                 text: row.modelData.title
-                color: VLCStyle.redesign.color("#8F8F8F", "#7c7c7b")
+                color: root.c("#8F8F8F")
                 font.family: VLCStyle.redesign.fontFamily
-                font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+                font.pixelSize: root.px(14)
             }
-            Slider {
+            SettingsSlider {
                 id: adjustmentSlider
                 objectName: "settingsPicture-" + row.modelData.id
-                Layout.preferredWidth: VLCStyle.dp(319, VLCStyle.scale)
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.min(root.px(320), parent.width * 0.46)
                 from: row.parameter && row.parameter.minimum !== undefined ? row.parameter.minimum : 0
                 to: row.parameter && row.parameter.maximum !== undefined ? row.parameter.maximum : 1
+                ticks: row.modelData.ticks || []
                 enabled: !!row.parameter
                 Binding on value {
                     when: !adjustmentSlider.pressed
                     value: { root.effects.revision; return Number(root.effects.parameterValue(row.modelData.id)) }
                 }
-                onMoved: root.effects.setParameter(row.modelData.id, value)
-                background: Rectangle {
-                    x: adjustmentSlider.leftPadding
-                    y: adjustmentSlider.topPadding + (adjustmentSlider.availableHeight - height) / 2
-                    width: adjustmentSlider.availableWidth
-                    height: VLCStyle.dp(12, VLCStyle.scale)
-                    radius: height / 2
-                    color: "#0e0e0e"
-                    Rectangle {
-                        width: adjustmentSlider.visualPosition * parent.width
-                        height: parent.height
-                        radius: parent.radius
-                        color: "#54300c"
-                    }
+                onMoved: {
+                    if (!root.effects.filterEnabled("adjust"))
+                        root.effects.setFilterEnabled("adjust", true)
+                    root.effects.setParameter(row.modelData.id, value)
                 }
-                handle: Rectangle {
-                    x: adjustmentSlider.leftPadding + adjustmentSlider.visualPosition
-                       * (adjustmentSlider.availableWidth - width)
-                    y: adjustmentSlider.topPadding + (adjustmentSlider.availableHeight - height) / 2
-                    width: VLCStyle.dp(8, VLCStyle.scale)
-                    height: VLCStyle.dp(22, VLCStyle.scale)
-                    radius: 4
-                    color: VLCStyle.redesign.accent
-                }
+                Accessible.name: row.modelData.title
             }
         }
     }
-    RowLayout {
-        Layout.fillWidth: true
-        Label {
-            Layout.fillWidth: true
-            text: qsTr("Reset picture")
-            color: VLCStyle.redesign.color("#8F8F8F", "#7c7c7b")
-            font.family: VLCStyle.redesign.fontFamily
-            font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
-        }
-        Button {
-            text: qsTr("Reset")
-            onClicked: root.effects.resetDefaults("adjust")
-            background: Rectangle { color: VLCStyle.redesign.color("#191919", "#ababaa"); radius: 4 }
-            contentItem: Label {
-                text: parent.text
-                color: VLCStyle.redesign.color("#969696", "#4d4d4d")
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                font.family: VLCStyle.redesign.fontFamily
-                font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
-            }
+
+    SettingsActionRow {
+        width: root.width
+        label: qsTr("Reset picture")
+        buttonText: qsTr("Reset")
+        buttonWidth: root.px(100)
+        onClicked: {
+            root.effects.resetDefaults("adjust")
+            if (root.effects.filterEnabled("adjust"))
+                root.effects.setFilterEnabled("adjust", false)
         }
     }
 }

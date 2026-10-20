@@ -19,8 +19,6 @@
 Q_MOC_INCLUDE("medialibrary/medialib.hpp")
 
 class MediaLib;
-class QNetworkAccessManager;
-class QNetworkReply;
 
 class MLSubtitleAssociations : public QObject
 {
@@ -32,6 +30,10 @@ class MLSubtitleAssociations : public QObject
     Q_PROPERTY(bool busy READ busy NOTIFY changed)
     Q_PROPERTY(QVariantList targets READ targets NOTIFY targetsChanged)
     Q_PROPERTY(int selectedTarget READ selectedTarget NOTIFY targetsChanged)
+    // the folder where the subtitle files were looked for
+    Q_PROPERTY(QUrl folder READ folder NOTIFY changed)
+    // audio files (soundtracks) instead of subtitles
+    Q_PROPERTY(bool audio READ audio WRITE setAudio NOTIFY changed)
 
 public:
     explicit MLSubtitleAssociations(QObject* parent = nullptr);
@@ -44,11 +46,17 @@ public:
     bool busy() const { return m_busy; }
     QVariantList targets() const;
     int selectedTarget() const { return m_selectedTarget; }
+    QUrl folder() const { return m_folder; }
+    bool audio() const { return m_audio; }
+    void setAudio(bool audio);
 
     Q_INVOKABLE void open(const MLItemId& target);
     Q_INVOKABLE void openUrl(const QUrl& target);
+    // the media files of a folder of the disk
+    Q_INVOKABLE void openFolderUrl(const QUrl& folder);
     Q_INVOKABLE void addFiles(const QVariantList& urls);
     Q_INVOKABLE void chooseFiles();
+    Q_INVOKABLE void chooseFolder();
     Q_INVOKABLE void addLink(const QUrl& url);
     Q_INVOKABLE void addLinkWithName(const QUrl& url, const QString& filename);
     Q_INVOKABLE void selectTarget(int index);
@@ -72,6 +80,8 @@ private:
         int destination = -1;
         QString issue;
         QString label;
+        // found in the folder (checked only when its name is the media's)
+        bool scanned = false;
     };
     struct Target {
         MLItemId id;
@@ -84,14 +94,17 @@ private:
     void loadTarget(const MLItemId& target);
     void loadUrlTarget(const QUrl& target);
     void refreshTargets(const Target& initial);
+    void scanFolder(const QUrl& folder);
+    // a subtitle file, or an audio file in audio
+    bool accepts(const QString& filename) const;
+    bool m_audio = false;
+    QUrl m_folder;
     QPointer<MediaLib> m_ml;
     QVector<Destination> m_destinations;
     QVector<Source> m_sources;
     QVector<Target> m_targets;
     int m_selectedTarget = 0;
     quint64 m_targetRevision = 0;
-    QNetworkAccessManager* m_network = nullptr;
-    QNetworkReply* m_download = nullptr;
     QString m_error;
     bool m_busy = false;
     bool m_saving = false;

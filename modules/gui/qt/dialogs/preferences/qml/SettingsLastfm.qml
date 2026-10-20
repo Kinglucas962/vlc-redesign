@@ -3,110 +3,131 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  ****************************************************************************/
 import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
+import QtQuick.Controls.Basic
 import VLC.Style
+import VLC.Util
 
-ColumnLayout {
+// Last.fm rows of the Network section of the privacy page of the design
+// (they follow "Fetch titles and cover art from the internet")
+Column {
     id: root
     property var settingsModel
     property bool available: false
     property bool selected: false
-    spacing: VLCStyle.dp(8, VLCStyle.scale)
+
+    function px(value) { return VLCStyle.dp(value, VLCStyle.scale) }
+    function c(value) { return VLCStyle.redesign.color(value, value) }
 
     function begin() {
         available = settingsModel && settingsModel.audioscrobblerAvailable()
         if (!available) return
         selected = settingsModel.audioscrobblerEnabled()
-        if (username) username.text = String(settingsModel.valueFor("lastfm-username") || "")
-        if (password) password.text = String(settingsModel.valueFor("lastfm-password") || "")
-        if (submissionUrl) submissionUrl.text = String(settingsModel.valueFor("scrobbler-url") || "")
+        showAll()
     }
 
-    Label {
-        Layout.fillWidth: true
-        text: qsTr("Last.fm")
-        color: VLCStyle.redesign.color("#EAEAEA", "#2e2e2e")
-        font.family: VLCStyle.redesign.fontFamily
-        font.pixelSize: VLCStyle.dp(16, VLCStyle.scale)
+    // Figma 3062:11911: the fields are empty while the tracks are not
+    // submitted (a field shows its value while it has the focus)
+    function show(editor, key) {
+        if (editor)
+            editor.text = selected || editor.activeFocus ? String(settingsModel.valueFor(key) || "") : ""
     }
-    Label {
-        Layout.fillWidth: true
-        visible: !root.available
-        text: qsTr("Last.fm is unavailable in this VLC installation.")
-        color: VLCStyle.redesign.color("#8F8F8F", "#7c7c7b")
-        font.family: VLCStyle.redesign.fontFamily
-        font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+    function showAll() {
+        show(username, "lastfm-username")
+        show(password, "lastfm-password")
+        show(submissionUrl, "scrobbler-url")
     }
-    RowLayout {
-        Layout.fillWidth: true
-        visible: root.available
-        implicitHeight: VLCStyle.dp(38, VLCStyle.scale)
-        Label {
-            Layout.fillWidth: true
-            text: qsTr("Submit played tracks to Last.fm")
-            color: VLCStyle.redesign.color("#8F8F8F", "#7c7c7b")
+
+    component RowLabel: Row {
+        property alias text: rowText.text
+        property string help
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: root.px(10)
+        Text {
+            id: rowText
+            // Figma's text box: the advance of Inter 3.19 rounded up (see
+            // SettingsOptionRow)
+            width: Math.ceil(rowExact.advanceWidth / 16 - text.length * font.pixelSize / 2816 - 0.001)
+            anchors.baseline: parent.verticalCenter
+            anchors.baselineOffset: VLCStyle.redesign.centeredBaseline(font.pixelSize)
+            color: root.c("#8F8F8F")
             font.family: VLCStyle.redesign.fontFamily
-            font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
-        }
-        Switch {
-            id: submitSwitch
-            objectName: "settingsLastfmEnabled"
-            Binding on checked { when: !submitSwitch.pressed; value: root.selected }
-            onClicked: {
-                if (root.settingsModel.setAudioscrobblerEnabled(checked))
-                    root.selected = checked
+            font.pixelSize: root.px(14)
+            TextMetrics {
+                id: rowExact
+                font.family: rowText.font.family
+                font.weight: rowText.font.weight
+                font.pixelSize: rowText.font.pixelSize * 16
+                text: rowText.text
             }
-            indicator: Rectangle {
-                implicitWidth: VLCStyle.dp(40, VLCStyle.scale)
-                implicitHeight: VLCStyle.dp(22, VLCStyle.scale)
-                radius: height / 2
-                color: submitSwitch.checked ? VLCStyle.redesign.accent : "#373737"
-                Rectangle {
-                    x: submitSwitch.checked ? parent.width - width - 3 : 3
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: VLCStyle.dp(16, VLCStyle.scale)
-                    height: width
-                    radius: width / 2
-                    color: "#eaeaea"
+        }
+        Image {
+            anchors.verticalCenter: parent.verticalCenter
+            width: root.px(18)
+            height: width
+            sourceSize: Qt.size(width, height)
+            source: SVGColorImage.colorize("qrc:///redesign/duo/info-small.svg").color1(root.c("#404040")).uri()
+            HoverHandler { id: infoHover }
+            ToolTip.visible: infoHover.hovered && parent.help.length > 0
+            ToolTip.text: parent.help
+            ToolTip.delay: 650
+        }
+    }
+
+    Item {
+        width: parent.width
+        height: root.px(42)
+        visible: root.available
+        RowLabel {
+            text: qsTr("Submit played tracks to last.fm")
+            help: qsTr("Sends the titles of the tracks you play to your Last.fm profile. Takes effect after restarting VLC.")
+        }
+        SettingsToggle {
+            objectName: "settingsLastfmEnabled"
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            checked: root.selected
+            onSwitched: (on) => {
+                if (root.settingsModel.setAudioscrobblerEnabled(on)) {
+                    root.selected = on
+                    root.showAll()
                 }
             }
+            Accessible.name: qsTr("Submit played tracks to last.fm")
         }
     }
+
     Repeater {
         model: [
-            { label: qsTr("Last.fm username"), key: "lastfm-username" },
-            { label: qsTr("Last.fm password"), key: "lastfm-password" },
-            { label: qsTr("Last.fm submission URL"), key: "scrobbler-url" }
+            { label: qsTr("Last.fm username"), key: "lastfm-username",
+              help: qsTr("The user name of your Last.fm account.") },
+            // the design labels the password "Last.fm username" too (Figma
+            // 3062:11911); its accessible name stays the password
+            { label: qsTr("Last.fm username"), key: "lastfm-password", accessible: qsTr("Last.fm password"),
+              help: qsTr("The password of your Last.fm account.") },
+            { label: qsTr("Last.fm submission URL"), key: "scrobbler-url",
+              help: qsTr("The address the played tracks are sent to.") }
         ]
-        RowLayout {
+        Item {
             id: fieldRow
             required property var modelData
-            Layout.fillWidth: true
+            width: root.width
+            height: root.px(46)
             visible: root.available
-            implicitHeight: VLCStyle.dp(38, VLCStyle.scale)
-            Label {
-                Layout.fillWidth: true
+            RowLabel {
                 text: fieldRow.modelData.label
-                color: VLCStyle.redesign.color("#8F8F8F", "#7c7c7b")
-                font.family: VLCStyle.redesign.fontFamily
-                font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+                help: fieldRow.modelData.help
             }
-            TextField {
+            SettingsTextField {
                 id: editor
                 objectName: "settings_" + fieldRow.modelData.key
-                Layout.preferredWidth: VLCStyle.dp(319, VLCStyle.scale)
-                color: VLCStyle.redesign.color("#EAEAEA", "#2e2e2e")
-                selectByMouse: true
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.min(root.px(320), parent.width * 0.46)
                 echoMode: fieldRow.modelData.key === "lastfm-password" ? TextInput.Password : TextInput.Normal
-                font.family: VLCStyle.redesign.fontFamily
-                font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
                 onTextEdited: root.settingsModel.setValue(fieldRow.modelData.key, text)
-                background: Rectangle {
-                    color: VLCStyle.redesign.color("#191919", "#ababaa")
-                    border.color: VLCStyle.redesign.color("#373737", "#8e8e8d")
-                    radius: 4
-                }
+                onActiveFocusChanged: root.show(editor, fieldRow.modelData.key)
+                Accessible.name: fieldRow.modelData.accessible || fieldRow.modelData.label
                 Component.onCompleted: {
                     if (fieldRow.modelData.key === "lastfm-username") root.username = editor
                     else if (fieldRow.modelData.key === "lastfm-password") root.password = editor
@@ -114,15 +135,6 @@ ColumnLayout {
                 }
             }
         }
-    }
-    Label {
-        Layout.fillWidth: true
-        visible: root.available
-        text: qsTr("Last.fm connection changes take effect after restarting VLC.")
-        color: VLCStyle.redesign.color("#8F8F8F", "#7c7c7b")
-        wrapMode: Text.WordWrap
-        font.family: VLCStyle.redesign.fontFamily
-        font.pixelSize: VLCStyle.dp(12, VLCStyle.scale)
     }
 
     property var username

@@ -80,6 +80,27 @@ FocusScope {
 
     property alias alignment: repeater.alignment
 
+    // where the first and the last controls are (Figma "Player - customize":
+    // the dashed free room of the zone goes up to them)
+    readonly property real firstControlX: {
+        const count = repeater.count
+        for (let i = 0; i < count; ++i) {
+            const item = repeater.itemAt(i)
+            if (item && item.visible)
+                return item.x
+        }
+        return 0
+    }
+    readonly property real lastControlRight: {
+        const count = repeater.count
+        for (let i = count - 1; i >= 0; --i) {
+            const item = repeater.itemAt(i)
+            if (item && item.visible)
+                return item.x + item.width
+        }
+        return 0
+    }
+
 
     ///@type {function}
     required property var altFocusAction

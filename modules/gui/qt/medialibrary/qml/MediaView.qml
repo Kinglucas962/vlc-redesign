@@ -58,6 +58,10 @@ MainViewLoader {
 
     property bool interactive: true // false, when as a row
 
+    // The grid keeps the 20px side margins of the video grids (rows of the
+    // home page), instead of the responsive margins of the base view
+    property bool compactMargins: false
+
     property bool reuseItems: true
 
     property bool seeAllButtonVisible: model.maximumCount > model.count
@@ -135,6 +139,21 @@ MainViewLoader {
             basePictureWidth: root.gridCoverWidth
             basePictureHeight: root.gridCoverHeight
 
+            // Figma home "Frame 39": cover 200, 20, title 19, 10, artist
+            // 19 (268: 18 + 18 with the 1 + 1 the helper adds), gap 20
+            fixedPictureWidth: root.compactMargins
+            horizontalSpacing: root.compactMargins ? VLCStyle.dp(20, VLCStyle.scale) : VLCStyle.column_spacing
+            verticalSpacing: root.compactMargins ? VLCStyle.dp(40, VLCStyle.scale) : VLCStyle.column_spacing
+            titleTopMargin: root.compactMargins ? VLCStyle.dp(20, VLCStyle.scale) : VLCStyle.gridItemTitle_topMargin
+            titleHeight: root.compactMargins ? VLCStyle.dp(18, VLCStyle.scale) : VLCStyle.gridItemTitle_height
+            subtitleTopMargin: root.compactMargins ? VLCStyle.dp(10, VLCStyle.scale) : VLCStyle.gridItemSubtitle_topMargin
+            subtitleHeight: root.compactMargins ? VLCStyle.dp(18, VLCStyle.scale) : VLCStyle.gridItemSubtitle_height
+
+            leftMargin: (root.compactMargins ? VLCStyle.dp(20, VLCStyle.scale) - extraMargin
+                                             : VLCStyle.layout_left_margin) + leftPadding
+            rightMargin: (root.compactMargins ? VLCStyle.dp(20, VLCStyle.scale) - extraMargin
+                                              : VLCStyle.layout_right_margin) + rightPadding
+
             displayMarginBeginning: root.displayMarginBeginning
             displayMarginEnd: root.displayMarginEnd
 
@@ -164,7 +183,21 @@ MainViewLoader {
                 fallbackImage: model.isVideo ? VLCStyle.noArtVideoCover : VLCStyle.noArtAlbumCover
 
                 title: model.title || qsTr("Unknown Title")
-                subtitle: model.duration?.formatHMS() ?? "--:--"
+                // The design: the artist under a regular title (Inter 16,
+                // #969696 and #6B6B6B), covers with a radius of 12
+                subtitle: model.main_artist ? model.main_artist : (model.duration?.formatHMS() ?? "--:--")
+                titleTopMargin: gridView.titleTopMargin
+                subtitleTopMargin: gridView.subtitleTopMargin
+                pictureRadius: root.compactMargins ? VLCStyle.dp(12, VLCStyle.scale) : VLCStyle.gridCover_radius
+                titleFontWeight: Font.Normal
+                titleFontFamily: VLCStyle.redesign.fontFamily
+                titleFontPixelSize: VLCStyle.dp(16, VLCStyle.scale)
+                titleColor: VLCStyle.redesign.color(VLCStyle.redesign.textSecondary, "#2e2e2e")
+                subtitleFontFamily: VLCStyle.redesign.fontFamily
+                subtitleFontPixelSize: VLCStyle.dp(16, VLCStyle.scale)
+                subtitleColor: VLCStyle.redesign.color("#6B6B6B", "#5a5a59")
+                titleBoxHeight: root.compactMargins ? VLCStyle.dp(19, VLCStyle.scale) : 0
+                subtitleBoxHeight: root.compactMargins ? VLCStyle.dp(19, VLCStyle.scale) : 0
 
                 opacity: gridView.expandIndex !== -1 && gridView.expandIndex !== index ? 0.7 : 1
 

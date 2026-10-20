@@ -7,6 +7,8 @@ libqml_module_dialogs_a_CPPFLAGS = $(libqt_plugin_la_CPPFLAGS)
 libqml_module_dialogs_a_QML = \
 	dialogs/preferences/qml/SettingsInlineEffects.qml \
 	dialogs/preferences/qml/SettingsEqualizer.qml \
+	dialogs/preferences/qml/SettingsEqualizerPanel.qml \
+	dialogs/preferences/qml/SettingsStartupVolume.qml \
 	dialogs/preferences/qml/SettingsPicture.qml \
 	dialogs/preferences/qml/SettingsLastfm.qml \
 	dialogs/preferences/qml/SettingsDeveloperMode.qml \
@@ -33,9 +35,18 @@ libqml_module_dialogs_a_QML = \
 	dialogs/preferences/qml/SettingsExtensions.qml \
 	dialogs/preferences/qml/SettingsDialog.qml \
 	dialogs/preferences/qml/SettingsOptionRow.qml \
+	dialogs/preferences/qml/SettingsToggle.qml \
+	dialogs/preferences/qml/SettingsDropdown.qml \
+	dialogs/preferences/qml/SettingsTextField.qml \
+	dialogs/preferences/qml/SettingsButton.qml \
+	dialogs/preferences/qml/SettingsSlider.qml \
+	dialogs/preferences/qml/SettingsSegmented.qml \
+	dialogs/preferences/qml/SettingsSectionTitle.qml \
+	dialogs/preferences/qml/SettingsActionRow.qml \
 	dialogs/toolbar/qml/PlayerMenu.qml \
 	player/qml/SleepTimerMenu.qml \
 	dialogs/dialogs/qml/SetupDialogs.qml \
+	dialogs/dialogs/qml/NetworkStreamDialog.qml \
 	dialogs/extended/qml/VideoOption.qml \
 	dialogs/extended/qml/VideoFilterSection.qml \
 	dialogs/extended/qml/CropInput.qml \
@@ -126,6 +137,7 @@ libqml_module_medialibrary_a_QML = \
 	medialibrary/qml/SubtitleAssociationsDialog.qml \
 	medialibrary/qml/PlaylistGridDisplay.qml \
 	medialibrary/qml/PlaylistCreateDialog.qml \
+	medialibrary/qml/FolderDisplay.qml \
 	medialibrary/qml/PlaylistMedia.qml \
 	medialibrary/qml/PlaylistMediaDisplay.qml \
 	medialibrary/qml/VideoPlaylistsDisplay.qml \
@@ -151,6 +163,7 @@ libqml_module_menus_a_CXXFLAGS = $(libqt_plugin_la_CXXFLAGS)
 libqml_module_menus_a_CPPFLAGS = $(libqt_plugin_la_CPPFLAGS)
 libqml_module_menus_a_QML = \
 	menus/qml/GlobalShortcuts.qml \
+	menus/qml/MainMenu.qml \
 	menus/qml/Menubar.qml \
 	menus/qml/ShortcutExt.qml
 libqml_module_menus_a_Singleton_QML =
@@ -190,6 +203,8 @@ libqml_module_player_a_QML = \
 	player/qml/SubtitleTracksPanel.qml \
 	player/qml/SubtitleSyncTimeline.qml \
 	player/qml/ControlBar.qml \
+	player/qml/CompactLibrary.qml \
+	player/qml/SeekFramePreview.qml \
 	player/qml/PlaybackSpeed.qml \
 	player/qml/LyricsFlickable.qml \
 	player/qml/MiniPlayer.qml \
@@ -207,6 +222,7 @@ libqml_module_player_a_QML = \
 	player/qml/PlayerToolbarVisibilityFSM.qml \
 	player/qml/MinimalView.qml \
 	player/qml/ResumeDialog.qml \
+	player/qml/QueueCard.qml \
 	player/qml/WaveformSlider.qml \
 	player/qml/SliderBar.qml \
 	player/qml/TopBar.qml \
@@ -222,7 +238,6 @@ libqml_module_player_a_QML = \
 	player/qml/NavigationBox.qml
 
 libqml_module_player_a_Singleton_QML = \
-	player/qml/SubtitleSeriesPreset.qml \
 	player/qml/PlayerControlbarControls.qml
 libqml_module_player_a_SOURCES = $(QML_MODULE_player_SRC)
 nodist_libqml_module_player_a_SOURCES = player/qmlassets.cpp $(QML_MODULE_player_NODIST_EXTRA)
@@ -242,6 +257,20 @@ libqml_module_playercontrols_a_QML = \
 	player/qml/controlbarcontrols/ZoomWidget.qml \
 	player/qml/controlbarcontrols/FavoriteButton.qml \
 	player/qml/controlbarcontrols/DividerWidget.qml \
+	player/qml/controlbarcontrols/SkipForward10Button.qml \
+	player/qml/controlbarcontrols/SkipBack10Button.qml \
+	player/qml/controlbarcontrols/PipButton.qml \
+	player/qml/controlbarcontrols/RightSidebarButton.qml \
+	player/qml/controlbarcontrols/MainMenuButton.qml \
+	player/qml/controlbarcontrols/LibraryButton.qml \
+	player/qml/controlbarcontrols/HomeButton.qml \
+	player/qml/controlbarcontrols/ThumbnailWidget.qml \
+	player/qml/controlbarcontrols/FolderNameWidget.qml \
+	player/qml/controlbarcontrols/PlaylistNameWidget.qml \
+	player/qml/controlbarcontrols/ReplayButton.qml \
+	player/qml/controlbarcontrols/ChaptersButton.qml \
+	player/qml/controlbarcontrols/BookmarksButton.qml \
+	player/qml/controlbarcontrols/PlaylistsButton.qml \
 	player/qml/controlbarcontrols/HDRButton.qml \
 	player/qml/controlbarcontrols/HighResolutionTimeWidget.qml \
 	player/qml/controlbarcontrols/ArtworkInfoWidget.qml \
@@ -290,7 +319,10 @@ libqml_module_playercontrols_a_QML = \
 	player/qml/controlbarcontrols/TeletextWidget.qml \
 	player/qml/controlbarcontrols/VolumeWidget.qml \
 	player/qml/controlbarcontrols/Fallback.qml
-libqml_module_playercontrols_a_Singleton_QML =
+# Used from VLC.Player: qmlcachegen only sees a module's own singletons
+# through other modules' qmldir, so it cannot live in VLC.Player.
+libqml_module_playercontrols_a_Singleton_QML = \
+	player/qml/SubtitleSeriesPreset.qml
 libqml_module_playercontrols_a_SOURCES = $(QML_MODULE_playercontrols_SRC)
 nodist_libqml_module_playercontrols_a_SOURCES = playercontrols/qmlassets.cpp $(QML_MODULE_playercontrols_NODIST_EXTRA)
 QML_MODULE_LIBS += libqml_module_playercontrols.a
@@ -366,6 +398,16 @@ libqml_module_widgets_a_QML = \
 	widgets/qml/CSDWindowButton.qml \
 	widgets/qml/CSDWindowButtonSet.qml \
 	widgets/qml/CSDTitlebarTapNDrapHandler.qml \
+	widgets/qml/CSDModalDragStrip.qml \
+	widgets/qml/RedesignMenu.qml \
+	widgets/qml/RedesignMenuItem.qml \
+	widgets/qml/RedesignOptionItem.qml \
+	widgets/qml/DashedRect.qml \
+	widgets/qml/CustomizeDragArea.qml \
+	widgets/qml/RedesignMenuSeparator.qml \
+	widgets/qml/RedesignDialog.qml \
+	widgets/qml/RedesignDialogHeading.qml \
+	widgets/qml/RedesignTextArea.qml \
 	widgets/qml/CSDMouseStealer.qml \
 	widgets/qml/CurrentIndicator.qml \
 	widgets/qml/DragItem.qml \

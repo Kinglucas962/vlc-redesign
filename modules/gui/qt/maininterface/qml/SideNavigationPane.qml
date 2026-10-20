@@ -70,12 +70,15 @@ T.Pane {
         return rows
     }
 
+    // The entry of the page shown (-1: none, e.g. a folder page)
+    property int matchedIndex: -1
     function updateCurrentIndex() {
         let matched = -1
         for (let i = 0; i < entries.length; ++i) {
             if (History.match(History.viewPath, entries[i].uri))
                 matched = i
         }
+        matchedIndex = matched
         listView.currentIndex = matched
     }
     onEntriesChanged: Qt.callLater(updateCurrentIndex)
@@ -94,13 +97,20 @@ T.Pane {
         }
     }
 
+    // Figma "Frame 110": padding 12 16, rows of 32, gap 14
+    readonly property real _rowHeight: VLCStyle.dp(32, VLCStyle.scale)
+    readonly property real _rowSpacing: VLCStyle.dp(14, VLCStyle.scale)
+
     contentItem: ColumnLayout {
         spacing: 0
 
         Widgets.ListViewExt {
             id: listView
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(contentHeight, root.availableHeight - addItem.implicitHeight)
+            Layout.topMargin: VLCStyle.dp(12, VLCStyle.scale)
+            Layout.preferredHeight: Math.min(contentHeight, root.availableHeight - Layout.topMargin
+                                             - addItem.implicitHeight - addItem.Layout.topMargin)
+            spacing: root._rowSpacing
             clip: true
             focus: true
             model: root.entries
@@ -117,22 +127,32 @@ T.Pane {
                 navigationUri: uri
                 navigationDepth: depth
                 width: ListView.view.width
-                height: VLCStyle.dp(38, VLCStyle.scale)
-                leftPadding: root.safeAreaLeftMargin + VLCStyle.dp(root.delegateShowText ? 24 + depth * 16 : 8, VLCStyle.scale)
-                rightPadding: root.safeAreaRightMargin + VLCStyle.margin_small
+                height: root._rowHeight
+                topPadding: 0
+                bottomPadding: 0
+                leftPadding: root.safeAreaLeftMargin + VLCStyle.dp(root.delegateShowText ? 16 + depth * 16 : 8, VLCStyle.scale)
+                rightPadding: root.safeAreaRightMargin + VLCStyle.dp(16, VLCStyle.scale)
                 leftInset: root.safeAreaLeftMargin + VLCStyle.dp(8, VLCStyle.scale)
                 rightInset: root.safeAreaRightMargin + VLCStyle.dp(8, VLCStyle.scale)
+                // Figma "Icon Wrapper": 30 wide, 32 for Videos
                 iconSlotWidth: VLCStyle.dp(modelData.asset === "video" ? 32 : 30, VLCStyle.scale)
                 iconTxt: modelData.icon
                 referenceIconName: modelData.asset
                 text: modelData.title
                 showText: root.delegateShowText
                 enabled: !modelData.library || MainCtx.mediaLibraryAvailable
-                checked: index === listView.currentIndex
+                // the page shown (not the keyboard position: a folder page has
+                // none, the list would keep the last one)
+                checked: index === root.matchedIndex
+                // Figma 970:4028: a folder page shows the Videos icon filled
+                contextual: modelData.asset === "video" && History.viewPath[0] === "folder"
                 onClicked: {
-                    root.itemClicked(uri, this)
+                    // The navigation may rebuild the delegates: the view is
+                    // updated first
                     listView.currentIndex = index
-                    listView.forceActiveFocus(focusReason)
+                    root.matchedIndex = index
+                    listView.forceActiveFocus(Qt.MouseFocusReason)
+                    root.itemClicked(uri, this)
                 }
             }
         }
@@ -140,9 +160,12 @@ T.Pane {
         SideNavigationDelegate {
             id: addItem
             Layout.fillWidth: true
-            Layout.preferredHeight: VLCStyle.dp(38, VLCStyle.scale)
-            leftPadding: root.safeAreaLeftMargin + VLCStyle.dp(root.delegateShowText ? 24 : 8, VLCStyle.scale)
-            rightPadding: root.safeAreaRightMargin
+            Layout.topMargin: root._rowSpacing
+            Layout.preferredHeight: root._rowHeight
+            topPadding: 0
+            bottomPadding: 0
+            leftPadding: root.safeAreaLeftMargin + VLCStyle.dp(root.delegateShowText ? 16 : 8, VLCStyle.scale)
+            rightPadding: root.safeAreaRightMargin + VLCStyle.dp(16, VLCStyle.scale)
             leftInset: root.safeAreaLeftMargin + VLCStyle.dp(8, VLCStyle.scale)
             rightInset: root.safeAreaRightMargin + VLCStyle.dp(8, VLCStyle.scale)
             iconSlotWidth: VLCStyle.dp(30, VLCStyle.scale)

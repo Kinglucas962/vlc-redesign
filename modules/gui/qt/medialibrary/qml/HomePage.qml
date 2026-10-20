@@ -40,6 +40,8 @@ Widgets.PageExt {
 
     title: qsTr("Home")
 
+    libraryHeader: true
+
     hasGridListMode: true
 
     isSearchable: true
@@ -55,6 +57,17 @@ Widgets.PageExt {
 
     signal seeAllButtonClicked(string name, int reason)
 
+    // Figma: a section has a padding of 20 top and bottom, its cards one of
+    // 20 around them, 17 between the sections: the rows end 57 under the
+    // cards (in the grid; the list keeps its height)
+    readonly property real _sectionEnd: VLCStyle.dp(20 + 20 + 17, VLCStyle.scale)
+    readonly property real _cardsTop: VLCStyle.dp(20, VLCStyle.scale)
+    function _rowHeight(view, cardHeight) {
+        if (!MainCtx.gridView)
+            return view.currentItem?.contentHeight ?? view.implicitHeight
+        return _cardsTop + cardHeight + _sectionEnd
+    }
+
     function positionContentAtBeginning() {
         contentYBehavior.enabled = true
         flickable.contentY = -flickable.originY
@@ -65,24 +78,28 @@ Widgets.PageExt {
         // `focus` is checked, because that indicates the item that has the focus within the focus scope
         if (continueWatchingRow.focus)
             continueWatchingRow.setCurrentItemFocus(reason)
+        else if (listenAgainRow.focus)
+            listenAgainRow.setCurrentItemFocus(reason)
         else if (favoritesRow.focus)
             favoritesRow.setCurrentItemFocus(reason)
         else if (newVideoRow.focus)
             newVideoRow.setCurrentItemFocus(reason)
         else if (newMusicRow.focus)
             newMusicRow.setCurrentItemFocus(reason)
-        else
+        else if (coneNButtons.visible)
             coneNButtons.forceActiveFocus(reason)
+        else
+            continueWatchingRow.forceActiveFocus(reason)
     }
 
     contentItem: Flickable {
         id: flickable
 
         implicitWidth: Math.max(coneNButtons.implicitWidth, mediaRows.implicitWidth)
-        implicitHeight: coneNButtons.implicitHeight + (_hasMedias ? mediaRows.implicitHeight : 0)
+        implicitHeight: _hasMedias ? mediaRows.implicitHeight : coneNButtons.implicitHeight
 
         contentWidth: width
-        contentHeight: _hasMedias ? coneNButtons.implicitHeight + mediaRows.implicitHeight
+        contentHeight: _hasMedias ? mediaRows.implicitHeight
                                   : height - topMargin - bottomMargin
 
         flickableDirection: Flickable.AutoFlickIfNeeded
@@ -98,10 +115,11 @@ Widgets.PageExt {
         property bool _hasMedias: true
 
         Binding on _hasMedias {
-            when: !continueWatchingRow.model.loading && !favoritesRow.model.loading
+            when: !continueWatchingRow.model.loading && !listenAgainRow.model.loading
+                  && !favoritesRow.model.loading
                   && !newVideoRow.model.loading && !newMusicRow.model.loading
-            value: continueWatchingRow.visible || favoritesRow.visible
-                   || newVideoRow.visible || newMusicRow.visible
+            value: continueWatchingRow.visible || listenAgainRow.visible || foldersRow.visible
+                   || favoritesRow.visible || newVideoRow.visible || newMusicRow.visible
             restoreMode: Binding.RestoreNone
         }
 
@@ -153,10 +171,12 @@ Widgets.PageExt {
             // jumps when it is enabled again later on.
         }
 
+        // The design's home has no cone: it only welcomes an empty library
         NoMedialibHome.ConeNButtons {
             id: coneNButtons
 
-            focus: true
+            visible: !flickable._hasMedias
+            focus: visible
 
             orientation: flickable._hasMedias ? Qt.Horizontal : Qt.Vertical
 
@@ -179,20 +199,26 @@ Widgets.PageExt {
         Widgets.NavigableCol {
             id: mediaRows
 
-            anchors.top: coneNButtons.bottom
+            anchors.top: coneNButtons.visible ? coneNButtons.bottom : parent.top
+            // Figma "Frame 20": 17 between the line and the first section
+            anchors.topMargin: coneNButtons.visible ? 0 : VLCStyle.dp(17, VLCStyle.scale)
             anchors.left: parent.left
             anchors.right: parent.right
 
             spacing: 0 // NOTE: We depend on the top padding of view header currently.
 
+            focus: !coneNButtons.visible
+
             Navigation.parentItem: root
-            Navigation.upItem: coneNButtons
+            Navigation.upItem: coneNButtons.visible ? coneNButtons : root.header
 
             Widgets.ViewHeader {
+                topPadding: VLCStyle.dp(20, VLCStyle.scale)
+                bottomPadding: 0
                 visible: continueWatchingRow.visible
                 text: qsTr("Continue Watching")
                 view: continueWatchingRow
-                seeAllButton.visible: continueWatchingRow.model.maximumCount > continueWatchingRow.model.count
+                seeAllButton.visible: true // The design shows the chevron of every section
 
                 onSeeAllButtonClicked: function (reason) {
                     root.seeAllButtonClicked("continueWatching", reason)
@@ -207,7 +233,7 @@ Widgets.PageExt {
                 anchors.left: parent.left
                 anchors.right: parent.right
 
-                height: currentItem?.contentHeight ?? implicitHeight
+                height: root._rowHeight(this, VLCStyle.dp(217, VLCStyle.scale))
 
                 visible: model.count !== 0
 
@@ -269,10 +295,181 @@ Widgets.PageExt {
             }
 
             Widgets.ViewHeader {
+                topPadding: VLCStyle.dp(20, VLCStyle.scale)
+                bottomPadding: 0
+                visible: listenAgainRow.visible
+                text: qsTr("Listen Again")
+                view: listenAgainRow
+                seeAllButton.visible: true // The design shows the chevron of every section
+
+                onSeeAllButtonClicked: function (reason) {
+                    root.seeAllButtonClicked("listenAgain", reason)
+                }
+            }
+
+            MediaView {
+                id: listenAgainRow
+
+                compactMargins: true
+                gridCoverWidth: VLCStyle.dp(200, VLCStyle.scale)
+                gridCoverHeight: VLCStyle.dp(200, VLCStyle.scale)
+
+                AccessibleCompat.id: "listenAgain"
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+
+                height: root._rowHeight(this, VLCStyle.dp(268, VLCStyle.scale))
+
+                visible: model.count !== 0
+
+                listHeaderPositioning: ListView.InlineHeader
+                enableBeginningFade: false
+                enableEndFade: false
+                listSectionProperty: ""
+
+                interactive: false
+
+                emptyLabel: null
+
+                // FIXME: `ExpandGridView` causes extreme performance degradation when `reuseItems`
+                //        is true and items provided by the model change (#29084).
+                reuseItems: !MainCtx.gridView
+
+                listCoverWidth: root.listCoverWidth
+                listCoverHeight: root.listCoverHeight
+                listCoverRadius: root.listCoverRadius
+
+                Navigation.parentItem: mediaRows
+
+                model: MLRecentAudioModel {
+                    ml: MediaLib
+
+                    searchPattern: root.search.pattern
+
+                    // FIXME: Make limit 0 load no items, instead of loading all items.
+                    limit: MainCtx.gridView ? Math.max(listenAgainRow.currentItem?.nbItemPerRow ?? null, 1) : 5
+                }
+
+                onActiveFocusChanged: {
+                    if (activeFocus) {
+                        const item = currentItem?.currentItem ?? currentItem?._getItem(currentIndex) // FIXME: `ExpandGridView` does not have `currentItem`.
+                        contentYBehavior.enabled = true
+                        Helpers.positionFlickableToContainItem(flickable, item ?? this)
+                        contentYBehavior.enabled = false
+                    }
+                }
+            }
+
+            Widgets.ViewHeader {
+                topPadding: VLCStyle.dp(20, VLCStyle.scale)
+                bottomPadding: 0
+                visible: foldersRow.visible
+                text: qsTr("Frequently Visited Folders")
+                view: foldersRow
+                // The design shows the chevron of every section: the folders
+                // open the browsing of the folders
+                seeAllButton.visible: true
+
+                onSeeAllButtonClicked: function (reason) {
+                    History.push(["network"], reason)
+                }
+            }
+
+            // Folders of the played media, the most played first
+            ListView {
+                id: foldersRow
+
+                readonly property real contentLeftMargin: continueWatchingRow.contentLeftMargin
+                readonly property real contentRightMargin: continueWatchingRow.contentRightMargin
+                readonly property real cardSize: VLCStyle.dp(200, VLCStyle.scale)
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                // Figma "Frame 57": 20, the cards (200, 20, the name 19),
+                // 20 and the end of the section
+                readonly property real cardHeight: cardSize + VLCStyle.dp(20 + 19, VLCStyle.scale)
+                height: root._cardsTop + cardHeight + root._sectionEnd
+
+                visible: count !== 0 && root.search.pattern === ""
+
+                orientation: ListView.Horizontal
+                leftMargin: contentLeftMargin
+                rightMargin: contentRightMargin
+                spacing: VLCStyle.dp(20, VLCStyle.scale)
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+
+                model: MLFrequentFoldersModel {
+                    ml: MediaLib
+                }
+
+                delegate: T.ItemDelegate {
+                    id: folderCard
+
+                    required property var model
+
+                    width: foldersRow.cardSize
+                    height: foldersRow.height
+                    padding: 0
+
+                    Accessible.name: model.name
+
+                    background: null
+                    // Figma: the card (#1E1E1E, radius 12, the folder at 48),
+                    // 20, the name (Inter 16 #969696, box 19)
+                    contentItem: Column {
+                        topPadding: root._cardsTop
+                        spacing: VLCStyle.dp(20, VLCStyle.scale)
+
+                        Rectangle {
+                            width: foldersRow.cardSize
+                            height: foldersRow.cardSize
+                            radius: VLCStyle.dp(12, VLCStyle.scale)
+                            color: folderCard.hovered
+                                   ? VLCStyle.redesign.color(VLCStyle.redesign.controlHoverBackground, "#9c9c9b")
+                                   : VLCStyle.redesign.color("#1E1E1E", "#ababaa")
+
+                            Image {
+                                anchors.centerIn: parent
+                                width: VLCStyle.dp(48, VLCStyle.scale)
+                                height: width
+                                source: "qrc:///redesign/icons/folder/large.png"
+                                sourceSize: Qt.size(width, height)
+                                fillMode: Image.Pad
+                                smooth: false
+                            }
+                        }
+
+                        Text {
+                            id: folderName
+                            width: foldersRow.cardSize
+                            height: VLCStyle.dp(19, VLCStyle.scale)
+                            text: folderCard.model.name
+                            elide: Text.ElideMiddle
+                            color: VLCStyle.redesign.color(VLCStyle.redesign.textSecondary, "#4d4d4d")
+                            font.family: VLCStyle.redesign.fontFamily
+                            font.pixelSize: VLCStyle.dp(16, VLCStyle.scale)
+                            verticalAlignment: Text.AlignTop
+                            topPadding: VLCStyle.redesign.textBaseline(0, font.pixelSize) - folderMetrics.ascent
+                            FontMetrics {
+                                id: folderMetrics
+                                font: folderName.font
+                            }
+                        }
+                    }
+
+                    onClicked: History.push(["folder"], { folderUrl: folderCard.model.url }, Qt.MouseFocusReason)
+                }
+            }
+
+            Widgets.ViewHeader {
+                topPadding: VLCStyle.dp(20, VLCStyle.scale)
+                bottomPadding: 0
                 visible: favoritesRow.visible
                 text: qsTr("Favorites")
                 view: favoritesRow
-                seeAllButton.visible: favoritesRow.model.maximumCount > favoritesRow.model.count
+                seeAllButton.visible: true // The design shows the chevron of every section
 
                 onSeeAllButtonClicked: function (reason) {
                     root.seeAllButtonClicked("favorites", reason)
@@ -282,12 +479,16 @@ Widgets.PageExt {
             MediaView {
                 id: favoritesRow
 
+                compactMargins: true
+                gridCoverWidth: VLCStyle.dp(200, VLCStyle.scale)
+                gridCoverHeight: VLCStyle.dp(200, VLCStyle.scale)
+
                 AccessibleCompat.id: "favourites"
 
                 anchors.left: parent.left
                 anchors.right: parent.right
 
-                height: currentItem?.contentHeight ?? implicitHeight
+                height: root._rowHeight(this, VLCStyle.dp(268, VLCStyle.scale))
 
                 visible: model.count !== 0
 
@@ -345,10 +546,12 @@ Widgets.PageExt {
             }
 
             Widgets.ViewHeader {
+                topPadding: VLCStyle.dp(20, VLCStyle.scale)
+                bottomPadding: 0
                 text: qsTr("New Videos")
                 visible: newVideoRow.visible
                 view: newVideoRow
-                seeAllButton.visible: newVideoRow.model.maximumCount > newVideoRow.model.count
+                seeAllButton.visible: true // The design shows the chevron of every section
 
                 onSeeAllButtonClicked: function (reason) {
                     root.seeAllButtonClicked("newVideo", reason)
@@ -363,7 +566,7 @@ Widgets.PageExt {
                 anchors.left: parent.left
                 anchors.right: parent.right
 
-                height: currentItem?.contentHeight ?? implicitHeight
+                height: root._rowHeight(this, VLCStyle.dp(217, VLCStyle.scale))
 
                 visible: model.count !== 0
 
@@ -425,10 +628,12 @@ Widgets.PageExt {
             }
 
             Widgets.ViewHeader {
+                topPadding: VLCStyle.dp(20, VLCStyle.scale)
+                bottomPadding: 0
                 text: qsTr("New Music")
                 visible: newMusicRow.visible
                 view: newMusicRow
-                seeAllButton.visible: newMusicRow.model.maximumCount > newMusicRow.model.count
+                seeAllButton.visible: true // The design shows the chevron of every section
 
                 onSeeAllButtonClicked: function (reason) {
                     root.seeAllButtonClicked("newMusic", reason)
@@ -438,12 +643,16 @@ Widgets.PageExt {
             MediaView {
                 id: newMusicRow
 
+                compactMargins: true
+                gridCoverWidth: VLCStyle.dp(200, VLCStyle.scale)
+                gridCoverHeight: VLCStyle.dp(200, VLCStyle.scale)
+
                 AccessibleCompat.id: "newMusic"
 
                 anchors.left: parent.left
                 anchors.right: parent.right
 
-                height: currentItem?.contentHeight ?? implicitHeight
+                height: root._rowHeight(this, VLCStyle.dp(268, VLCStyle.scale))
 
                 visible: model.count !== 0
 

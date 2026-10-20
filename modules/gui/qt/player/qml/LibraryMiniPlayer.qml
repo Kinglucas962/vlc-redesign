@@ -11,6 +11,7 @@ import VLC.MainInterface
 import VLC.Playlist
 import VLC.Player
 import VLC.Style
+import VLC.Widgets as Widgets
 
 T.Control {
     id: root
@@ -28,18 +29,28 @@ T.Control {
         return parts.length > 1 ? parts[parts.length - 2] : ""
     }
 
+    // Figma "Miniplayer": padding 8, "Frame 112" of 230, 20, "Frame 115"
+    // (4, the title 19, 14, the row 32, 4)
     padding: VLCStyle.dp(8, VLCStyle.scale)
-    implicitWidth: VLCStyle.dp(390, VLCStyle.scale)
+    implicitWidth: VLCStyle.dp(391, VLCStyle.scale)
     implicitHeight: topPadding + bottomPadding +
                     (queueExpanded ? queueArea.height + VLCStyle.dp(6, VLCStyle.scale) : 0) +
-                    video.height + VLCStyle.dp(6, VLCStyle.scale) + seek.height +
-                    VLCStyle.dp(24, VLCStyle.scale) + titleLabel.height +
-                    VLCStyle.dp(18, VLCStyle.scale) + details.height
-
+                    _frameHeight + VLCStyle.dp(20 + 4 + 19 + 14 + 32 + 4, VLCStyle.scale)
+    // "Frame 112": the video and the seek bar, 230 for the video of 211;
+    // narrower, the video is lower (16:9) and the frame with it
+    readonly property real _frameHeight: video.height + VLCStyle.dp(19, VLCStyle.scale)
     background: Rectangle {
         color: root.lightTheme ? "#ababaa" : VLCStyle.redesign.playerControlBackground
         radius: VLCStyle.dp(14, VLCStyle.scale)
-        border.color: root.lightTheme ? "#858585" : VLCStyle.redesign.separator
+        border.width: root.lightTheme ? 1 : 0
+        border.color: "#858585"
+
+        // Figma: drop shadow 0 0, blur 11.8, #000000 38 %
+        Widgets.RoundedRectangleShadow {
+            visible: !root.lightTheme
+            color: Qt.rgba(0, 0, 0, 0.38)
+            blurRadius: 5.9 * VLCStyle.scale // (dp() rounds to whole pixels)
+        }
     }
     contentItem: Item {
         MiniPlayerQueue {
@@ -54,7 +65,8 @@ T.Control {
             objectName: "miniPlayerVideo"
             y: root.queueExpanded ? queueArea.height + VLCStyle.dp(6, VLCStyle.scale) : 0
             width: parent.width
-            height: width * 9 / 16
+            // Figma: 375 x 210.94
+            height: Math.round(width * 9 / 16)
             dragTarget: root
             dragXMin: root.dragXMin
             dragXMax: root.dragXMax
@@ -63,12 +75,39 @@ T.Control {
             hideControls: false
         }
 
+        // the rounded corners of the video (radius 6): the panel around them,
+        // as far as its edge (8: the outer radius is the panel's 14)
+        Rectangle {
+            readonly property real cover: root.leftPadding
+            x: video.x - cover
+            y: video.y - cover
+            width: video.width + 2 * cover
+            height: video.height + 2 * cover
+            radius: VLCStyle.dp(6, VLCStyle.scale) + cover
+            color: "transparent"
+            border.width: cover
+            border.color: root.lightTheme ? "#ababaa" : VLCStyle.redesign.playerControlBackground
+        }
+        // Figma: a border of 2 #090909 inside
+        Rectangle {
+            x: video.x
+            y: video.y
+            width: video.width
+            height: video.height
+            radius: VLCStyle.dp(6, VLCStyle.scale)
+            color: "transparent"
+            border.width: VLCStyle.dp(2, VLCStyle.scale)
+            border.color: root.lightTheme ? "#dedede" : VLCStyle.redesign.seekBackground
+        }
+
         Controls.Slider {
             id: seek
             objectName: "miniPlayerSeek"
-            y: video.y + video.height + VLCStyle.dp(6, VLCStyle.scale)
+            // Figma "Frame 21": 4 under the video, 375 x 16
+            y: video.y + video.height + VLCStyle.dp(4, VLCStyle.scale)
+            z: 1
             width: parent.width
-            height: VLCStyle.dp(14, VLCStyle.scale)
+            height: VLCStyle.dp(16, VLCStyle.scale)
             padding: 0
             from: 0
             to: 1
@@ -78,13 +117,19 @@ T.Control {
             onMoved: Player.position = value
             Keys.onLeftPressed: Player.jumpBwd()
             Keys.onRightPressed: Player.jumpFwd()
+            // Figma: the track radius 6 #090909, the fill 2 inside, radius 4,
+            // #371F06
             background: Rectangle {
                 color: root.lightTheme ? "#dedede" : VLCStyle.redesign.seekBackground
-                radius: height / 2
+                radius: VLCStyle.dp(6, VLCStyle.scale)
                 Rectangle {
-                    width: Math.max(0, parent.width * seek.visualPosition)
-                    height: parent.height
-                    radius: parent.radius
+                    readonly property real inset: VLCStyle.dp(2, VLCStyle.scale)
+                    x: inset
+                    y: inset
+                    visible: width > 0
+                    width: Math.max(0, (parent.width - 2 * inset) * seek.visualPosition)
+                    height: parent.height - 2 * inset
+                    radius: VLCStyle.dp(4, VLCStyle.scale)
                     color: root.lightTheme
                            ? Qt.rgba(VLCStyle.redesign.accent.r, VLCStyle.redesign.accent.g,
                                      VLCStyle.redesign.accent.b, 0.35)
@@ -102,80 +147,101 @@ T.Control {
             }
         }
 
+        // Figma "Frame 115": padding 4 8, the title (box 19), 14, the row
         Text {
             id: titleLabel
-            x: VLCStyle.dp(6, VLCStyle.scale)
-            y: seek.y + seek.height + VLCStyle.dp(24, VLCStyle.scale)
-            width: parent.width - x * 2
-            height: VLCStyle.dp(24, VLCStyle.scale)
+            x: VLCStyle.dp(8, VLCStyle.scale)
+            y: video.y + root._frameHeight + VLCStyle.dp(20 + 4, VLCStyle.scale)
+            width: parent.width - 2 * x
+            height: VLCStyle.dp(19, VLCStyle.scale)
             text: Player.name
             color: root.lightTheme ? "#4d4d4d" : VLCStyle.redesign.textSecondary
             elide: Text.ElideRight
             font.family: VLCStyle.redesign.fontFamily
             font.pixelSize: VLCStyle.dp(16, VLCStyle.scale)
-            verticalAlignment: Text.AlignVCenter
+            verticalAlignment: Text.AlignTop
+            topPadding: VLCStyle.redesign.textBaseline(0, font.pixelSize) - titleMetrics.ascent
+            FontMetrics {
+                id: titleMetrics
+                font: titleLabel.font
+            }
         }
 
+        // the folder and the artist (icon 24, 8, the name), 20 apart
         Row {
             id: details
-            x: VLCStyle.dp(6, VLCStyle.scale)
-            y: titleLabel.y + titleLabel.height + VLCStyle.dp(18, VLCStyle.scale)
-            width: parent.width - x * 2
-            height: VLCStyle.dp(26, VLCStyle.scale)
-            spacing: VLCStyle.dp(6, VLCStyle.scale)
+            x: VLCStyle.dp(8, VLCStyle.scale)
+            y: titleLabel.y + titleLabel.height + VLCStyle.dp(14, VLCStyle.scale)
+            height: VLCStyle.dp(32, VLCStyle.scale)
+            spacing: VLCStyle.dp(20, VLCStyle.scale)
 
-            Image {
-                width: VLCStyle.dp(17, VLCStyle.scale)
-                height: width
-                anchors.verticalCenter: parent.verticalCenter
-                source: "qrc:///redesign/folder.svg"
-                sourceSize: Qt.size(17, 17)
-            }
-            Text {
-                width: Math.min(70, implicitWidth)
-                height: parent.height
-                text: root.folderName
-                color: root.lightTheme ? "#4d4d4d" : VLCStyle.redesign.textSecondary
-                elide: Text.ElideRight
-                font.family: VLCStyle.redesign.fontFamily
-                font.pixelSize: VLCStyle.dp(15, VLCStyle.scale)
-                verticalAlignment: Text.AlignVCenter
-            }
-            Image {
-                visible: Player.artist.length > 0
-                width: visible ? VLCStyle.dp(17, VLCStyle.scale) : 0
-                height: width
-                anchors.verticalCenter: parent.verticalCenter
-                source: "qrc:///redesign/artist.svg"
-                sourceSize: Qt.size(17, 17)
-            }
-            Text {
-                visible: Player.artist.length > 0
-                width: visible ? Math.max(0, details.width - 155) : 0
-                height: parent.height
-                text: Player.artist
-                color: root.lightTheme ? "#4d4d4d" : VLCStyle.redesign.textSecondary
-                elide: Text.ElideRight
-                font.family: VLCStyle.redesign.fontFamily
-                font.pixelSize: VLCStyle.dp(15, VLCStyle.scale)
-                verticalAlignment: Text.AlignVCenter
+            Repeater {
+                model: [
+                    { iconName: "folder", label: root.folderName },
+                    { iconName: "artist", label: Player.artist }
+                ]
+                delegate: Row {
+                    id: detail
+                    required property var modelData
+                    visible: detail.modelData.label.length > 0
+                    height: details.height
+                    spacing: VLCStyle.dp(8, VLCStyle.scale)
+                    Image {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: VLCStyle.redesign.iconSize
+                        height: width
+                        source: "qrc:///redesign/icons/" + detail.modelData.iconName + "/default.png"
+                        sourceSize: Qt.size(width, height)
+                        fillMode: Image.Pad
+                        smooth: false
+                    }
+                    Text {
+                        id: detailText
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Math.min(implicitWidth, VLCStyle.dp(120, VLCStyle.scale))
+                        height: VLCStyle.dp(19, VLCStyle.scale)
+                        text: detail.modelData.label
+                        color: root.lightTheme ? "#4d4d4d" : VLCStyle.redesign.textSecondary
+                        elide: Text.ElideRight
+                        font.family: VLCStyle.redesign.fontFamily
+                        font.pixelSize: VLCStyle.dp(16, VLCStyle.scale)
+                        verticalAlignment: Text.AlignTop
+                        topPadding: VLCStyle.redesign.textBaseline(0, font.pixelSize) - detailMetrics.ascent
+                        FontMetrics {
+                            id: detailMetrics
+                            font: detailText.font
+                        }
+                    }
+                }
             }
         }
+
+        // Figma "Icon Wrapper": 30 x 32, radius 4, padding 4
         Controls.Button {
             id: queueButton
             objectName: "miniPlayerQueueToggle"
-            x: parent.width - width - VLCStyle.dp(3, VLCStyle.scale)
+            x: parent.width - width - VLCStyle.dp(8, VLCStyle.scale)
             y: details.y
-            width: VLCStyle.dp(24, VLCStyle.scale)
-            height: details.height
+            width: VLCStyle.dp(30, VLCStyle.scale)
+            height: VLCStyle.dp(32, VLCStyle.scale)
+            padding: VLCStyle.dp(4, VLCStyle.scale)
             Accessible.name: root.queueExpanded ? qsTr("Hide queue") : qsTr("Show queue")
             onClicked: root.queueExpanded = !root.queueExpanded
-            background: Item {}
-            contentItem: Image {
-                source: "qrc:///redesign/mini-queue.svg"
-                sourceSize: Qt.size(20, 20)
-                fillMode: Image.PreserveAspectFit
-                opacity: root.queueExpanded ? 1 : 0.65
+            background: Rectangle {
+                radius: VLCStyle.dp(4, VLCStyle.scale)
+                color: (queueButton.hovered || root.queueExpanded)
+                       ? VLCStyle.redesign.color(VLCStyle.redesign.controlHoverBackground, "#9c9c9b")
+                       : "transparent"
+            }
+            contentItem: Item {
+                Image {
+                    width: VLCStyle.redesign.iconSize
+                    height: width
+                    source: "qrc:///redesign/icons/lists/default.png"
+                    sourceSize: Qt.size(width, height)
+                    fillMode: Image.Pad
+                    smooth: false
+                }
             }
         }
     }

@@ -53,9 +53,12 @@ Item {
         anchors.fill: parent
         spacing: 0
 
+        // Figma: no player tabs (the main player is edited)
         Controls.TabBar {
             id: bar
             z: 1
+            visible: false
+            Layout.preferredHeight: 0
 
             background: Rectangle {
                 color: VLCStyle.redesign.color("#0e0e0e", theme.bg.primary)
@@ -262,50 +265,60 @@ Item {
             }
         }
 
-        Rectangle {
-            Layout.fillHeight: true
+        // Figma "Frame 124": the palette
+        ToolbarEditorButtonList {
+            id: buttonList
+
             Layout.fillWidth: true
-            Layout.topMargin: VLCStyle.margin_xxsmall
+            Layout.fillHeight: true
 
-            color: VLCStyle.redesign.color("#151515", buttonList.colorContext.bg.primary)
-            border.color: VLCStyle.redesign.color("#222222", theme.border)
-            border.width: VLCStyle.border
-            border.pixelAligned: (radius < Number.EPSILON)
-
-            ColumnLayout {
-                anchors.fill: parent
-
-                Widgets.MenuCaption {
-                    Layout.margins: VLCStyle.margin_xxsmall
-                    text: qsTr("Available controls — drag into a player section to add; drag a placed control here to remove")
-                    color: VLCStyle.redesign.color("#969696", buttonList.colorContext.fg.primary)
-                }
-
-                ToolbarEditorButtonList {
-                    id: buttonList
-
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.margins: VLCStyle.margin_xxsmall
-
-                    Component.onCompleted: {
-                        controlDragStarted.connect(root.dragStarted)
-                        controlDragStopped.connect(root.dragStopped)
-                    }
-                }
+            Component.onCompleted: {
+                controlDragStarted.connect(root.dragStarted)
+                controlDragStopped.connect(root.dragStopped)
             }
         }
     }
 
-    EditorDummyButton {
+    // the item of the palette being dragged: its box and icon
+    Item {
         id: buttonDragItem
 
+        property string text
+        property url iconSource
+
         visible: Drag.active
-        color: theme.fg.primary
-        opacity: 0.75
+        opacity: 0.85
+        width: VLCStyle.dp(30, VLCStyle.scale)
+        height: VLCStyle.dp(32, VLCStyle.scale)
+        Drag.hotSpot.x: width / 2
+        Drag.hotSpot.y: height / 2
 
         x: -1
         y: -1
+
+        Rectangle {
+            anchors.fill: parent
+            radius: VLCStyle.dp(4, VLCStyle.scale)
+            color: VLCStyle.redesign.color(VLCStyle.redesign.controlHoverBackground, "#9c9c9b")
+        }
+        Widgets.DashedRect {
+            anchors.fill: parent
+            color: VLCStyle.redesign.accent
+        }
+        Image {
+            anchors.centerIn: parent
+            width: VLCStyle.redesign.iconSize
+            height: width
+            visible: source.toString().length > 0
+            source: buttonDragItem.iconSource
+            sourceSize: Qt.size(width, height)
+        }
+        EditorDummyButton {
+            anchors.centerIn: parent
+            visible: buttonDragItem.iconSource.toString().length === 0
+            text: buttonDragItem.text
+            color: theme.fg.primary
+        }
 
         Drag.onActiveChanged: {
             dragAutoScrollHandler.dragItem = Drag.active ? this : null

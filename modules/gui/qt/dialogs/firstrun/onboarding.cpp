@@ -8,10 +8,12 @@
  *****************************************************************************/
 
 #include "onboarding.hpp"
+#include "dialogs/preferences/interface_language.hpp"
 
 #include "maininterface/mainctx.hpp"
 #include "medialibrary/medialib.hpp"
 #include "util/color_scheme_model.hpp"
+#include "util/vlchotkeyconverter.hpp"
 #include "qt.hpp"
 
 #include <QDir>
@@ -20,9 +22,12 @@
 #include <QStandardPaths>
 #include <QVariantMap>
 
+#include <vlc_actions.h>
 #include <vlc_configuration.h>
 
+#include <cctype>
 #include <cstdlib>
+#include <cstring>
 
 OnboardingController::OnboardingController(QObject* parent)
     : QObject(parent)
@@ -82,6 +87,20 @@ QUrl OnboardingController::suggestedFolder() const
     if (folder.exists() && folder.isDir() && folder.isReadable())
         return QUrl::fromLocalFile(folder.canonicalFilePath());
     return {};
+}
+
+QString OnboardingController::displayPath(const QUrl& folder) const
+{
+    if (!folder.isLocalFile())
+        return QString();
+    const QString path = QDir::cleanPath(folder.toLocalFile());
+    const QString home = QDir::cleanPath(QDir::homePath());
+    // the folders of the user from their home, as the design shows them
+    if (path.compare(home, Qt::CaseInsensitive) == 0)
+        return QStringLiteral("~");
+    if (path.startsWith(home + QLatin1Char('/'), Qt::CaseInsensitive))
+        return QStringLiteral("~") + path.mid(home.size());
+    return QDir::toNativeSeparators(path);
 }
 
 bool OnboardingController::metadataNetworkAccess() const
@@ -305,32 +324,87 @@ QVariantList OnboardingController::activeShortcuts() const
     if (!m_ctx)
         return result;
 
-    struct Shortcut { const char* key; const char* action; };
+    // Rows of the design (Figma 1902:6770, the left column then the right
+    // one): an action, or two opposite ones, the hotkeys and the key the
+    // design shows for each; or a key of the interface (else its fallback)
+    struct Shortcut {
+        const char* action;
+        const char* first; const char* firstKey;
+        const char* second; const char* secondKey;
+        const char* interfaceKey; const char* fallback;
+    };
     static const Shortcut shortcuts[] = {
-        {"key-play-pause", QT_TR_NOOP("Play / Pause")},
-        {"key-jump-short", QT_TR_NOOP("Seek backward")},
-        {"key-jump+short", QT_TR_NOOP("Seek forward")},
-        {"key-prev", QT_TR_NOOP("Previous item")},
-        {"key-next", QT_TR_NOOP("Next item")},
-        {"key-frame-previous", QT_TR_NOOP("Previous frame")},
-        {"key-frame-next", QT_TR_NOOP("Next frame")},
-        {"key-subtitle-track", QT_TR_NOOP("Cycle subtitle track")},
-        {"key-audio-track", QT_TR_NOOP("Cycle audio track")},
-        {"key-toggle-fullscreen", QT_TR_NOOP("Toggle fullscreen")},
-        {"key-vol-up", QT_TR_NOOP("Increase volume")},
-        {"key-vol-down", QT_TR_NOOP("Decrease volume")},
-        {"key-snapshot", QT_TR_NOOP("Take a snapshot")},
-        {"key-record", QT_TR_NOOP("Record")},
+        {QT_TR_NOOP("Play / Pause"), "key-play-pause", "Space", nullptr, nullptr, nullptr, nullptr},
+        // the navigation keys seek and change the volume without a menu
+        {QT_TR_NOOP("Seek Backward / Forward"), "key-nav-left", "Left", "key-nav-right", "Right", nullptr, nullptr},
+        {QT_TR_NOOP("Previous / Next Item"), "key-prev", "<", "key-next", ">", nullptr, nullptr},
+        {QT_TR_NOOP("Previous / Next Frame"), "key-frame-previous", ",", "key-frame-next", ".", nullptr, nullptr},
+        {QT_TR_NOOP("Cycle Subtitle Track"), "key-subtitle-track", "v", nullptr, nullptr, nullptr, nullptr},
+        {QT_TR_NOOP("Cycle Audio Track"), "key-audio-track", "b", nullptr, nullptr, nullptr, nullptr},
+        {QT_TR_NOOP("Toggle Fullscreen"), "key-toggle-fullscreen", "f", nullptr, nullptr, nullptr, nullptr},
+        {QT_TR_NOOP("Increase / Decrease Volume"), "key-nav-up", "Up", "key-nav-down", "Down", nullptr, nullptr},
+        {QT_TR_NOOP("Show / Hide Queue"), nullptr, nullptr, nullptr, nullptr, "q", "Ctrl+L"},
+        {QT_TR_NOOP("Show / Hide File Browser"), nullptr, nullptr, nullptr, nullptr, "l", nullptr},
+        {QT_TR_NOOP("Take a Snapshot"), "key-snapshot", "Shift+s", nullptr, nullptr, nullptr, nullptr},
+        {QT_TR_NOOP("Record"), "key-record", "Shift+r", nullptr, nullptr, nullptr, nullptr},
+    };
+
+    // the key of the design when it is bound to the action (a sign also
+    // with Shift, as most layouts type it), else the first key bound
+    const auto hotkey = [](const char* name, const char* designKey) {
+        if (!name)
+            return QString();
+        char* const configured = config_GetPsz(name);
+        const QStringList bound = configured
+            ? QString::fromUtf8(configured).split(QLatin1Char('\t'), Qt::SkipEmptyParts)
+            : QStringList();
+        std::free(configured);
+        if (bound.isEmpty())
+            return QString();
+        if (designKey) {
+            const uint_fast32_t code = vlc_str2keycode(designKey);
+            const bool sign = std::strlen(designKey) == 1 && !std::isalnum(static_cast<unsigned char>(designKey[0]));
+            for (const QString& key : bound) {
+                const uint_fast32_t boundCode = vlc_str2keycode(qtu(key));
+                if (code != KEY_UNSET && (boundCode == code || (sign && boundCode == (code | KEY_MODIFIER_SHIFT))))
+                    return QString::fromLatin1(designKey);
+            }
+        }
+        return bound.first();
     };
 
     for (const Shortcut& shortcut : shortcuts) {
-        char* const configured = config_GetPsz(shortcut.key);
-        const QString sequence = configured ? QString::fromUtf8(configured) : QString();
-        std::free(configured);
-        if (!sequence.isEmpty())
+        QStringList sequences;
+        if (shortcut.interfaceKey) {
+            // the interface handles it while no hotkey of VLC takes it
+            if (!isVLCKeyBound(VLC_OBJECT(m_ctx->getIntf()), vlc_str2keycode(shortcut.interfaceKey)))
+                sequences << QString::fromLatin1(shortcut.interfaceKey);
+            else if (shortcut.fallback)
+                sequences << QString::fromLatin1(shortcut.fallback);
+        } else {
+            sequences << hotkey(shortcut.first, shortcut.firstKey);
+            if (shortcut.second)
+                sequences << hotkey(shortcut.second, shortcut.secondKey);
+        }
+        sequences.removeAll(QString());
+        if (!sequences.isEmpty())
             result.append(QVariantMap{{"action", tr(shortcut.action)},
-                                      {"sequence", sequence},
-                                      {"configKey", QString::fromLatin1(shortcut.key)}});
+                                      {"sequences", sequences}});
     }
     return result;
+}
+
+QVariantList OnboardingController::interfaceLanguages() const
+{
+    return ::interfaceLanguages();
+}
+
+QString OnboardingController::interfaceLanguage() const
+{
+    return ::interfaceLanguage();
+}
+
+bool OnboardingController::setInterfaceLanguage(const QString& iso)
+{
+    return ::setInterfaceLanguage(iso);
 }

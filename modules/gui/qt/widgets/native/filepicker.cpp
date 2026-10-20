@@ -9,6 +9,7 @@
 #endif
 
 #include "filepicker.hpp"
+#include <QColorDialog>
 #include <QFileDialog>
 #include "dialogs/dialogs_provider.hpp"
 #include "maininterface/mainctx.hpp"
@@ -46,4 +47,17 @@ QString FilePicker::chooseSaveFile(const QString& title, const QString& initialF
 {
     const ShortcutGuard guard(m_ctx);
     return QFileDialog::getSaveFileName(nullptr, title, initialFile);
+}
+
+int FilePicker::chooseColor(int initial, const QString& title)
+{
+    const ShortcutGuard guard(m_ctx);
+    const QColor color = QColorDialog::getColor(QColor::fromRgb(QRgb(initial)), nullptr, title);
+    return color.isValid() ? int(color.rgb() & 0xFFFFFF) : -1;
+}
+
+QString FilePicker::chooseOpenFile(const QString& title, const QString& filter)
+{
+    const ShortcutGuard guard(m_ctx);
+    return QDir::toNativeSeparators(QFileDialog::getOpenFileName(nullptr, title, {}, filter));
 }

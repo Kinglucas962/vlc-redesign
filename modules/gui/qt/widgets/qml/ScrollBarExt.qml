@@ -69,6 +69,10 @@ T.ScrollBar {
 
         visible: control._shown
 
+        // the design draws no scroll bar at rest: it shows while the view
+        // moves or the bar is hovered, then fades out
+        opacity: 0
+
         component SizeBehavior : Behavior {
             NumberAnimation {
                 easing.type: Easing.OutSine
@@ -82,6 +86,27 @@ T.ScrollBar {
 
         SizeBehavior on implicitHeight {
             enabled: control.horizontal
+        }
+    }
+
+    states: State {
+        name: "active"
+        when: control.policy === T.ScrollBar.AlwaysOn || control.active || control.interacting
+        PropertyChanges {
+            control.contentItem.opacity: 1
+        }
+    }
+
+    transitions: Transition {
+        from: "active"
+        SequentialAnimation {
+            PauseAnimation { duration: 450 }
+            NumberAnimation {
+                target: control.contentItem
+                property: "opacity"
+                duration: VLCStyle.duration_short
+                to: 0.0
+            }
         }
     }
 }

@@ -35,7 +35,19 @@ T.ItemDelegate {
     property string referenceIconName: ""
     property var navigationUri: []
     property int navigationDepth: 0
+    // The section of the page shown without being that page (Figma: a folder
+    // of the videos shown, the Videos icon filled in grey)
+    property bool contextual: false
     property real iconSlotWidth: VLCStyle.redesign.iconSize
+
+    // The icons of the Figma icon set (icons/<name>/<state>.png): the
+    // current page has the filled one in the accent
+    readonly property string iconSetName: ({
+        "home": "home", "video": "videos", "music": "songs", "network": "streaming",
+        "playlists": "playlist", "recent": "recent", "add": "add"
+    })[referenceIconName] ?? ""
+    readonly property bool _useIconSet: iconSetName.length > 0 && VLCStyle.palette.isDark
+                                        && (!checked || Qt.colorEqual(VLCStyle.redesign.accent, VLCStyle.redesign.logoColor))
 
     readonly property url imageSource: {
         if (referenceIconName.length > 0)
@@ -115,9 +127,10 @@ T.ItemDelegate {
 
     background: Widgets.AnimatedBackground {
         enabled: theme.initialized
-        color: VLCStyle.redesign.color(control.down || control.checked ? VLCStyle.redesign.selectionBackground
-                                                                       : control.hovered ? VLCStyle.redesign.controlHoverBackground
-                                                                                         : "transparent", theme.bg.primary)
+        // Figma "sidebar": the current page has its icon in the accent
+        // color, no background; hovered and pressed items do
+        color: VLCStyle.redesign.color(control.down || control.hovered ? VLCStyle.redesign.controlHoverBackground
+                                                                       : "transparent", theme.bg.primary)
         border.color: visualFocus ? VLCStyle.redesign.color(VLCStyle.redesign.focusColor, theme.visualFocus) : "transparent"
 
         radius: control.radius
@@ -148,10 +161,27 @@ T.ItemDelegate {
                 width: VLCStyle.redesign.iconSize
                 height: width
                 sourceSize: Qt.size(width, height)
-                source: control.imageSource
-                visible: VLCStyle.palette.isDark && source.toString().length > 0 && status === Image.Ready
+                // Drawn in #8F8F8F: the current page takes the accent, the
+                // light theme its muted text color
+                source: {
+                    if (control._useIconSet)
+                        return "qrc:///redesign/icons/" + control.iconSetName + "/"
+                               + (control.checked ? "active"
+                                  : control.contextual && control.iconSetName === "videos" ? "selected"
+                                  : "default") + ".png"
+                    if (control.imageSource.toString().length === 0)
+                        return ""
+                    if (control.checked)
+                        return SVGColorImage.colorize(control.imageSource).any({ "#8F8F8F": VLCStyle.redesign.accent }).uri()
+                    if (VLCStyle.palette.isDark)
+                        return control.imageSource
+                    return SVGColorImage.colorize(control.imageSource)
+                                        .any({ "#8F8F8F": VLCStyle.redesign.color(VLCStyle.redesign.textMuted, "#5a5a59") }).uri()
+                }
+                visible: source.toString().length > 0 && status === Image.Ready
                 opacity: control.enabled ? 1.0 : 0.4
                 fillMode: Image.PreserveAspectFit
+                smooth: !control._useIconSet
             }
 
             Widgets.IconLabel {
@@ -183,10 +213,22 @@ T.ItemDelegate {
 
             text: control.text
 
-            verticalAlignment: Text.AlignVCenter
+            // the text box of the design (17 px) centred in the row, on a
+            // whole pixel
+            verticalAlignment: Text.AlignTop
+            topPadding: Math.round((height - Math.round(1.2109375 * font.pixelSize)) / 2)
+                        + (Math.round(1.2109375 * font.pixelSize) - 1.2109375 * font.pixelSize) / 2
+                        + 0.96875 * font.pixelSize - labelMetrics.ascent
+            bottomPadding: 0
 
+            FontMetrics {
+                id: labelMetrics
+                font: label.font
+            }
+
+            // Figma: #C6C6C6 for the current page
             color: VLCStyle.redesign.color(!control.enabled ? VLCStyle.redesign.textDisabled
-                                                           : control.checked ? VLCStyle.redesign.textPrimary
+                                                           : control.checked ? "#C6C6C6"
                                                                              : VLCStyle.redesign.textMuted,
                                            control.checked ? theme.fg.secondary : theme.fg.primary)
 

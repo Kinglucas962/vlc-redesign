@@ -32,7 +32,9 @@ class VLCTick
     Q_GADGET
 public:
     enum FormatFlag {
-        SubSecondFormattedAsMS = 1
+        SubSecondFormattedAsMS = 1,
+        // formatHMS() keeps the hours under one hour: 00:02:10
+        ForceHours = 2
     };
     Q_ENUM(FormatFlag)
 

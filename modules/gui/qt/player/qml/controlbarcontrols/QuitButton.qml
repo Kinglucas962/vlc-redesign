@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (C) 2021 VLC authors and VideoLAN
+ * Copyright (C) 2026 VLC authors and VideoLAN
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,19 +17,13 @@
  *****************************************************************************/
 import QtQuick
 
-
 import VLC.MainInterface
-import VLC.Widgets as Widgets
-import VLC.Style
 import VLC.Util
 
-
-Widgets.IconToolButton {
+RedesignIconButton {
     id: quitBtn
-
-    text: VLCIcons.clear
+    iconSource: "qrc:///redesign/icons/quit/default.png"
     onClicked: MainCtx.close()
-    description: qsTr("Quit")
-
+    description: qsTr("Quit VLC")
     AccessibleCompat.id: "quitButton"
 }

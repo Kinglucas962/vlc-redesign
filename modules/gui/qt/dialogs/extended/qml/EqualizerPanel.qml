@@ -202,34 +202,45 @@ ColumnLayout {
                         font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
                         elide: Text.ElideRight
                     }
-                    Canvas {
+                    // Line segments as rotated Rectangles: no Canvas in VLC's Qt Quick.
+                    Item {
+                        id: curve
                         Layout.preferredWidth: VLCStyle.dp(72, VLCStyle.scale)
                         Layout.preferredHeight: VLCStyle.dp(24, VLCStyle.scale)
-                        renderTarget: Canvas.Image
                         Accessible.role: Accessible.Graphic
                         Accessible.name: qsTr("%1 equalizer curve").arg(presetChoice.text)
-                        onPaint: {
-                            const gains = presetChoice.modelData.bands
-                            if (!gains || gains.length !== 10) return
-                            const paint = getContext("2d")
-                            paint.clearRect(0, 0, width, height)
-                            paint.strokeStyle = VLCStyle.redesign.border
-                            paint.lineWidth = 1
-                            paint.beginPath()
-                            paint.moveTo(0, height / 2)
-                            paint.lineTo(width, height / 2)
-                            paint.stroke()
-                            paint.strokeStyle = VLCStyle.redesign.accent
-                            paint.lineWidth = 1.5
-                            paint.beginPath()
-                            for (let band = 0; band < gains.length; ++band) {
-                                const gain = Math.max(-20, Math.min(20, Number(gains[band])))
-                                const x = band * width / (gains.length - 1)
-                                const y = (20 - gain) * height / 40
-                                if (band === 0) paint.moveTo(x, y)
-                                else paint.lineTo(x, y)
+
+                        readonly property var gains: presetChoice.modelData.bands
+                        readonly property bool valid: !!gains && gains.length === 10
+
+                        function pointAt(band) {
+                            const gain = Math.max(-20, Math.min(20, Number(gains[band])))
+                            return Qt.point(band * width / (gains.length - 1), (20 - gain) * height / 40)
+                        }
+
+                        Rectangle {
+                            visible: curve.valid
+                            y: Math.round(curve.height / 2)
+                            width: curve.width
+                            height: 1
+                            color: VLCStyle.redesign.border
+                        }
+
+                        Repeater {
+                            model: curve.valid ? curve.gains.length - 1 : 0
+                            delegate: Rectangle {
+                                required property int index
+                                readonly property point from: curve.pointAt(index)
+                                readonly property point to: curve.pointAt(index + 1)
+                                x: from.x
+                                y: from.y - height / 2
+                                width: Math.hypot(to.x - from.x, to.y - from.y)
+                                height: 1.5
+                                antialiasing: true
+                                transformOrigin: Item.Left
+                                rotation: Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI
+                                color: VLCStyle.redesign.accent
                             }
-                            paint.stroke()
                         }
                     }
                     Image {

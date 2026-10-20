@@ -35,6 +35,7 @@
 #include "dialogs/open/open.hpp"
 
 #include "playlist/playlist_item.hpp"
+#include "playlist/media.hpp"
 
 #include "util/singleton.hpp"
 #include "util/shared_input_item.hpp"
@@ -163,6 +164,9 @@ private:
     virtual ~DialogsProvider() override;
 
     void loadMediaFile( es_format_category_e category, int filter, const QString& dialogTitle );
+    // A playlist file chosen by the user and the export module of its
+    // type (empty: cancelled)
+    QString askPlaylistFile( const QString& title, const char **module );
 
     qt_intf_t *p_intf;
 
@@ -224,6 +228,8 @@ public slots:
     void sleepTimerDialog();
     void audioVisualizationDialog();
     void hdrOutputDialog();
+    void shortcutsDialog();
+    void networkStreamDialog();
     void setRedesignDialogVisible(const QString& name, bool visible);
     void firstRunDialog();
     void extendedDialog(int page = 0);
@@ -266,6 +272,7 @@ public slots:
     void openAndTranscodingDialogs();
 
     void savePlayingToPlaylist();
+    void saveMediaToPlaylistFile( const QVector<vlc::playlist::Media>& medias );
 
     void loadSubtitlesFile();
     void loadAudioFile();
@@ -300,6 +307,8 @@ signals:
     void sleepTimerRequested();
     void audioVisualizationRequested();
     void hdrOutputRequested();
+    void shortcutsRequested();
+    void networkStreamRequested();
     void setupRequested();
     void effectsRequested(int page);
     void releaseMouseEvents();

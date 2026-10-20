@@ -19,6 +19,7 @@
 import QtQuick
 import QtQuick.Layouts
 import VLC.Style
+import VLC.MainInterface
 
 import VLC.Dialogs
 import VLC.Util
@@ -27,6 +28,8 @@ import VLC.Widgets as Widgets
 Widgets.ButtonExt {
     id: root
     property bool iconOnly: false
+    // The design has no add button in the header: its action goes in the menu
+    property bool libraryFolder: false
     colorContext.palette: VLCStyle.palette
     padding: iconOnly ? 0 : VLCStyle.dp(8, VLCStyle.scale)
     contentItem: RowLayout {
@@ -35,8 +38,11 @@ Widgets.ButtonExt {
             visible: root.iconOnly
             Layout.preferredWidth: VLCStyle.redesign.iconSize
             Layout.preferredHeight: VLCStyle.redesign.iconSize
-            source: "qrc:///redesign/menu.svg"
+            // Figma: the more icon of the set, #6B6B6B
+            source: VLCStyle.palette.isDark ? "qrc:///redesign/icons/more/dim.png" : "qrc:///redesign/menu.svg"
             sourceSize: Qt.size(24, 24)
+            fillMode: Image.Pad
+            smooth: false
         }
         Widgets.LabelExt {
             visible: !root.iconOnly
@@ -56,7 +62,9 @@ Widgets.ButtonExt {
     NativeMenu {
         id: menu
 
-        actions: [
+        actions: (root.libraryFolder && MainCtx.mediaLibraryAvailable
+                  ? [ { text: qsTr("Add folder to library…"), action: () => librarySource.clicked() } ]
+                  : []).concat([
             { text: qsTr("File…"), action: () => DialogsProvider.simpleOpenDialog() },
             { text: qsTr("Folder…"), action: () => DialogsProvider.PLOpenDir() },
             { text: qsTr("Network stream…"), action: () => DialogsProvider.openNetDialog() },
@@ -64,8 +72,14 @@ Widgets.ButtonExt {
             { text: qsTr("Capture device…"), action: () => DialogsProvider.openCaptureDialog() },
             { text: qsTr("Convert…"), action: () => DialogsProvider.openAndTranscodingDialogs() },
             { text: qsTr("Stream…"), action: () => DialogsProvider.openAndStreamingDialogs() }
-        ]
+        ])
 
         onRequestData: (requestID, _) => setData(requestID, [])
+    }
+
+    // the folder picker and the library folders of the add button
+    LibrarySourceButton {
+        id: librarySource
+        visible: false
     }
 }

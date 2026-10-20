@@ -13,14 +13,12 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QNetworkRequest>
 #include <QSaveFile>
 #include <QStandardPaths>
-#include <memory>
 
 #include <vlc_input_item.h>
+
+#include "util/http_request.hpp"
 
 namespace {
 constexpr qint64 maxSubtitleBytes = 20 * 1024 * 1024;
@@ -55,51 +53,38 @@ void MLSubtitleAssociations::addLinkWithName(const QUrl& url, const QString& fil
         return;
     }
 
-    if (!m_network)
-        m_network = new QNetworkAccessManager(this);
-    QNetworkRequest request(url);
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                         QNetworkRequest::NoLessSafeRedirectPolicy);
-    request.setMaximumRedirectsAllowed(5);
-    request.setTransferTimeout(30000);
-    request.setRawHeader("Accept", "text/plain, application/octet-stream, */*");
+    if (!httpRequestSupported())
+    {
+        setError(tr("Downloading subtitles is not available in this build."));
+        return;
+    }
+    HttpRequest request;
+    request.url = url;
+    request.headers = {{"Accept", "text/plain, application/octet-stream, */*"}};
+    request.timeoutMs = 30000;
+    request.maxBytes = maxSubtitleBytes;
 
-    auto* reply = m_network->get(request);
-    m_download = reply;
     m_busy = true;
     m_error.clear();
     emit changed();
     const quint64 revision = m_revision;
-    auto payload = std::make_shared<QByteArray>();
-    auto tooLarge = std::make_shared<bool>(false);
-
-    connect(reply, &QIODevice::readyRead, this, [reply, payload, tooLarge]() {
-        payload->append(reply->readAll());
-        if (payload->size() > maxSubtitleBytes)
-        {
-            *tooLarge = true;
-            reply->abort();
-        }
-    });
-    connect(reply, &QNetworkReply::finished, this,
-            [this, reply, payload, tooLarge, revision, url, name]() {
-        reply->deleteLater();
-        if (revision != m_revision || reply != m_download)
+    // Redirects never downgrade to HTTP (see util/http_request.cpp).
+    httpRequestAsync(this, request, [this, revision, url, name](const HttpResponse& reply) {
+        if (revision != m_revision)
             return;
-        m_download = nullptr;
         m_busy = false;
         emit changed();
 
-        if (*tooLarge || payload->size() > maxSubtitleBytes)
+        const QByteArray& payload = reply.body;
+        if (payload.size() > maxSubtitleBytes)
         {
             setError(tr("The subtitle exceeds the 20 MB download limit."));
             return;
         }
-        if (reply->error() != QNetworkReply::NoError ||
-            reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() != 200 ||
-            reply->url().scheme() != QStringLiteral("https") || payload->isEmpty())
+        if (!reply.error.isEmpty() || reply.status != 200 || payload.isEmpty())
         {
-            setError(tr("Could not download the subtitle: %1").arg(reply->errorString()));
+            setError(tr("Could not download the subtitle: %1")
+                     .arg(reply.error.isEmpty() ? tr("HTTP status %1").arg(reply.status) : reply.error));
             return;
         }
 
@@ -115,7 +100,7 @@ void MLSubtitleAssociations::addLinkWithName(const QUrl& url, const QString& fil
         const QString path = folder + QLatin1Char('/') + hash + QLatin1Char('.')
                              + QFileInfo(name).suffix().toLower();
         QSaveFile file(path);
-        if (!file.open(QIODevice::WriteOnly) || file.write(*payload) != payload->size() || !file.commit())
+        if (!file.open(QIODevice::WriteOnly) || file.write(payload) != payload.size() || !file.commit())
         {
             setError(tr("Could not save the downloaded subtitle."));
             return;

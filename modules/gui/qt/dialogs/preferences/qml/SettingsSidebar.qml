@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  ****************************************************************************/
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls.Basic
 import VLC.Style
 
 Item {
@@ -32,81 +32,101 @@ Item {
         { key: "extensions", label: qsTr("Extensions"), icon: "plugins" }
     ]
 
+    function px(value) { return VLCStyle.dp(value, VLCStyle.scale) }
+    function c(value) { return VLCStyle.redesign.color(value, value) }
+
+    // Sidebar of the design: 200 px, #191919 at 95 %, radius 6, 6 px padding,
+    // 8 px between the 33 px group titles and the 40 px items
     Rectangle {
         anchors.fill: parent
-        color: root.dark ? "#151515" : "#f2f2f2"
-        radius: 6
+        radius: root.px(6)
+        color: root.c("#191919")
     }
 
     Flickable {
+        id: categoryFlick
         anchors.fill: parent
-        anchors.margins: VLCStyle.dp(6, VLCStyle.scale)
+        anchors.margins: root.px(6)
         contentHeight: categoryList.implicitHeight
         clip: true
         boundsBehavior: Flickable.StopAtBounds
+        // a low window cuts the list: the bar shows there is more
+        ScrollBar.vertical: ScrollBar {
+            policy: categoryFlick.contentHeight > categoryFlick.height ? ScrollBar.AlwaysOn
+                                                                       : ScrollBar.AlwaysOff
+        }
 
         Column {
             id: categoryList
             width: parent.width
-            spacing: VLCStyle.dp(2, VLCStyle.scale)
+            spacing: root.px(8)
 
             Repeater {
                 model: root.entries
                 delegate: Item {
+                    id: entry
                     required property var modelData
+                    readonly property bool heading: modelData.kind === "heading"
+                    readonly property bool current: root.category === modelData.key
                     width: categoryList.width
-                    height: VLCStyle.dp(46, VLCStyle.scale)
-                    visible: modelData.kind === "heading"
-                             || modelData.key === "extensions"
+                    height: heading ? root.px(33) : root.px(40)
+                    visible: heading || modelData.key === "extensions"
                              || root.availableCategories.indexOf(modelData.key) >= 0
 
-                    Label {
-                        visible: modelData.kind === "heading"
+                    Text {
+                        visible: entry.heading
                         anchors.left: parent.left
-                        anchors.leftMargin: VLCStyle.dp(10, VLCStyle.scale)
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: VLCStyle.dp(10, VLCStyle.scale)
+                        anchors.leftMargin: root.px(10)
+                        anchors.baseline: parent.verticalCenter
+                        // centred in the 33 of the heading (odd)
+                        anchors.baselineOffset: VLCStyle.redesign.centeredBaseline(font.pixelSize, root.px(33))
                         text: modelData.label || ""
-                        color: root.dark ? "#6d6d6d" : "#666666"
+                        color: root.c("#6B6B6B")
                         font.family: VLCStyle.redesign.fontFamily
-                        font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+                        font.pixelSize: root.px(14)
                     }
 
                     Button {
-                        visible: modelData.kind !== "heading"
+                        id: item
+                        visible: !entry.heading
                         enabled: modelData.key === "extensions"
                                  || root.availableCategories.indexOf(modelData.key) >= 0
                         anchors.fill: parent
-                        anchors.topMargin: VLCStyle.dp(3, VLCStyle.scale)
-                        anchors.bottomMargin: VLCStyle.dp(3, VLCStyle.scale)
+                        padding: root.px(4)
+                        // the Basic style adds 2 px to the sides otherwise
+                        horizontalPadding: root.px(4)
                         onClicked: root.selected(modelData.key)
+                        Accessible.name: modelData.label || ""
                         background: Rectangle {
-                            color: root.category === modelData.key
-                                   ? (root.dark ? "#252525" : "#e3e3e3")
-                                   : parent.hovered ? (root.dark ? "#1c1c1c" : "#eaeaea")
-                                                    : "transparent"
-                            radius: 3
+                            radius: root.px(2)
+                            color: entry.current ? root.c("#222222")
+                                   : item.hovered ? (root.dark ? "#1d1d1d" : root.c("#222222")) : "transparent"
+                            border.width: item.visualFocus ? 1 : 0
+                            border.color: VLCStyle.redesign.accent
                         }
+                        // The Icon component of the design: 32 x 32 around the 24 px glyph
                         contentItem: Row {
-                            spacing: VLCStyle.dp(12, VLCStyle.scale)
-                            anchors.left: parent.left
-                            anchors.leftMargin: VLCStyle.dp(10, VLCStyle.scale)
-                            anchors.verticalCenter: parent.verticalCenter
-                            Image {
-                                width: VLCStyle.dp(24, VLCStyle.scale)
-                                height: width
-                                sourceSize: Qt.size(width, height)
-                                fillMode: Image.PreserveAspectFit
-                                source: !modelData.icon ? "" : "qrc:///redesign/icons/" + modelData.icon + "/"
-                                        + (root.category === modelData.key ? "active" : "default") + ".png"
+                            spacing: root.px(8)
+                            Item {
+                                width: root.px(32)
+                                height: root.px(32)
+                                Image {
+                                    anchors.centerIn: parent
+                                    width: root.px(24)
+                                    height: width
+                                    sourceSize: Qt.size(width, height)
+                                    fillMode: Image.PreserveAspectFit
+                                    source: !modelData.icon ? "" : "qrc:///redesign/icons/" + modelData.icon + "/"
+                                            + (entry.current ? "active" : "default") + ".png"
+                                }
                             }
-                            Label {
+                            Text {
+                                anchors.baseline: parent.verticalCenter
+                                anchors.baselineOffset: VLCStyle.redesign.centeredBaseline(font.pixelSize)
                                 text: modelData.label || ""
-                                color: root.category === modelData.key
-                                       ? (root.dark ? "#e4e4e4" : "#222222")
-                                       : (root.dark ? "#929292" : "#555555")
+                                color: entry.current ? root.c("#EAEAEA") : root.c("#8F8F8F")
                                 font.family: VLCStyle.redesign.fontFamily
-                                font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+                                font.pixelSize: root.px(14)
                             }
                         }
                     }

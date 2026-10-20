@@ -56,6 +56,11 @@ FocusScope {
 
     property bool _showMiniPlayer: false
 
+    // Audio (or a video outside the window) plays in the card of the design
+    // too, with its cover
+    readonly property bool _showAudioMiniPlayer: MainCtx.canShowVideoPIP && Player.isStarted
+                                                 && !(Player.hasVideoOutput && MainCtx.hasEmbededVideo)
+
     property bool _showCSD: MainCtx.clientSideDecoration
         && !(MainCtx.intfMainWindow.visibility === Window.FullScreen)
 
@@ -97,6 +102,12 @@ FocusScope {
     Keys.onPressed: (event) => {
         if (KeyHelper.matchSearch(event)) {
             MainCtx.search.askShow()
+            event.accepted = true
+        } else if (event.key === Qt.Key_Q && event.modifiers === Qt.NoModifier
+                   && MainCtx.isHotkeyFree(event.key, event.modifiers)) {
+            // the key of the design (onboarding): the queue
+            if (!event.isAutoRepeat)
+                MainCtx.playqueuePanel.visible = !MainCtx.playqueuePanel.visible
             event.accepted = true
         }
         //unhandled keys are forwarded as hotkeys
@@ -572,6 +583,11 @@ FocusScope {
             sourceComponent: PlaylistPane {
                 id: playlist
 
+                // Rows and actions of the queue card of the player
+                card: true
+                cardTitle: true
+                onAddRequested: DialogsProvider.simpleOpenDialog(false)
+
                 property int maximumWidth: Math.max(minimumWidth, (g_mainDisplay.width + playqueueResizeHandle.width)
                                                     / (pannelVisiblity.showNavigation ? 3 : 2))
 
@@ -770,8 +786,9 @@ FocusScope {
                 pannelVisiblity.showNavigation = false
                 pannelVisiblity.showPlayqueue = MainCtx.playqueuePanel.visible
             } else {
-                //reshow the navigation panels to original state
-                pannelVisiblity.showNavigation = MainCtx.navigationPanel.visible
+                //reshow the navigation panels to original state; the
+                //navigation of the design has no toggle: always shown
+                pannelVisiblity.showNavigation = true
                 pannelVisiblity.showPlayqueue =  MainCtx.playqueuePanel.visible
             }
         }
@@ -813,18 +830,22 @@ FocusScope {
                 leftMargin: VLCStyle.dp(6, VLCStyle.scale)
             }
 
+            // in a low window, at most half its height (the video 16:9, the
+            // rest of the panel 128): the design's 391 from 720 high
             width: Math.min(implicitWidth, parent.width < VLCStyle.dp(900, VLCStyle.scale)
-                            ? parent.width * 0.42 : parent.width - VLCStyle.margin_normal * 2)
+                            ? parent.width * 0.42 : parent.width - VLCStyle.margin_normal * 2,
+                            (parent.height / 2 - VLCStyle.dp(128, VLCStyle.scale)) * 16 / 9
+                            + VLCStyle.dp(16, VLCStyle.scale))
             height: implicitHeight
             z: 4
-            visible: g_mainDisplay._showMiniPlayer && MainCtx.hasEmbededVideo
-            enabled: g_mainDisplay._showMiniPlayer && MainCtx.hasEmbededVideo
+            visible: (g_mainDisplay._showMiniPlayer && MainCtx.hasEmbededVideo) || g_mainDisplay._showAudioMiniPlayer
+            enabled: visible
 
             Binding on visible {
                 id: visibleBinding
                 when: false
                 delayed: true
-                value: g_mainDisplay._showMiniPlayer && MainCtx.hasEmbededVideo
+                value: (g_mainDisplay._showMiniPlayer && MainCtx.hasEmbededVideo) || g_mainDisplay._showAudioMiniPlayer
             }
 
             Component.onCompleted: {
@@ -877,7 +898,7 @@ FocusScope {
     MiniPlayer {
         id: miniPlayer
 
-        visible: Player.isStarted && !g_mainDisplay._showMiniPlayer
+        visible: Player.isStarted && !g_mainDisplay._showMiniPlayer && !g_mainDisplay._showAudioMiniPlayer
 
         anchors.left: parent.left
         anchors.right: parent.right

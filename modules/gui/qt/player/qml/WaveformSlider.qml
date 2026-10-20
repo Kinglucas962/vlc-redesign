@@ -11,7 +11,7 @@ SliderBar {
     id: root
     objectName: "waveformSlider"
     redesign: true
-    barHeight: VLCStyle.dp(32, VLCStyle.scale)
+    barHeight: VLCStyle.redesign.seekHeight
 
     Waveform {
         id: analysis
@@ -19,53 +19,67 @@ SliderBar {
         durationSeconds: Player.length.toSeconds()
     }
 
-    Canvas {
+    // Built from Rectangles: VLC's Qt Quick is compiled without Canvas.
+    // Over the bar of SliderBar: the track of the design with the waveform
+    // in it (no fill: the played bars show the progress) and the handle; the
+    // pointer handlers below still get the events
+    Rectangle {
         id: graph
         anchors.fill: parent
-        visible: analysis.ready
-        renderTarget: Canvas.Image
-        onVisibleChanged: requestPaint()
-        onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
-        Connections {
-            target: analysis
-            function onBinsChanged() { graph.requestPaint() }
-        }
-        Connections {
-            target: Player
-            function onPositionChanged() { graph.requestPaint() }
-        }
-        Connections {
-            target: VLCStyle.redesign
-            function onAccentChanged() { graph.requestPaint() }
-        }
-        onPaint: {
+        z: 1
+        visible: analysis.ready && peaks.length > 0
+        radius: VLCStyle.redesign.controlRadius
+        color: VLCStyle.redesign.color(VLCStyle.redesign.seekBackground, "#dedede")
+        readonly property real played: Math.max(0, Math.min(1, Number(Player.position)))
+        readonly property real inset: VLCStyle.dp(6, VLCStyle.scale)
+        readonly property real pitch: VLCStyle.dp(5, VLCStyle.scale)
+        readonly property real barWidth: VLCStyle.dp(2, VLCStyle.scale)
+        readonly property real maxHeight: height - VLCStyle.dp(2, VLCStyle.scale)
+        // Relative peak (0..1) of each bar, from the 512 analysis bins
+        readonly property var peaks: {
             const bins = analysis.bins
-            if (!analysis.ready || width <= 0 || height <= 0 || bins.length !== 512) return
-            const paint = getContext("2d")
-            paint.clearRect(0, 0, width, height)
-            paint.fillStyle = VLCStyle.redesign.color(VLCStyle.redesign.playerControlBackground, "#ababaa")
-            paint.fillRect(0, 0, width, height)
-            const columns = Math.max(1, Math.min(512, Math.floor(width / 2)))
+            if (!analysis.ready || width <= 0 || bins.length !== 512)
+                return []
+            const columns = Math.max(1, Math.min(512, Math.floor((width - 2 * inset + pitch - barWidth) / pitch)))
             let largest = 0
-            for (let i = 0; i < bins.length; ++i) largest = Math.max(largest, Number(bins[i]))
+            for (let i = 0; i < bins.length; ++i)
+                largest = Math.max(largest, Number(bins[i]))
             const scale = Math.max(largest, 0.05)
-            const slot = width / columns
-            const played = Math.max(0, Math.min(1, Number(Player.position)))
+            const result = []
             for (let column = 0; column < columns; ++column) {
                 const first = Math.floor(column * bins.length / columns)
                 const last = Math.max(first + 1, Math.floor((column + 1) * bins.length / columns))
                 let peak = 0
-                for (let bin = first; bin < last; ++bin) peak = Math.max(peak, Number(bins[bin]))
-                if (peak <= 0) continue
-                const barHeight = Math.max(1, Math.min(height - 2, peak / scale * (height - 2)))
-                paint.fillStyle = (column + 0.5) / columns <= played
-                                  ? VLCStyle.redesign.accent : VLCStyle.redesign.textMuted
-                paint.fillRect(column * slot, (height - barHeight) / 2,
-                               Math.max(1, slot * 0.7), barHeight)
+                for (let bin = first; bin < last; ++bin)
+                    peak = Math.max(peak, Number(bins[bin]))
+                result.push(peak / scale)
             }
-            paint.fillStyle = VLCStyle.redesign.accent
-            paint.fillRect(played * width - 1, 0, 2, height)
+            return result
+        }
+        Repeater {
+            model: graph.peaks.length
+            delegate: Rectangle {
+                required property int index
+                readonly property real peak: graph.peaks[index]
+                x: graph.inset + index * graph.pitch
+                width: graph.barWidth
+                height: Math.max(graph.barWidth, Math.round(peak * graph.maxHeight))
+                y: (graph.height - height) / 2
+                radius: width / 2
+                readonly property bool isPlayed: (x + width / 2) / graph.width <= graph.played
+                color: isPlayed ? VLCStyle.redesign.accent
+                                : VLCStyle.redesign.color("#404040", "#9c9c9b")
+                opacity: isPlayed ? 0.8 : 1
+            }
+        }
+        // the handle of the seek bar
+        Rectangle {
+            x: Math.max(0, Math.min(graph.width - width, graph.played * graph.width - width / 2))
+            y: VLCStyle.redesign.seekInset
+            width: VLCStyle.redesign.seekHandleWidth
+            height: graph.height - 2 * VLCStyle.redesign.seekInset
+            radius: VLCStyle.redesign.controlRadius
+            color: VLCStyle.redesign.accent
         }
     }
 }

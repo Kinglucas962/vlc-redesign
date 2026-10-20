@@ -29,8 +29,27 @@ Widgets.IconToolButton {
     enabled: Player.seekable
 
     text: VLCIcons.skip_for
-    onClicked: Player.jumpFwd()
+    onClicked: Player.jumpBy(15)
     description: qsTr("Step forward")
+
+    // Figma "Player - Music": jumps of 15 s, frames of 30 x 28 like Previous
+    implicitWidth: VLCStyle.dp(30, VLCStyle.scale)
+    implicitHeight: VLCStyle.dp(28, VLCStyle.scale)
+
+    contentItem: Item {
+        implicitWidth: VLCStyle.redesign.iconSize
+        implicitHeight: VLCStyle.redesign.iconSize
+
+        Image {
+            anchors.centerIn: parent
+            source: "qrc:///redesign/icons/forward-15-sec/default.png"
+            width: VLCStyle.redesign.iconSize
+            height: VLCStyle.redesign.iconSize
+            sourceSize: Qt.size(width, height)
+            fillMode: Image.PreserveAspectFit
+            opacity: stepfwdBtn.enabled ? 1 : 0.4
+        }
+    }
 
     AccessibleCompat.id: "skipForwardButton"
 }

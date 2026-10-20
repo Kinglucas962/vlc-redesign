@@ -19,6 +19,7 @@
 #ifndef VLC_QT_MEDIA_HPP_
 #define VLC_QT_MEDIA_HPP_
 
+#include <QRegularExpression>
 #include <QString>
 #include <QStringList>
 
@@ -40,7 +41,32 @@ public:
             if (!ptr)
                 throw std::bad_alloc();
             setMediaOptions(options);
+            applyHistoryFilter();
         }
+    }
+
+    // "Never remember items matching" of the settings (a regular
+    // expression): the items whose address or name matches are not saved in
+    // the history, nor their position
+    static QRegularExpression &historyFilter()
+    {
+        static QRegularExpression filter;
+        return filter;
+    }
+
+    void applyHistoryFilter()
+    {
+        const QRegularExpression &filter = historyFilter();
+        if (!ptr || filter.pattern().isEmpty() || !filter.isValid())
+            return;
+        char *uri = input_item_GetURI(ptr.get());
+        char *name = input_item_GetName(ptr.get());
+        const bool matches = (uri && filter.match(QString::fromUtf8(uri)).hasMatch())
+                          || (name && filter.match(QString::fromUtf8(name)).hasMatch());
+        free(uri);
+        free(name);
+        if (matches)
+            input_item_AddOption(ptr.get(), "no-save-recentplay", VLC_INPUT_OPTION_TRUSTED);
     }
 
     Media(const QString &uri, const QString &name, const QStringList &options = {})
@@ -53,6 +79,7 @@ public:
         if (!ptr)
             throw std::bad_alloc();
         setMediaOptions(options);
+        applyHistoryFilter();
     }
 
     void setMediaOptions(const QStringList &options = {})

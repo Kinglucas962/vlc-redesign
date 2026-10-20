@@ -216,9 +216,9 @@ MainViewLoader {
     // Childs
     //---------------------------------------------------------------------------------------------
 
+    // centred on the window (its default parent: the overlay)
     PlaylistCreateDialog {
         id: createDialog
-        parent: root
         playlistModel: root.model
     }
 
@@ -287,7 +287,15 @@ MainViewLoader {
         Component.onCompleted: {
             contextMenu.requestDeleteSelectedPlaylists.connect(root.deleteSelectedPlaylists)
         }
+
+        // Add Subtitle Tracks / Add Audio Tracks: the media of the playlist
+        onRequestTracksDialog: (playlistId, audio) => {
+            (audio ? audioTracksDialog : subtitleTracksDialog).openFor(playlistId)
+        }
     }
+
+    SubtitleAssociationsDialog { id: subtitleTracksDialog }
+    SubtitleAssociationsDialog { id: audioTracksDialog; audio: true }
 
     // TBD: Refactor this with MusicGenres ?
     Component {

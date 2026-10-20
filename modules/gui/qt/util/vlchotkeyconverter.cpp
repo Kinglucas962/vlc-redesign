@@ -11,6 +11,9 @@
 #include <QApplication>
 #include <vlc_actions.h>
 
+#include <algorithm>
+#include <cstdlib>
+
 /***************************************************************************
  * Hotkeys converters
  ***************************************************************************/
@@ -192,6 +195,21 @@ static int keycmp( const void *a, const void *b )
     const vlc_qt_key_t *m = (const vlc_qt_key_t *)b;
 
     return *q - m->qt;
+}
+
+bool isVLCKeyBound( vlc_object_t *obj, int vlcKey )
+{
+    for( const char* const* name = vlc_actions_get_key_names( obj ); name && *name; ++name )
+    {
+        uint_fast32_t *keycodes = nullptr;
+        const size_t count = vlc_actions_get_keycodes( obj, *name, false, &keycodes );
+        const bool bound = std::find( keycodes, keycodes + count,
+                                      static_cast<uint_fast32_t>( vlcKey ) ) != keycodes + count;
+        std::free( keycodes );
+        if( bound )
+            return true;
+    }
+    return false;
 }
 
 int qtEventToVLCKey( QKeyEvent *e )

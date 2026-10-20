@@ -38,8 +38,47 @@ T.Pane {
 
     readonly property var _player: paintOnly ? ({ muted: false, volume: .5 }) : Player
     readonly property int _maxvol: MainCtx.maxVolume
-    readonly property real _fullvolpos: 100 / _maxvol
+    readonly property real _fullvolpos: designPosition(1)
     readonly property real _maxvolpos: _maxvol / 100
+
+    // Figma "volume": the fill (px of 86) drawn for each state of the
+    // design, 0 to 200 % (its maximum volume); a maximum other than 200 %
+    // stretches the states over its range
+    readonly property var _designFill: [[0, 0], [10, 5], [20, 12], [30, 18], [40, 24], [50, 31], [60, 39],
+                                        [70, 46], [80, 51], [90, 56], [100, 61], [150, 73], [200, 85]]
+    readonly property real _designWidth: 86
+
+    // the drawn position (0 to 1) of a volume (1 = 100 %)
+    function designPosition(volume) {
+        const d = volume * 100 * 200 / _maxvol
+        const t = _designFill
+        if (d <= 0)
+            return 0
+        for (let i = 1; i < t.length; ++i) {
+            if (d <= t[i][0]) {
+                const a = t[i - 1], b = t[i]
+                return (a[1] + (b[1] - a[1]) * (d - a[0]) / (b[0] - a[0])) / _designWidth
+            }
+        }
+        return 1
+    }
+
+    // the volume (1 = 100 %) of a drawn position
+    function designVolume(position) {
+        const px = position * _designWidth
+        const t = _designFill
+        if (px <= 0)
+            return 0
+        let d = 200
+        for (let i = 1; i < t.length; ++i) {
+            if (px <= t[i][1]) {
+                const a = t[i - 1], b = t[i]
+                d = a[0] + (b[0] - a[0]) * (px - a[1]) / (b[1] - a[1])
+                break
+            }
+        }
+        return d / 100 * _maxvol / 200
+    }
 
     implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset,
                             implicitContentWidth + leftPadding + rightPadding)
@@ -84,12 +123,13 @@ T.Pane {
                     width: VLCStyle.redesign.iconSize
                     height: width
                     color: VLCStyle.redesign.color(VLCStyle.redesign.textMuted, colorContext.fg.primary)
+                    // Figma "Player": 50 % shows the icon value=high
                     source: {
                         if (root._player.muted || root._player.volume === 0)
                             return "qrc:///redesign/volume-muted.png"
-                        if (root._player.volume < .33)
+                        if (root._player.volume < .25)
                             return "qrc:///redesign/volume-low.png"
-                        if (root._player.volume <= .66)
+                        if (root._player.volume < .5)
                             return "qrc:///redesign/volume-medium.png"
                         return "qrc:///redesign/volume-high.png"
                     }
@@ -157,7 +197,12 @@ T.Pane {
 
                 Image {
                     anchors.centerIn: parent
-                    source: "qrc:/redesign/volume-background.svg"
+                    // Drawn for the dark theme (#090909); Figma "Player -
+                    // Light": #888888
+                    source: VLCStyle.palette.isDark
+                            ? "qrc:/redesign/volume-background.svg"
+                            : SVGColorImage.colorize("qrc:/redesign/volume-background.svg")
+                                           .any({ "#090909": "#888888" }).uri()
                     width: VLCStyle.dp(89, VLCStyle.scale)
                     height: VLCStyle.dp(27.3633, VLCStyle.scale)
                 }
@@ -170,7 +215,12 @@ T.Pane {
                     clip: true
 
                     Image {
-                        source: "qrc:/redesign/volume-fill.svg"
+                        // the gradient under black at 20 %; Figma "Player -
+                        // Light": under white at 20 %
+                        source: VLCStyle.palette.isDark
+                                ? "qrc:/redesign/volume-fill.svg"
+                                : SVGColorImage.colorize("qrc:/redesign/volume-fill.svg")
+                                               .any({ "black": "#ffffff" }).uri()
                         width: VLCStyle.dp(86, VLCStyle.scale)
                         height: VLCStyle.dp(24.56, VLCStyle.scale)
                     }
@@ -185,8 +235,9 @@ T.Pane {
                 }
             }
 
+            // the drawn position of the design (see designPosition)
             from: 0
-            to: root._maxvolpos
+            to: 1
             opacity: _player.muted ? 0.5 : 1
 
             enabled: !root.paintOnly // disables event handling depending on this
@@ -225,7 +276,7 @@ T.Pane {
 
             function _syncVolumeWithPlayer() {
                 volControl._inhibitPlayerVolumeUpdate = true
-                volControl.value = _player.volume
+                volControl.value = root.designPosition(_player.volume)
                 volControl._inhibitPlayerVolumeUpdate = false
             }
 
@@ -236,13 +287,13 @@ T.Pane {
 
                 // NOTE: We are clamping the value to make it easier to restore the default volume.
                 if (_shiftPressed === false) {
-                    if (Math.abs(value - 1.0) < _clamp)
-                        value = 1.0
+                    if (Math.abs(value - root._fullvolpos) < _clamp)
+                        value = root._fullvolpos
                     else
                         _clamp = 0.01
                 }
 
-                Player.volume = value
+                Player.volume = root.designVolume(value)
 
                 volControl.value = value
             }
@@ -306,8 +357,9 @@ T.Pane {
                 // NOTE: This shouldn't be visible when the volume stops before a 100.
                 visible: (root._maxvol > 100)
 
-                // FIXME: tick mark is not visible when it's over slider
-                color: root.sliderColor
+                // The volume of the design has no mark at 100 %: only the
+                // help to snap to it stays
+                color: "transparent"
 
                 // NOTE: This is a helper to select the default volume when clicking on the
                 //       tickmark. We apply a higher clamp value to achieve that behavior on
@@ -380,16 +432,16 @@ T.Pane {
                 function adjustVolume(mouse) {
                     mouse.accepted = true
 
-                    const pos = mouse.x * root._maxvolpos / width
+                    const volume = root.designVolume(mouse.x / width)
 
-                    if (pos < 0.25)
+                    if (volume < 0.25)
                         volControl.value = 0
-                    else if (pos < 0.75)
-                        volControl.value = 0.5
-                    else if (pos < 1.125)
-                        volControl.value = 1
+                    else if (volume < 0.75)
+                        volControl.value = root.designPosition(0.5)
+                    else if (volume < 1.125 || root._maxvol <= 100)
+                        volControl.value = root._fullvolpos
                     else
-                        volControl.value = 1.25
+                        volControl.value = 1
                 }
 
                 WheelToVLCConverter {

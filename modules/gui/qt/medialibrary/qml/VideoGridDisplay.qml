@@ -48,6 +48,9 @@ Widgets.ExpandGridItemView {
     horizontalSpacing: VLCStyle.dp(20, VLCStyle.scale)
     verticalSpacing: VLCStyle.dp(40, VLCStyle.scale)
     titleTopMargin: VLCStyle.dp(20, VLCStyle.scale)
+    // Figma: cards of 216.75 (177.75 + 20 + 19) every 256.75; on whole
+    // pixels 217 with the 1 px the helper adds
+    titleHeight: VLCStyle.dp(18, VLCStyle.scale)
     subtitleHeight: 0
 
     activeFocusOnTab: true
@@ -103,6 +106,7 @@ Widgets.ExpandGridItemView {
         pictureHeight: gridView.maxPictureHeight
         pictureRadius: VLCStyle.dp(12, VLCStyle.scale)
         titleFontPixelSize: VLCStyle.dp(16, VLCStyle.scale)
+        titleBoxHeight: VLCStyle.dp(19, VLCStyle.scale)
         titleTopMargin: gridView.titleTopMargin
         redesignTitle: true
         subtitleVisible: false
@@ -112,7 +116,8 @@ Widgets.ExpandGridItemView {
                   gridView.expandIndex !== gridItem.index) ? 0.7 : 1
 
         // FIXME: Sometimes MLBaseModel::getDataAt returns {} so we use 'isNew === true'.
-        showNewIndicator: (model.isNew === true)
+        // The cards of the design have no "new" corner
+        showNewIndicator: false
 
         dragItem: gridView.dragItem
 

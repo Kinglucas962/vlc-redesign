@@ -38,6 +38,19 @@ T.Pane {
 
     property bool useAcrylic: true
 
+    // Queue page of the card of the player: compact header and rows, the
+    // card draws the background
+    property bool card: false
+
+    // Card: a "Queue" title above the count, where no tab names the page
+    property bool cardTitle: false
+
+    // The card of the player draws the background
+    property bool drawBackground: !card || cardTitle
+
+    // Card: the add button asks for files to queue
+    signal addRequested()
+
     readonly property real minimumWidth: contentItem.Layout.minimumWidth +
                                          leftPadding +
                                          rightPadding +
@@ -111,7 +124,8 @@ T.Pane {
     }
 
     background: Rectangle {
-        color: VLCStyle.redesign.color(VLCStyle.redesign.sidebarBackground, "#c2c2c1", VLCStyle.palette.isDark)
+        color: root.drawBackground ? VLCStyle.redesign.color(VLCStyle.redesign.sidebarBackground, "#c2c2c1", VLCStyle.palette.isDark)
+                                   : "transparent"
     }
 
     contentItem: ColumnLayout {
@@ -126,6 +140,7 @@ T.Pane {
 
         QueueHeader {
             id: headerColumn
+            visible: !root.card
             listView: root.listView
             contextMenu: root.contextMenu
             navigationParent: root
@@ -133,11 +148,116 @@ T.Pane {
 
         Item {
             // Spacer
+            visible: !root.card
 
             implicitHeight: VLCStyle.margin_xsmall
         }
 
-        QueueColumns { listView: root.listView }
+        QueueColumns {
+            visible: !root.card
+            listView: root.listView
+        }
+
+        Text {
+            visible: root.card && root.cardTitle
+            Layout.fillWidth: true
+            Layout.leftMargin: VLCStyle.dp(18, VLCStyle.scale)
+            Layout.bottomMargin: VLCStyle.dp(4, VLCStyle.scale)
+            text: qsTr("Queue")
+            elide: Text.ElideRight
+            color: VLCStyle.redesign.color(VLCStyle.redesign.textPrimary, theme.fg.primary)
+            font.family: VLCStyle.redesign.fontFamily
+            font.pixelSize: VLCStyle.dp(18, VLCStyle.scale)
+        }
+
+        // Card: count and length, then the queue actions
+        RowLayout {
+            id: cardHeader
+
+            visible: root.card
+            Layout.fillWidth: true
+            Layout.leftMargin: VLCStyle.dp(18, VLCStyle.scale)
+            Layout.rightMargin: VLCStyle.dp(12, VLCStyle.scale)
+            Layout.bottomMargin: VLCStyle.dp(6, VLCStyle.scale)
+            spacing: VLCStyle.dp(4, VLCStyle.scale)
+
+            Text {
+                Layout.fillWidth: true
+                text: {
+                    const count = root.model.count
+                    if (count === 0)
+                        return qsTr("No items")
+                    return qsTr("%1 item", "%1 items", count).arg(count) + " - " + root.model.duration.formatLong()
+                }
+                elide: Text.ElideRight
+                color: VLCStyle.redesign.color(VLCStyle.redesign.textMuted, theme.fg.secondary)
+                font.family: VLCStyle.redesign.fontFamily
+                font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+            }
+
+            Widgets.SortControl {
+                id: cardSort
+
+                description: qsTr("Sort")
+                enabled: MainPlaylistController.count > 1
+                checked: MainPlaylistController.sortKey !== PlaylistController.SORT_KEY_NONE
+                popupAbove: false
+                model: MainPlaylistController.sortKeyTitleList
+                sortKey: MainPlaylistController.sortKey
+                sortOrder: MainPlaylistController.sortOrder === PlaylistController.SORT_ORDER_DESC
+                           ? Qt.DescendingOrder : Qt.AscendingOrder
+
+                contentItem: Image {
+                    source: "qrc:///redesign/icons/sort/" + (cardSort.checked ? "active" : "default") + ".png"
+                    sourceSize: Qt.size(VLCStyle.redesign.iconSize, VLCStyle.redesign.iconSize)
+                    fillMode: Image.Pad
+                    opacity: cardSort.enabled ? 1 : 0.4
+                }
+                background: CardButtonBackground { button: cardSort }
+
+                onSortSelected: key => {
+                    MainPlaylistController.sortKey = key
+                    MainPlaylistController.sort()
+                }
+                onSortOrderSelected: type => {
+                    MainPlaylistController.sortOrder = (type === Qt.DescendingOrder)
+                        ? PlaylistController.SORT_ORDER_DESC : PlaylistController.SORT_ORDER_ASC
+                    MainPlaylistController.sort()
+                }
+            }
+
+            CardGlyphButton {
+                text: MainPlaylistController.repeatMode === PlaylistController.PLAYBACK_REPEAT_CURRENT
+                      ? VLCIcons.repeat_one : VLCIcons.repeat_all
+                description: qsTr("Repeat")
+                checked: MainPlaylistController.repeatMode !== PlaylistController.PLAYBACK_REPEAT_NONE
+                onClicked: MainPlaylistController.toggleRepeatMode()
+            }
+
+            CardGlyphButton {
+                text: VLCIcons.shuffle
+                description: qsTr("Shuffle")
+                checked: MainPlaylistController.random
+                onClicked: MainPlaylistController.toggleRandom()
+            }
+
+            CardImageButton {
+                iconName: "remove"
+                description: qsTr("Remove selected items")
+                enabled: !!root.selectionModel && root.selectionModel.hasSelection
+                onClicked: {
+                    const items = listView.mappedSelectedIndexes()
+                    if (items.length > 0)
+                        root.model.removeItems(items)
+                }
+            }
+
+            CardImageButton {
+                iconName: "add"
+                description: qsTr("Add files to the queue")
+                onClicked: root.addRequested()
+            }
+        }
 
         Widgets.ListViewExt {
             id: listView
@@ -312,6 +432,8 @@ T.Pane {
                 id: delegate
 
                 width: listView.contentWidth
+                compact: root.card
+                leftPadding: root.card ? VLCStyle.dp(14, VLCStyle.scale) : VLCStyle.margin_normal
                 rightPadding: Math.max(listView.T.ScrollBar.vertical.width, VLCStyle.margin_normal)
 
                 contextMenu: root.contextMenu
@@ -431,6 +553,48 @@ T.Pane {
     Keys.priority: Keys.AfterItem
     Keys.forwardTo: listView
     Keys.onPressed: (event) => root.Navigation.defaultKeyAction(event)
+
+    component CardButtonBackground: Rectangle {
+        required property T.AbstractButton button
+
+        radius: VLCStyle.redesign.controlRadius
+        color: (button.hovered || button.down) ? VLCStyle.redesign.color(VLCStyle.redesign.controlHoverBackground,
+                                                                         "#9c9c9b")
+                                               : "transparent"
+        border.width: button.visualFocus ? 1 : 0
+        border.color: VLCStyle.redesign.focusColor
+    }
+
+    // Icons of the design for the card header
+    component CardImageButton: Widgets.IconToolButton {
+        id: imageButton
+
+        property string iconName
+
+        text: description
+        implicitWidth: VLCStyle.dp(32, VLCStyle.scale)
+        implicitHeight: VLCStyle.dp(32, VLCStyle.scale)
+
+        contentItem: Image {
+            source: "qrc:///redesign/icons/" + imageButton.iconName + "/default.png"
+            sourceSize: Qt.size(VLCStyle.redesign.iconSize, VLCStyle.redesign.iconSize)
+            fillMode: Image.Pad
+            opacity: imageButton.enabled ? 1 : 0.4
+        }
+        background: CardButtonBackground { button: imageButton }
+    }
+
+    // Repeat and shuffle: glyphs of the icon font, accent while on
+    component CardGlyphButton: Widgets.IconToolButton {
+        id: glyphButton
+
+        implicitWidth: VLCStyle.dp(32, VLCStyle.scale)
+        implicitHeight: VLCStyle.dp(32, VLCStyle.scale)
+        font.pixelSize: VLCStyle.dp(20, VLCStyle.scale)
+        color: checked ? VLCStyle.redesign.accent
+                       : VLCStyle.redesign.color(VLCStyle.redesign.textMuted, "#5a5a59")
+        background: CardButtonBackground { button: glyphButton }
+    }
 
     component PlaylistToggleButton : Widgets.IconToolButton {
         id: playlistBtn

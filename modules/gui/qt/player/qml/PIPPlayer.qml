@@ -128,6 +128,29 @@ T.Control {
         Widgets.DefaultShadow {
 
         }
+
+        // Without a video, the cover of the media. Above the surface (it
+        // clears what is below it), so it carries the hover shade itself.
+        Rectangle {
+            anchors.fill: parent
+            visible: !MainCtx.hasEmbededVideo || !Player.hasVideoOutput
+            color: "#090909"
+
+            Image {
+                anchors.fill: parent
+                anchors.margins: VLCStyle.dp(10, VLCStyle.scale)
+                source: Player.artwork.toString() !== "" ? VLCAccessImage.uri(Player.artwork)
+                                                         : VLCStyle.noArtAlbumCover
+                sourceSize: Qt.size(width * 2, height * 2)
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                color: videoSurface.color
+            }
+        }
     }
 
     contentItem: Item {
