@@ -65,6 +65,14 @@ endif
 		do cp "$(srcdir)/$$file" "$(win32_destdir)/$${file}.txt"; \
 	done
 	cp "$(srcdir)/README.md" "$(win32_destdir)/README.txt"
+	cp "$(srcdir)/COPYING.LIB" "$(win32_destdir)/COPYING.LIB.txt"
+	cp "$(srcdir)/CREDITS.md" "$(win32_destdir)/CREDITS.txt"
+	cp "$(srcdir)/CHANGELOG.md" "$(win32_destdir)/CHANGELOG.txt"
+# The redesign fonts are built into the Qt plugin; the OFL needs their
+# license next to every copy
+	mkdir -p "$(win32_destdir)/licenses"
+	cp "$(srcdir)/modules/gui/qt/pixmaps/fonts/LICENSE.txt" "$(win32_destdir)/licenses/Inter-OFL.txt"
+	cp "$(srcdir)/modules/gui/qt/pixmaps/fonts/DMMono-OFL.txt" "$(win32_destdir)/licenses/DMMono-OFL.txt"
 
 	cp $(srcdir)/share/icons/vlc.ico $(win32_destdir)
 	for plugindir in $(pkglibdir)/plugins/*/; do \

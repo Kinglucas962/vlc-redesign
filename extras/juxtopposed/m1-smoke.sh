@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (C) 2026 VLC authors and VideoLAN
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Run inside the Linux build container. Uses a separate, disposable Qt profile.
 set -euo pipefail
 cd /work

@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (C) 2026 VLC authors and VideoLAN
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Open the isolated development build on the user's Linux desktop.
 set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)

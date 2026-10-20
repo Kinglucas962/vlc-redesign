@@ -1,3 +1,5 @@
+# Copyright (C) 2026 VLC authors and VideoLAN
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Sourced by smoke.sh after its baseline playback/keyboard/fullscreen checks.
 call "$player.Pause" >/dev/null
 xdotool windowsize "$window" 1280 760 windowmove "$window" 0 20

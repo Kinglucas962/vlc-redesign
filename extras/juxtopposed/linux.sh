@@ -1,4 +1,6 @@
 #!/bin/sh
+# Copyright (C) 2026 VLC authors and VideoLAN
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Isolated baseline build; run inside the image from linux.Dockerfile.
 set -eu
 cd /work

@@ -53,7 +53,8 @@ if build_vlc and (host_system != 'darwin' or have_osx) and not have_win_store an
 
     waveform_link_args = []
     if host_system == 'windows' and cc.get_argument_syntax() == 'gcc'
-        waveform_link_args += ['-municode']
+        # Static runtimes: libssp-0.dll and libgcc are not in the package
+        waveform_link_args += ['-municode', '-static']
     endif
     executable('vlc-waveform',
         '../extras/juxtopposed/waveform.c',

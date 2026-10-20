@@ -177,5 +177,7 @@ vlc_waveform_CFLAGS = $(AM_CFLAGS) -std=c11 -D_DEFAULT_SOURCE
 vlc_waveform_LDADD = ../lib/libvlc.la -lm
 
 if HAVE_WIN32
-vlc_waveform_LDFLAGS = -municode
+# Static runtimes, as vlc.exe: with stack protection, libssp-0.dll is not
+# in the package and the helper would not start
+vlc_waveform_LDFLAGS = -municode -Wc,-static
 endif

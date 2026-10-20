@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 VLC authors and VideoLAN
+# SPDX-License-Identifier: GPL-2.0-or-later
 set -euo pipefail
 
 root=$(git rev-parse --show-toplevel)
