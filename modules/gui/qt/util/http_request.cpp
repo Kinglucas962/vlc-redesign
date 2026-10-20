@@ -163,7 +163,15 @@ HttpResponse perform(const HttpRequest& request, RequestState& state)
                         WINHTTP_HEADER_NAME_BY_INDEX, &status, &statusSize, WINHTTP_NO_HEADER_INDEX);
     response.status = static_cast<int>(status);
 
-    char buffer[16384];
+    DWORD length = 0;
+    DWORD lengthSize = sizeof(length);
+    if (!WinHttpQueryHeaders(handle.handle, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER,
+                             WINHTTP_HEADER_NAME_BY_INDEX, &length, &lengthSize, WINHTTP_NO_HEADER_INDEX))
+        length = 0;
+    if (length > 0 && static_cast<qsizetype>(length) <= request.maxBytes)
+        response.body.reserve(length);
+
+    char buffer[65536];
     while (response.body.size() <= request.maxBytes)
     {
         DWORD read = 0;
@@ -180,6 +188,8 @@ HttpResponse perform(const HttpRequest& request, RequestState& state)
         if (read == 0)
             break;
         response.body.append(buffer, read);
+        if (request.progress)
+            request.progress(response.body.size(), length);
     }
     if (response.body.size() > request.maxBytes)
         response.body.truncate(request.maxBytes + 1);

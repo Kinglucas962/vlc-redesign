@@ -32,6 +32,9 @@ struct HttpRequest
     QByteArray body;
     int timeoutMs = 30000;
     qsizetype maxBytes = 2 * 1024 * 1024;
+    // Called on the worker thread as the body arrives: the bytes received,
+    // and the size the server announced (0 when unknown)
+    std::function<void(qint64 received, qint64 total)> progress;
 };
 
 // Whether this build can perform requests at all.
