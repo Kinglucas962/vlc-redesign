@@ -540,17 +540,33 @@ int vlc_pipe (int fds[2])
 # if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
     static atomic_uint_least64_t count = 0;
 
-    uint_least64_t c = atomic_fetch_add(&count, 1);
-
+    /* Pipe names are global to the session: a name made of a per-process
+     * counter alone ("AnonPipe_0") is already taken when another VLC runs,
+     * and its external preparser, then its interface, failed to start.
+     * Name the pipe after this process, refuse an existing pipe of that
+     * name, and try another name if it is taken anyway. */
     TCHAR pipeName[MAX_PATH] = {0};
-    if (wsprintf(pipeName, TEXT("\\\\.\\pipe\\AnonPipe_%lu"), c) < 0) {
-        return -1;
-    }
+    HANDLE hRead = INVALID_HANDLE_VALUE;
+    for (int attempt = 0; attempt < 8 && hRead == INVALID_HANDLE_VALUE; attempt++) {
+        uint_least64_t c = atomic_fetch_add(&count, 1);
+        if (wsprintf(pipeName, TEXT("\\\\.\\pipe\\vlc-%lu-%lu-%lu"),
+                     (unsigned long)GetCurrentProcessId(), (unsigned long)c,
+                     (unsigned long)GetTickCount()) < 0) {
+            return -1;
+        }
 
-    HANDLE hRead = CreateNamedPipe(pipeName,
-                            PIPE_ACCESS_INBOUND | FILE_FLAG_OVERLAPPED,
-                            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
-                            1, 4096 * 8, 4096 * 8, 0, NULL);
+        hRead = CreateNamedPipe(pipeName,
+                                PIPE_ACCESS_INBOUND | FILE_FLAG_OVERLAPPED |
+                                FILE_FLAG_FIRST_PIPE_INSTANCE,
+                                PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT |
+                                PIPE_REJECT_REMOTE_CLIENTS,
+                                1, 4096 * 8, 4096 * 8, 0, NULL);
+        if (hRead == INVALID_HANDLE_VALUE &&
+            GetLastError() != ERROR_ACCESS_DENIED &&
+            GetLastError() != ERROR_PIPE_BUSY) {
+            return -1;
+        }
+    }
     if (hRead == INVALID_HANDLE_VALUE) {
         return -1;
     }

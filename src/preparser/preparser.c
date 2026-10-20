@@ -53,9 +53,15 @@ vlc_preparser_t *vlc_preparser_New(vlc_object_t *obj,
     }
     const bool external_process = false;
 #endif
+    preparser->sys = NULL;
     if (external_process) {
         preparser->sys = vlc_preparser_external_New(preparser, obj, cfg);
-    } else {
+        /* Without its helper processes, parse in this process rather than
+         * fail: the interface cannot start without a preparser */
+        if (preparser->sys == NULL)
+            msg_Warn(obj, "external preparser unavailable, parsing in-process");
+    }
+    if (preparser->sys == NULL) {
         preparser->sys = vlc_preparser_internal_New(preparser, obj, cfg);
     }
     if (preparser->sys == NULL) {
