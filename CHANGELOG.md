@@ -7,9 +7,48 @@ For changes to VLC itself, see [NEWS](NEWS).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Each section groups changes by
 what you see first, with the technical details after. Based on VLC `4.0.0-dev`, merged up to `942cdaea17` (2026-10-19).
 
-**Contents:** [0.2.3](#023--2026-10-20) · [0.2.2](#022--2026-10-20) · [0.2.1](#021--2026-10-20) · [0.2.0](#020--2026-10-20) · [0.1.0](#010--2026-10-20) · [M3](#m3--dialogs-settings-and-playback-tools--2026-10-13) ·
+**Contents:** [0.2.4](#024--unreleased) · [0.2.3](#023--2026-10-20) · [0.2.2](#022--2026-10-20) · [0.2.1](#021--2026-10-20) · [0.2.0](#020--2026-10-20) · [0.1.0](#010--2026-10-20) · [M3](#m3--dialogs-settings-and-playback-tools--2026-10-13) ·
 [M2](#m2--library-playlists-and-subtitles--2026-10-13) · [M1](#m1--first-native-shell-and-player--2026-10-12) ·
 [M0](#m0--baseline-and-build--2026-10-12) · [Differences from upstream VLC](#differences-from-upstream-vlc)
+
+---
+
+## [0.2.4] · Unreleased
+
+Updates without the installer: a few hundred kilobytes in the background, and a restart of a second or two.
+
+### Added
+
+- **Small updates**: a release carries the changes from each of the three releases before it, most files as binary
+  patches, so an update downloads only what changed (0.2.2 → 0.2.3 would have been 1.9 MB instead of the 55 MB
+  installer). It downloads in the background with its progress in the card and in About, is checked against the
+  release's `SHA256SUMS.txt`, and the new files are written next to the old ones, each checked against its SHA-256,
+  on a worker thread: the player never waits.
+- **Restart now** or **Later**: *Restart now* puts the update in place and opens VLC Redesign again on what was playing,
+  where it was, in about two seconds. *Later* puts it in place when you close VLC Redesign, or the next time.
+- **The portable copy updates itself too**, its `portable` folder (your settings and library) left as it is.
+- **Nothing half-done**: if a file can't be replaced (another program holds it), every file goes back as it was and
+  the update is tried again next time. If a file of VLC Redesign was changed since it was installed, the update says
+  so and the installer does it instead. When no small update fits (more than three releases behind, or installed for
+  everyone in Program Files), *Update now* uses the installer, as before.
+
+### Fixed
+
+- **Reopening after an update** started the media as a clip from where it was: the time began at 0:00, the length was
+  shortened, and the part before couldn't be reached (VLC 4's `:start-time`). It now seeks there, without the
+  *Continue where you left off?* card.
+- A binding loop in the keyboard shortcut dialog's layout.
+
+### Technical
+
+- `vlc-redesign-update.exe` (`extras/juxtopposed/updater`) puts a staged update in place once VLC has quit, keeps the
+  old files until all new ones are in, rolls back on failure, refreshes the plugin cache and the version in *Apps*.
+- `extras/juxtopposed/release/make-delta.py` builds the `.vrdelta` files (bsdiff patches, zlib blocks, a JSON index
+  with every file's SHA-256), `apply-delta.py` is a reference applier, and `make-release.ps1` checks each delta by
+  applying it to the old release and comparing every file. Binaries get a PE time stamp of 0, so a file whose code
+  didn't change is the same from one release to the next.
+- The download reports its progress (`HttpRequest::progress`), and the hidden `--redesign-resume-time` option reopens
+  the media at a time.
 
 ---
 

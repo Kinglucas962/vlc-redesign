@@ -146,7 +146,8 @@ Every option is explained in the **[wiki](https://github.com/KuchiSofts/vlc-rede
 - **Frame previews** on the seek bar, decoded ahead while you hover it, and a **waveform seek bar** for music.
 - **Sleep timer** (stop or pause), **A-B loop**, playback speed, **picture-in-picture**, a mini player with its queue.
 - **Startup volume** and volume up to 200 %, audio and video effects that apply live and can be undone.
-- **Updates from GitHub**, checksum-verified; the installed copy updates itself and reopens where you were.
+- **Small updates from GitHub**: only what changed, checksum-verified, put in place in a restart of two seconds that
+  reopens where you were (installed and portable copies).
 
 ## Download
 
@@ -177,11 +178,15 @@ An update keeps your choices. Uninstalling removes all of it and gives every fil
 ### Updates
 
 VLC Redesign checks this repository for a new release once a day (Settings → General → *Check for updates
-automatically*, or ⋯ → About → *Check for updates*). When one is out, a card offers:
+automatically*, or ⋯ → About → *Check for updates*). When one is out, a card offers **Update now**:
 
-- **Update now** (installed copy): downloads the installer, checks it against the release's `SHA256SUMS.txt`,
-  closes VLC Redesign, updates it and opens it again on what was playing, where it was.
-- **Download** (portable copy): opens the [latest release](https://github.com/KuchiSofts/vlc-redesign/releases/latest).
+- **A small update** (installed or portable copy): only the files that changed, usually a few megabytes or less,
+  downloaded in the background and checked against the release's `SHA256SUMS.txt` and file by file. Then
+  **Restart now** puts it in place in about two seconds and reopens VLC Redesign on what was playing, where it was,
+  or **Later** puts it in place when you close it. If anything goes wrong, every file goes back as it was.
+- **The installer**, when no small update fits (more than three releases behind, or installed for everyone):
+  downloaded, checked, and run without questions; it reopens VLC Redesign where you were.
+- **Download** (a portable copy too far behind): opens the [latest release](https://github.com/KuchiSofts/vlc-redesign/releases/latest).
 
 Running the installer by hand works too: it closes a running VLC Redesign politely and reopens it afterwards.
 
