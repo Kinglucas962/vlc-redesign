@@ -421,6 +421,12 @@ vlc_module_begin ()
 
     add_bool( "redesign-update-check", true, N_("Check for VLC Redesign updates"),
               N_("Look for a new release of VLC Redesign on GitHub at startup, at most once a day.") )
+    /* Given by vlc-redesign-update.exe and the installer when they open VLC
+     * again after an update. Older updaters pass it to newer versions, so
+     * it must stay. */
+    add_integer( "redesign-resume-time", 0, N_("Resume at"),
+                 N_("Seconds into the media of the command line where playback continues, after an update.") )
+        change_volatile()
 #ifdef UPDATE_CHECK
     /* off: VideoLAN's update feed offers the official VLC, not this build */
     add_bool( "qt-updates-notif", false, UPDATER_TEXT,

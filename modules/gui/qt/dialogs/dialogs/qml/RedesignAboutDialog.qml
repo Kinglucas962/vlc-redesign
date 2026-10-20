@@ -140,7 +140,10 @@ T.Popup {
                         case RedesignUpdater.Checking: return qsTr("Checking for updates…")
                         case RedesignUpdater.UpToDate: return qsTr("You have the latest version")
                         case RedesignUpdater.Available: return qsTr("Version %1 is available").arg(RedesignUpdater.latestVersion)
-                        case RedesignUpdater.Downloading: return qsTr("Downloading the update…")
+                        case RedesignUpdater.Downloading:
+                            return qsTr("Downloading the update… %1%").arg(Math.round(RedesignUpdater.progress * 100))
+                        case RedesignUpdater.Preparing: return qsTr("Preparing the update…")
+                        case RedesignUpdater.Ready: return qsTr("Version %1 is ready: restart to finish").arg(RedesignUpdater.latestVersion)
                         case RedesignUpdater.Failed: return RedesignUpdater.errorText
                         default: return ""
                         }
@@ -150,14 +153,18 @@ T.Popup {
 
             Widgets.RedesignButton {
                 Layout.alignment: Qt.AlignTop
-                accent: RedesignUpdater.state === RedesignUpdater.Available
-                text: RedesignUpdater.state === RedesignUpdater.Available
-                      ? (RedesignUpdater.canInstall ? qsTr("Update now") : qsTr("Download"))
-                      : qsTr("Check for updates")
+                accent: RedesignUpdater.state === RedesignUpdater.Available || RedesignUpdater.state === RedesignUpdater.Ready
+                text: RedesignUpdater.state === RedesignUpdater.Ready ? qsTr("Restart now")
+                      : RedesignUpdater.state === RedesignUpdater.Available
+                        ? (RedesignUpdater.canInstall ? qsTr("Update now") : qsTr("Download"))
+                        : qsTr("Check for updates")
                 enabled: RedesignUpdater.state !== RedesignUpdater.Checking
                          && RedesignUpdater.state !== RedesignUpdater.Downloading
+                         && RedesignUpdater.state !== RedesignUpdater.Preparing
                 onClicked: {
-                    if (RedesignUpdater.state !== RedesignUpdater.Available)
+                    if (RedesignUpdater.state === RedesignUpdater.Ready)
+                        RedesignUpdater.restartNow()
+                    else if (RedesignUpdater.state !== RedesignUpdater.Available)
                         RedesignUpdater.check(true)
                     else if (RedesignUpdater.canInstall)
                         RedesignUpdater.install()

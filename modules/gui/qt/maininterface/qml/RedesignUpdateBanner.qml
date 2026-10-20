@@ -23,6 +23,12 @@ Rectangle {
 
     readonly property bool darkTheme: VLCStyle.palette.isDark
     readonly property int state: RedesignUpdater.state
+    readonly property bool busy: state === RedesignUpdater.Downloading || state === RedesignUpdater.Preparing
+
+    function megabytes(bytes) {
+        return bytes >= 10 * 1048576 ? qsTr("%1 MB").arg(Math.round(bytes / 1048576))
+                                     : qsTr("%1 MB").arg((bytes / 1048576).toFixed(1))
+    }
 
     visible: RedesignUpdater.showBanner
     width: Math.min(parent.width - 2 * VLCStyle.dp(16, VLCStyle.scale), VLCStyle.dp(420, VLCStyle.scale))
@@ -70,7 +76,11 @@ Rectangle {
                     case RedesignUpdater.Checking: return qsTr("Checking for updates…")
                     case RedesignUpdater.UpToDate: return qsTr("VLC Redesign %1 is up to date").arg(RedesignUpdater.currentVersion)
                     case RedesignUpdater.Available: return qsTr("VLC Redesign %1 is available").arg(RedesignUpdater.latestVersion)
-                    case RedesignUpdater.Downloading: return qsTr("Downloading VLC Redesign %1…").arg(RedesignUpdater.latestVersion)
+                    case RedesignUpdater.Downloading:
+                        return qsTr("Downloading VLC Redesign %1… %2%").arg(RedesignUpdater.latestVersion)
+                                                                    .arg(Math.round(RedesignUpdater.progress * 100))
+                    case RedesignUpdater.Preparing: return qsTr("Preparing VLC Redesign %1…").arg(RedesignUpdater.latestVersion)
+                    case RedesignUpdater.Ready: return qsTr("VLC Redesign %1 is ready").arg(RedesignUpdater.latestVersion)
                     case RedesignUpdater.Failed: return qsTr("Couldn't update")
                     default: return ""
                     }
@@ -80,7 +90,7 @@ Rectangle {
             // close: a × in the muted text colour, a round hover
             T.Button {
                 id: closeButton
-                visible: root.state !== RedesignUpdater.Downloading
+                visible: !root.busy
                 implicitWidth: VLCStyle.dp(24, VLCStyle.scale)
                 implicitHeight: VLCStyle.dp(24, VLCStyle.scale)
                 Accessible.name: qsTr("Close")
@@ -118,12 +128,55 @@ Rectangle {
                            ? RedesignUpdater.summary.split("\n").map(line => "• " + line).join("\n")
                            : qsTr("You have %1.").arg(RedesignUpdater.currentVersion)
                 case RedesignUpdater.Downloading:
-                    return qsTr("VLC Redesign will close, update and open again where you were.")
+                case RedesignUpdater.Preparing:
+                    return RedesignUpdater.smallUpdate
+                           ? qsTr("Only what changed: keep watching, it's checked in the background.")
+                           : qsTr("VLC Redesign will close, update and open again where you were.")
+                case RedesignUpdater.Ready:
+                    return qsTr("It takes a few seconds: restart now, or it's done when you close VLC Redesign.")
                 case RedesignUpdater.Failed:
                     return RedesignUpdater.errorText
                 default:
                     return ""
                 }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.topMargin: VLCStyle.dp(4, VLCStyle.scale)
+            visible: root.busy
+            implicitHeight: VLCStyle.dp(4, VLCStyle.scale)
+            radius: height / 2
+            color: VLCStyle.redesign.color("#0E0E0E", "#8f8f8e", root.darkTheme)
+
+            Rectangle {
+                height: parent.height
+                radius: parent.radius
+                width: root.state === RedesignUpdater.Preparing ? parent.width
+                                                                : parent.width * RedesignUpdater.progress
+                color: VLCStyle.redesign.accent
+                Behavior on width { NumberAnimation { duration: VLCStyle.duration_short } }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.topMargin: VLCStyle.dp(6, VLCStyle.scale)
+            visible: root.state === RedesignUpdater.Ready
+            spacing: VLCStyle.dp(8, VLCStyle.scale)
+
+            Item { Layout.fillWidth: true }
+
+            Widgets.RedesignButton {
+                text: qsTr("Later")
+                onClicked: RedesignUpdater.dismiss()
+            }
+
+            Widgets.RedesignButton {
+                accent: true
+                text: qsTr("Restart now")
+                onClicked: RedesignUpdater.restartNow()
             }
         }
 
@@ -150,7 +203,9 @@ Rectangle {
             Widgets.RedesignButton {
                 accent: true
                 text: root.state === RedesignUpdater.Failed ? qsTr("Release page")
-                      : RedesignUpdater.canInstall ? qsTr("Update now") : qsTr("Download")
+                      : !RedesignUpdater.canInstall ? qsTr("Download")
+                      : RedesignUpdater.updateSize > 0 ? qsTr("Update now · %1").arg(root.megabytes(RedesignUpdater.updateSize))
+                      : qsTr("Update now")
                 onClicked: root.state === RedesignUpdater.Failed || !RedesignUpdater.canInstall
                            ? RedesignUpdater.openReleasePage() : RedesignUpdater.install()
             }

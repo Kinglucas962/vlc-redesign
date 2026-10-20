@@ -12,14 +12,26 @@
 #include <QString>
 #include <QTimer>
 
+#include <functional>
+
 #include "qt.hpp"
 
 // Updates of VLC Redesign from its GitHub releases (not VideoLAN's feed,
 // which offers the official VLC). Checks the latest release at startup
-// (option redesign-update-check, at most once a day) or on request, and
-// offers to open the release page or, for an installed copy, to download
-// the installer, check it against the release's SHA256SUMS.txt and run it:
-// it closes VLC and reopens it on the media and time that were playing.
+// (option redesign-update-check, at most once a day) or on request.
+//
+// A release carries small updates from its predecessors
+// (vlc-redesign-<new>-delta-from-<old>.vrdelta, see
+// extras/juxtopposed/release/make-delta.py): only the files that changed,
+// most of them as binary patches. When one starts from this version and
+// VLC's folder is writable (an installed copy for the user, or a portable
+// one), it is downloaded in the background, checked against the release's
+// SHA256SUMS.txt, and the new files are written next to the old ones
+// (<folder>/.update/staged), each checked against its SHA-256, on a worker
+// thread. vlc-redesign-update.exe then puts them in place once VLC has
+// quit, either now (Restart) or when it closes, and opens VLC again where
+// it was. Otherwise an installed copy downloads and runs the installer, and
+// a portable one opens the release page.
 class RedesignUpdater : public QObject
 {
     Q_OBJECT
@@ -31,6 +43,12 @@ class RedesignUpdater : public QObject
     Q_PROPERTY(QString summary READ summary NOTIFY stateChanged FINAL)
     Q_PROPERTY(QString errorText READ errorText NOTIFY stateChanged FINAL)
     Q_PROPERTY(bool canInstall READ canInstall NOTIFY stateChanged FINAL)
+    // the update is a small one, put in place without the installer
+    Q_PROPERTY(bool smallUpdate READ smallUpdate NOTIFY stateChanged FINAL)
+    // bytes to download, 0 when unknown
+    Q_PROPERTY(qint64 updateSize READ updateSize NOTIFY stateChanged FINAL)
+    // of the download, 0 to 1
+    Q_PROPERTY(double progress READ progress NOTIFY progressChanged FINAL)
     Q_PROPERTY(bool manual READ manual NOTIFY stateChanged FINAL)
     Q_PROPERTY(bool showBanner READ showBanner NOTIFY stateChanged FINAL)
     // About shows the state itself: no banner while it is open
@@ -44,11 +62,16 @@ public:
         UpToDate,
         Available,
         Downloading,
+        // the new files are being written and checked
+        Preparing,
+        // they wait for VLC to restart or to close
+        Ready,
         Failed
     };
     Q_ENUM(State)
 
     explicit RedesignUpdater(qt_intf_t *intf, QObject *parent = nullptr);
+    ~RedesignUpdater() override;
 
     State state() const { return m_state; }
     QString currentVersion() const;
@@ -57,6 +80,9 @@ public:
     QString summary() const { return m_summary; }
     QString errorText() const { return m_error; }
     bool canInstall() const;
+    bool smallUpdate() const;
+    qint64 updateSize() const;
+    double progress() const { return m_progress; }
     bool manual() const { return m_manual; }
     bool showBanner() const;
     bool aboutOpen() const { return m_aboutOpen; }
@@ -66,23 +92,41 @@ public:
     // a < b, comparing "1.2.3" or "v1.2.3-beta.1" like semantic versions
     static bool versionLess(const QString &a, const QString &b);
 
+    // Writes the files of a .vrdelta under <appDir>/.update/staged, each
+    // checked against its SHA-256, the files it removes in removed.txt, the
+    // helper that puts them in place, and the version in ready.txt (last).
+    // Returns an error, empty on success.
+    static QString stageDelta(const QByteArray &delta, const QString &appDir, const QString &version);
+
 public slots:
     // manual: show "up to date" and errors too, ignore a skipped version
     void check(bool manual = true);
     void openReleasePage();
     void install();
+    // the staged update: in place now, and VLC opens again where it was
+    void restartNow();
     void skipThisVersion();
     void dismiss();
 
 signals:
     void stateChanged();
+    void progressChanged();
 
 private:
     void setState(State state, const QString &error = {});
+    void setProgress(double progress);
     void onRelease(int status, const QByteArray &body);
-    void download(const QString &expectedSha256);
+    void withChecksum(const QString &assetName, std::function<void(const QString &)> next);
+    void downloadDelta(const QString &expectedSha256);
+    void downloadInstaller(const QString &expectedSha256);
     void launchInstaller(const QString &path);
+    bool launchHelper(bool relaunch);
+    void applyOnExit();
+    void findStagedUpdate();
+    void resumeAfterUpdate();
     bool isInstalledCopy() const;
+    bool appFolderWritable() const;
+    QString appDir() const;
 
     qt_intf_t *m_intf;
     QTimer m_startupTimer;
@@ -90,12 +134,20 @@ private:
     bool m_manual = false;
     bool m_dismissed = false;
     bool m_aboutOpen = false;
+    bool m_helperStarted = false;
+    // whether the folder of vlc.exe takes the update: -1 until checked
+    mutable int m_writable = -1;
+    double m_progress = 0;
     QString m_latestVersion;
     QString m_releaseTitle;
     QString m_summary;
     QString m_releaseUrl;
     QString m_installerUrl;
     QString m_installerName;
+    qint64 m_installerSize = 0;
+    QString m_deltaUrl;
+    QString m_deltaName;
+    qint64 m_deltaSize = 0;
     QString m_sumsUrl;
     QString m_error;
 };
