@@ -26,7 +26,13 @@
 #include "dialogs/dialogs/dialogmodel.hpp"
 #include <QScreen>
 #include <QQmlProperty>
+#include <algorithm>
 #include <cmath>
+#include <cstdlib>
+
+#include <vlc_actions.h>
+
+static bool isFullscreenKey(vlc_object_t *obj, int vlcKey);
 
 #ifdef _WIN32
 #include <windows.h>
@@ -336,6 +342,22 @@ bool InterfaceWindowHandler::eventFilter(QObject*, QEvent* event)
             emit kc_pressed();
         }
 
+        // The window's own fullscreen (entered without a video: the title
+        // bar's button in the library or for music, F11) is not the video's,
+        // which the fullscreen keys drive: let them leave it too, from any
+        // view (the library gives its keys to its pages, not to the
+        // hotkeys). In fullscreen the title bar and its button are hidden,
+        // so without this only F11 got out of it.
+        if (m_mainCtx->getUseGlobalShortcuts()
+            && m_window && m_window->visibility() == QWindow::FullScreen
+            && !(p_intf->p_mainPlayerController && p_intf->p_mainPlayerController->hasVideoOutput())
+            && isFullscreenKey(VLC_OBJECT(p_intf), qtEventToVLCKey(keyEvent)))
+        {
+            setInterfaceFullScreen(false);
+            event->accept();
+            return true;
+        }
+
         if (applyKeyEvent(keyEvent) == false)
             return false;
 
@@ -578,6 +600,24 @@ void InterfaceWindowHandler::setInterfaceAlwaysOnTop( bool on_top )
 }
 
 // Functions private
+
+// Whether vlcKey is a key of "toggle fullscreen" or "leave fullscreen", as
+// the user set them
+static bool isFullscreenKey(vlc_object_t *obj, int vlcKey)
+{
+    // the names without "key-": vlc_actions_get_keycodes() adds it
+    for (const char *name : { "toggle-fullscreen", "leave-fullscreen" })
+    {
+        uint_fast32_t *keycodes = nullptr;
+        const size_t count = vlc_actions_get_keycodes(obj, name, false, &keycodes);
+        const bool bound = std::find(keycodes, keycodes + count,
+                                     static_cast<uint_fast32_t>(vlcKey)) != keycodes + count;
+        std::free(keycodes);
+        if (bound)
+            return true;
+    }
+    return false;
+}
 
 bool InterfaceWindowHandler::applyKeyEvent(QKeyEvent * event) const
 {

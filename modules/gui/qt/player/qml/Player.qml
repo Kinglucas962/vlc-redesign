@@ -79,8 +79,10 @@ FocusScope {
     // under the top bar, corners of 9 px (19 less half the border)
     // Without the bars (Figma "Player - hide UI") the frame is 10 px on
     // every side
-    readonly property real _videoInset: MainCtx.hasEmbededVideo ? VLCStyle.dp(10, VLCStyle.scale) : 0
-    readonly property real _videoTopInset: !MainCtx.hasEmbededVideo ? 0
+    // In fullscreen the video fills the screen: no frame, no corners
+    readonly property bool _fullscreen: MainCtx.intfMainWindow.visibility === Window.FullScreen
+    readonly property real _videoInset: (MainCtx.hasEmbededVideo && !_fullscreen) ? VLCStyle.dp(10, VLCStyle.scale) : 0
+    readonly property real _videoTopInset: (!MainCtx.hasEmbededVideo || _fullscreen) ? 0
                                            : _controlsUnderVideo ? VLCStyle.dp(1, VLCStyle.scale)
                                                                  : _videoInset
     readonly property real _videoBottomInset: (MainCtx.hasEmbededVideo && !_controlsUnderVideo) ? _videoInset : 0
