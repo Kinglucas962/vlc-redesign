@@ -18,10 +18,11 @@ concurrency:
 
 jobs:
   win64:
-    runs-on: ubuntu-latest
+    # pinned: ubuntu-latest moves to a new release under the build
+    runs-on: ubuntu-24.04
     timeout-minutes: 300
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # the prebuilt contrib archive is named after the commit that last
           # touched contrib/ and the packaging
@@ -46,7 +47,8 @@ jobs:
         run: |
           mkdir -p out
           docker run --rm -u root -v vlc-build:/build vlc-win64-redesign chown videolan:videolan /build
-          sudo chown -R 1000:1000 out
+          # the image's user is not the runner's: let it write the package
+          chmod 777 out
           docker run --rm \
             -e CONTRIB_ARCHIVE="/cache/$CONTRIB" -e STRIP=1 \
             -v "$PWD:/src:ro" -v "$PWD/cache:/cache:ro" -v "$PWD/out:/out" -v vlc-build:/build \
@@ -56,7 +58,7 @@ jobs:
 
       - name: Upload the package
         if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: vlc-redesign-win64-${{ github.sha }}
           path: out
