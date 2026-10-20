@@ -7,9 +7,33 @@ For changes to VLC itself, see [NEWS](NEWS).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Each section groups changes by
 what you see first, with the technical details after. Based on VLC `4.0.0-dev`, merged up to `942cdaea17` (2026-10-19).
 
-**Contents:** [0.2.1](#021--2026-10-20) · [0.2.0](#020--2026-10-20) · [0.1.0](#010--2026-10-20) · [M3](#m3--dialogs-settings-and-playback-tools--2026-10-13) ·
+**Contents:** [0.2.2](#022--2026-10-20) · [0.2.1](#021--2026-10-20) · [0.2.0](#020--2026-10-20) · [0.1.0](#010--2026-10-20) · [M3](#m3--dialogs-settings-and-playback-tools--2026-10-13) ·
 [M2](#m2--library-playlists-and-subtitles--2026-10-13) · [M1](#m1--first-native-shell-and-player--2026-10-12) ·
 [M0](#m0--baseline-and-build--2026-10-12) · [Differences from upstream VLC](#differences-from-upstream-vlc)
+
+---
+
+## [0.2.2] · 2026-10-20
+
+The fullscreen button moves to the control bar, and the control bar is easier to customize.
+
+### Changed
+
+- **Fullscreen button in the control bar**: it left the title bar, where it sat next to *Close*, for the right end
+  of the bottom bar (suggested in [#1](https://github.com/KuchiSofts/vlc-redesign/issues/1)). Saved profiles get it
+  once, at the same place; take it out with *Customize Player* and it stays out. The title bar keeps minimize,
+  maximize and close.
+
+### Fixed
+
+- **Customize Player**: a button let go in the gap between two controls of the bar was ignored. It now goes between
+  them, like a drop on either control.
+- **Updates**: a check made from About no longer pops up the update card behind the About window too, nor again
+  once About is closed. A download started from About still shows its progress in the card.
+
+### Documentation
+
+- README: [*Customize the interface*](README.md#customize-the-interface), with a 44-second video.
 
 ---
 
