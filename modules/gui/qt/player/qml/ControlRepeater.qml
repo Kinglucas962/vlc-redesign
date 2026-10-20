@@ -225,7 +225,12 @@ Repeater {
 
             DropArea {
                 id: dropArea
+                // over the gaps beside the control too: an item let go
+                // between two controls goes between them
+                readonly property real reach: VLCStyle.dp(10, VLCStyle.scale)
                 anchors.fill: parent
+                anchors.leftMargin: -reach
+                anchors.rightMargin: -reach
                 property bool after: false
                 onPositionChanged: (drag) => { after = drag.x > width / 2 }
                 onEntered: (drag) => {
