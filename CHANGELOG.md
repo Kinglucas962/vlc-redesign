@@ -31,6 +31,8 @@ Updates without the installer: a few hundred kilobytes in the background, and a 
   the update is tried again next time. If a file of VLC Redesign was changed since it was installed, the update says
   so and the installer does it instead. When no small update fits (more than three releases behind, or installed for
   everyone in Program Files), *Update now* uses the installer, as before.
+- Earlier versions can't apply a small update, so the update to 0.2.4 itself comes with the installer (or the zip):
+  small updates start with the release after it.
 
 ### Fixed
 
