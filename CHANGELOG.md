@@ -7,9 +7,30 @@ For changes to VLC itself, see [NEWS](NEWS).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Each section groups changes by
 what you see first, with the technical details after. Based on VLC `4.0.0-dev`, merged up to `942cdaea17` (2026-10-19).
 
-**Contents:** [0.2.0](#020--2026-10-20) · [0.1.0](#010--2026-10-20) · [M3](#m3--dialogs-settings-and-playback-tools--2026-10-13) ·
+**Contents:** [0.2.1](#021--2026-10-20) · [0.2.0](#020--2026-10-20) · [0.1.0](#010--2026-10-20) · [M3](#m3--dialogs-settings-and-playback-tools--2026-10-13) ·
 [M2](#m2--library-playlists-and-subtitles--2026-10-13) · [M1](#m1--first-native-shell-and-player--2026-10-12) ·
 [M0](#m0--baseline-and-build--2026-10-12) · [Differences from upstream VLC](#differences-from-upstream-vlc)
+
+---
+
+## [0.2.1] · 2026-10-20
+
+Fullscreen fixes, reported in [#1](https://github.com/KuchiSofts/vlc-redesign/issues/1). Thanks!
+
+### Fixed
+
+- **Leaving fullscreen**: fullscreen entered without a video (the title bar's button in the library or for music,
+  or F11) could only be left with F11, since the title bar hides in fullscreen and the fullscreen keys only drive
+  the video's fullscreen. The *Fullscreen* and *Leave fullscreen* shortcuts (F, Escape, or whatever you set them to)
+  now leave it too, from any view.
+- **No frame in fullscreen**: the 10 px frame and rounded corners around the video are kept for the window; in
+  fullscreen the video fills the screen and the bars float over it.
+
+### Notes
+
+- The fullscreen button sits next to the window buttons as in Juxtopposed's design. To keep it away from *Close*,
+  drag it into the control bar: ⋯ → *Customize Player*. F and a double-click on the video also toggle fullscreen.
+- CI: the Windows build workflow now completes (the package step could not write its output).
 
 ---
 
@@ -302,5 +323,6 @@ the ones to watch when merging upstream, and the candidates to propose to VideoL
 | `bin/Makefile.am`, `bin/meson.build` | Build the `vlc-waveform` helper |
 | `extras/package/win32/package.mak` | Credits, changelog and font licenses in the package |
 
+[0.2.1]: https://github.com/KuchiSofts/vlc-redesign/releases/tag/v0.2.1
 [0.2.0]: https://github.com/KuchiSofts/vlc-redesign/releases/tag/v0.2.0
 [0.1.0]: https://github.com/KuchiSofts/vlc-redesign/releases/tag/v0.1.0
