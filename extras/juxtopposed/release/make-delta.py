@@ -9,7 +9,7 @@
 
   python make-delta.py deltas <package> <version> <dist> [--keep N]
       For each of the N latest earlier releases whose zip is in <dist>
-      (default 3), writes <dist>/vlc-redesign-<version>-delta-from-<old>.vrdelta:
+      (default 3, from 0.2.4 on: the first that applies them), writes <dist>/vlc-redesign-<version>-delta-from-<old>.vrdelta:
       the files that changed (a binary patch when it's much smaller), the
       files that went away, and the SHA-256 of every new file. The app checks
       and applies it (modules/gui/qt/util/redesign_updater.cpp).
@@ -31,6 +31,7 @@ import hashlib, io, json, os, re, struct, sys, zipfile, zlib
 SKIP = re.compile(r'^(portable/|plugins/plugins\.dat$)|\.old-', re.I)
 PATCH_MIN = 64 * 1024        # smaller files go whole
 PATCH_GAIN = 0.6             # a patch only if it's under 60 % of the whole file
+FIRST_APPLIER = '0.2.4'      # older releases can't apply a delta: they get the installer
 
 
 def pe_offsets(data):
@@ -171,7 +172,8 @@ def deltas(package, version, dist, keep):
     olds = []
     for n in os.listdir(dist):
         m = re.match(r'vlc-redesign-(.+)-win64\.zip$', n)
-        if m and m.group(1) != version and version_key(m.group(1)) < version_key(version):
+        if (m and m.group(1) != version and version_key(m.group(1)) < version_key(version)
+                and version_key(m.group(1)) >= version_key(FIRST_APPLIER)):
             olds.append(m.group(1))
     olds.sort(key=version_key)
     for old in olds[-keep:]:
