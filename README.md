@@ -74,7 +74,7 @@ follows the design screen by screen, down to the pixel on the screens that were 
 |---|---|
 | **Player** | Framed video with rounded corners, a waveform seek bar for music, frame previews when hovering the timeline, the cone volume control (up to 200 %), skip ±15 s (and optional ±10 s buttons), picture-in-picture, sleep timer, A-B loop |
 | **Queue & library** | A queue card with Queue / Bookmarks / Chapters tabs, a compact library over the video, *Listen Again* and *Frequently Visited Folders* on Home, folder browsing with breadcrumbs, playlists you can favourite, shuffle and export |
-| **Customise** | Drag and drop the control bar directly on the player, save layouts as profiles, Dark / Light / System themes with 9 accent colours |
+| **Customise** | Drag and drop the control bar directly on the player ([see how](#customize-the-interface)), save layouts as profiles, Dark / Light / System themes with 9 accent colours |
 | **Settings** | A single redesigned settings window with search, the design's toggles, dropdowns and sliders, and many more VLC options exposed than before |
 | **Subtitles** | Per-file and per-series subtitle choices remembered, a sync timeline, external subtitle and audio tracks, OpenSubtitles (with your own API key) |
 | **Onboarding** | A three-step welcome: media folder, theme, keyboard shortcuts |
@@ -95,6 +95,23 @@ See the full list in the **[changelog](CHANGELOG.md)**.
 The demo uses free media: *[Sintel](https://durian.blender.org/)* and *[Big Buck Bunny](https://peach.blender.org/)* trailers
 (© Blender Foundation, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/); Sintel's first second trimmed) and
 "Fluffing a Duck" and "Carefree" by [Kevin MacLeod](https://incompetech.com/) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); generated cover art added).
+
+## Customize the interface
+
+<p align="center"><a href="docs/media/customize.mp4"><img src="docs/media/customize.gif" alt="Customizing the player: switching profiles, creating one, dragging a button off the control bar and two onto it, then saving" width="800"></a><br>
+<sub>▶ <a href="docs/media/customize.mp4">Watch it in full quality (MP4, 44 seconds)</a></sub></p>
+
+The control bar is edited right on the player:
+
+1. Open **⋯ → Customize Player**. From the library, it switches to the player first.
+2. Pick a profile at the top (**Default**, **Movies**, **Shows**, **Music**, **Work**), or press **New** to start your own.
+   **Rename**, **Clone** and **Delete** manage them.
+3. **Drag a button from the grid onto the bar.** An orange line shows where it goes: before or after a button, or between two.
+4. **Drag a button off the bar** into the grid to remove it, or along the bar to move it.
+5. **Save** keeps the changes. **Cancel** or Escape drops them.
+
+Switch profiles any time with **⋯ → Profile**. The fullscreen button sits at the right end of the bar. Move it or take
+it out the same way: F, F11 and a double-click on the video still toggle fullscreen.
 
 ## Download
 

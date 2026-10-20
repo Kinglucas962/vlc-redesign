@@ -19,6 +19,8 @@ Status: ✅ done · 🔨 in progress · 📋 planned · 💡 idea
 - ✅ About window in the redesign's style, with the design credit and links
 - ✅ ~75 fixes from a full audit of every button, menu and setting (see the [changelog](CHANGELOG.md))
 - ✅ Latest VLC 4 fixes merged; every pull request is built automatically
+- ✅ Fullscreen: leave it from any view, no frame around the video, its button in the control bar instead of next to *Close* ([#1](https://github.com/KuchiSofts/vlc-redesign/issues/1))
+- ✅ Customize Player: drops between two controls work; a [video](README.md#customize-the-interface) shows how it works
 - 🔨 Pixel check of all 103 Figma frames against the app, frame by frame
 
 ## 0.3: the rest of the design
