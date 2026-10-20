@@ -36,6 +36,13 @@ strip_package() {
     find /build/package -type f \( -name '*.dll' -o -name '*.exe' \)         -exec $triplet-strip --strip-unneeded {} +
 }
 
+# The program that applies an update once VLC has quit (see
+# extras/juxtopposed/updater); no PE time stamp, so an update leaves it alone
+# when it didn't change.
+build_updater() {
+    $triplet-gcc -O2 -municode -mwindows -static -Wl,--no-insert-timestamp         -o /build/package/vlc-redesign-update.exe         /src/extras/juxtopposed/updater/vlc-redesign-update.c -ladvapi32 -lshell32
+}
+
 # The copy has no .git: src/Makefile then reads the version from revision.txt.
 git -C /src -c safe.directory='*' describe --tags --long --match '?.*.*' --always \
     > /build/revision.txt
@@ -59,6 +66,7 @@ if [ "${QUICK:-}" = 1 ] && [ -f win64/Makefile ]; then
     export PATH="/build/vlc/extras/tools/build/bin:$PATH"
     make -C win64 -j"$jobs"
     make -C win64 package-win-common
+    build_updater
     strip_package
     rsync -rt --omit-dir-times --delete --checksum --exclude=/portable --exclude='*.old-*' \
         /build/package/ /out/
@@ -88,6 +96,7 @@ rm -f extras/package/win32/build-prebuilt-only.sh
 
 test -s /build/package/vlc.exe
 test -s /build/package/plugins/gui/libqt_plugin.dll
+build_updater
 strip_package
 # The host mount refuses owner/group/permission and directory time changes.
 # portable/ holds the test profile (VLC uses it instead of %APPDATA%\vlc).
