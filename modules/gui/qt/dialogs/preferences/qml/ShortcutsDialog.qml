@@ -647,10 +647,13 @@ Widgets.RedesignDialog {
         id: resetConfirmation
         objectName: "shortcutsResetConfirmation"
         parent: root.contentItem
-        // centred on whole pixels: the text stays crisp
-        x: parent ? Math.round((parent.width - width) / 2) : 0
-        y: parent ? Math.round((parent.height - height) / 2) : 0
-        width: Math.min(VLCStyle.dp(420, VLCStyle.scale), root.width - 30)
+        // centred on whole pixels: the text stays crisp (from the width it
+        // is given, not its own: setting x makes the popup lay out again,
+        // which was a binding loop)
+        readonly property real givenWidth: Math.min(VLCStyle.dp(420, VLCStyle.scale), root.width - 30)
+        x: parent ? Math.round((parent.width - givenWidth) / 2) : 0
+        y: parent ? Math.round((parent.height - VLCStyle.dp(172, VLCStyle.scale)) / 2) : 0
+        width: givenWidth
         onConfirmed: shortcuts.resetAll()
     }
 
