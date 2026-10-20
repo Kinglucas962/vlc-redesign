@@ -156,7 +156,7 @@ bool RedesignUpdater::canInstall() const
 
 bool RedesignUpdater::showBanner() const
 {
-    if (m_dismissed)
+    if (m_dismissed || m_aboutOpen)
         return false;
     switch (m_state) {
     case Available:
@@ -170,6 +170,18 @@ bool RedesignUpdater::showBanner() const
     default:
         return false;
     }
+}
+
+void RedesignUpdater::setAboutOpen(bool open)
+{
+    if (open == m_aboutOpen)
+        return;
+    m_aboutOpen = open;
+    // what a check made in About found was read there; a download goes on
+    // in the banner
+    if (!open && m_manual && m_state != Downloading)
+        m_dismissed = true;
+    emit stateChanged();
 }
 
 void RedesignUpdater::setState(State state, const QString &error)

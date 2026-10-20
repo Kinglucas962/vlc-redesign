@@ -33,6 +33,8 @@ class RedesignUpdater : public QObject
     Q_PROPERTY(bool canInstall READ canInstall NOTIFY stateChanged FINAL)
     Q_PROPERTY(bool manual READ manual NOTIFY stateChanged FINAL)
     Q_PROPERTY(bool showBanner READ showBanner NOTIFY stateChanged FINAL)
+    // About shows the state itself: no banner while it is open
+    Q_PROPERTY(bool aboutOpen READ aboutOpen WRITE setAboutOpen NOTIFY stateChanged FINAL)
     Q_PROPERTY(QString repositoryUrl READ repositoryUrl CONSTANT FINAL)
 
 public:
@@ -57,6 +59,8 @@ public:
     bool canInstall() const;
     bool manual() const { return m_manual; }
     bool showBanner() const;
+    bool aboutOpen() const { return m_aboutOpen; }
+    void setAboutOpen(bool open);
     QString repositoryUrl() const;
 
     // a < b, comparing "1.2.3" or "v1.2.3-beta.1" like semantic versions
@@ -85,6 +89,7 @@ private:
     State m_state = Idle;
     bool m_manual = false;
     bool m_dismissed = false;
+    bool m_aboutOpen = false;
     QString m_latestVersion;
     QString m_releaseTitle;
     QString m_summary;

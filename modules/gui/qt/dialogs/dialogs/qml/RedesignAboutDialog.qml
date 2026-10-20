@@ -38,6 +38,21 @@ T.Popup {
     focus: true
     closePolicy: T.Popup.CloseOnEscape | T.Popup.CloseOnPressOutside
 
+    // the update state is shown here: no update banner meanwhile
+    property bool _holdsBanner: false
+    function _releaseBanner() {
+        if (!_holdsBanner)
+            return
+        _holdsBanner = false
+        RedesignUpdater.aboutOpen = false
+    }
+    onOpened: {
+        _holdsBanner = true
+        RedesignUpdater.aboutOpen = true
+    }
+    onClosed: _releaseBanner()
+    Component.onDestruction: _releaseBanner()
+
     T.Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.5) }
 
     background: Rectangle {
