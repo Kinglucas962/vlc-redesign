@@ -21,13 +21,16 @@ Status: ✅ done · 🔨 in progress · 📋 planned · 💡 idea
 - ✅ Latest VLC 4 fixes merged; every pull request is built automatically
 - ✅ Fullscreen: leave it from any view, no frame around the video, its button in the control bar instead of next to *Close* ([#1](https://github.com/KuchiSofts/vlc-redesign/issues/1))
 - ✅ Customize Player: drops between two controls work; a [video](README.md#customize-the-interface) shows how it works
+- ✅ An installer drawn like the app, which can open your media files and add *Play with VLC Redesign* to right-click menus
+- ✅ Seek bar previews decoded ahead and kept: a sweep along the bar shows them at once
+- ✅ A [wiki](https://github.com/KuchiSofts/vlc-redesign/wiki) with every screen and option
 - 🔨 Pixel check of all 103 Figma frames against the app, frame by frame
 
 ## 0.3: the rest of the design
 
 - 📋 Redesign the dialogs that still use the classic look: Media Information, Bookmarks, Convert/Stream, Open Disc, Capture Device, Messages
 - 📋 Right-click and context menus drawn as the design's cards
-- 📋 The compact library's *Home* page in the player
+- 📋 The compact library's *Home* with the rows of the library's Home (it lists the recent media for now)
 - 📋 Profiles as the design shows them (Movies, Shows, Music, Work) checked against frame 6648:20666
 - 📋 Visualizer and setting presets checked against frames 2372:8639 and 2372:8834
 - 📋 Light theme: every state checked, accessible contrast

@@ -7,9 +7,47 @@ For changes to VLC itself, see [NEWS](NEWS).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Each section groups changes by
 what you see first, with the technical details after. Based on VLC `4.0.0-dev`, merged up to `942cdaea17` (2026-10-19).
 
-**Contents:** [0.2.2](#022--2026-10-20) · [0.2.1](#021--2026-10-20) · [0.2.0](#020--2026-10-20) · [0.1.0](#010--2026-10-20) · [M3](#m3--dialogs-settings-and-playback-tools--2026-10-13) ·
+**Contents:** [Unreleased](#unreleased) · [0.2.2](#022--2026-10-20) · [0.2.1](#021--2026-10-20) · [0.2.0](#020--2026-10-20) · [0.1.0](#010--2026-10-20) · [M3](#m3--dialogs-settings-and-playback-tools--2026-10-13) ·
 [M2](#m2--library-playlists-and-subtitles--2026-10-13) · [M1](#m1--first-native-shell-and-player--2026-10-12) ·
 [M0](#m0--baseline-and-build--2026-10-12) · [Differences from upstream VLC](#differences-from-upstream-vlc)
+
+---
+
+## Unreleased
+
+### Added
+
+- **A new installer, drawn like the app**: the library's sidebar with the steps, Inter, the dialogs' buttons, the
+  settings' ON / OFF toggles and an orange progress bar, in English and Hebrew (right to left). Three clicks from
+  *Welcome* to *Done*: no more "Select install mode" dialog or *Ready* page.
+- **Open media files with VLC Redesign**: the installer's *Options* can make it the player of video, music and
+  playlists (the ~130 formats VLC plays), wherever no other app was chosen by you; the *Done* page opens Windows'
+  *Default apps* for the rest. VLC Redesign is always offered in *Open with* and in *Default apps*.
+- **Right-click menu**: *Play with VLC Redesign* and *Add to VLC Redesign queue* on media files and folders
+  (an option of the installer).
+- **Install for everyone** from the *Options* page: Setup starts again with administrator rights, for Program Files.
+- The installer remembers the options of the last install, and the uninstaller removes all of it and gives every file
+  type back to the app it had before (checked against a snapshot of the registry, in English and in Hebrew).
+- **A [wiki](https://github.com/KuchiSofts/vlc-redesign/wiki)**: every screen and every option of the Settings window
+  (with its default and its VLC option), installation, updates, shortcuts, troubleshooting, with screenshots.
+
+### Changed
+
+- **Seek bar previews come much faster**: the frames are kept, a frame the pointer has left behind is still decoded for
+  later instead of being thrown away, and while you hover the bar the frames around the pointer are decoded ahead.
+  Positions snap to 1/200 of the length (the preview seeks to the nearest key frame anyway).
+
+### Fixed
+
+- **A time of hundreds of hours**: playback started paused at a time (`:start-time` with `--start-paused`) showed a
+  time like 623:17:44, as the player's last timer point was read before VLC had sent one (it was never initialized).
+  The time now waits for the first point, and a time past the end of the media is taken from the position.
+
+### Documentation
+
+- README: the player in the nine accent colours and the light theme, *Settings and smart features* with screenshots of
+  the Subtitles and Playback settings, and the new installer. The compact library's *Home* is no longer a known
+  limitation: it lists the recent media.
 
 ---
 

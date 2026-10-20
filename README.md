@@ -96,6 +96,13 @@ The demo uses free media: *[Sintel](https://durian.blender.org/)* and *[Big Buck
 (© Blender Foundation, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/); Sintel's first second trimmed) and
 "Fluffing a Duck" and "Carefree" by [Kevin MacLeod](https://incompetech.com/) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); generated cover art added).
 
+## Colours and themes
+
+Nine accent colours, in the dark or the light theme, or following Windows: **Settings → General → Appearance**.
+
+<p align="center"><img src="docs/media/accents-dark.png" alt="The player in the nine accent colours of the design, dark theme" width="820"></p>
+<p align="center"><img src="docs/media/accents-light.png" alt="The player in the light theme, with three of the accent colours" width="820"></p>
+
 ## Customize the interface
 
 <p align="center"><a href="docs/media/customize.mp4"><img src="docs/media/customize.gif" alt="Customizing the player: switching profiles, creating one, dragging a button off the control bar and two onto it, then saving" width="800"></a><br>
@@ -113,17 +120,59 @@ The control bar is edited right on the player:
 Switch profiles any time with **⋯ → Profile**. The fullscreen button sits at the right end of the bar. Move it or take
 it out the same way: F, F11 and a double-click on the video still toggle fullscreen.
 
+## Settings and smart features
+
+One redesigned settings window, with search, in thirteen sections: General, Interface, Privacy, Controls, Playback,
+Video, Audio, Subtitles, Library, Network, Performance, Recording and Extensions.
+Every option is explained in the **[wiki](https://github.com/KuchiSofts/vlc-redesign/wiki)**.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/media/settings-subtitles.png" alt="Settings: Subtitles"></td>
+<td width="50%"><img src="docs/media/settings-playback.png" alt="Settings: Playback"></td>
+</tr>
+<tr>
+<td><b>Subtitles</b>: languages, size and style, encoding, automatic loading</td>
+<td><b>Playback</b>: resume, speed, repeat, what happens at the end</td>
+</tr>
+</table>
+
+**Smart by default**
+
+- **Subtitles remembered**: the subtitle track you pick stays with the file, and with the episodes of a series; external
+  subtitle files next to the video load by themselves; a sync timeline in the tracks menu fixes early or late subtitles,
+  with presets per series. OpenSubtitles search with your own API key.
+- **Continue where you left off**: a small card offers to resume, or resume always or never (Settings → Playback).
+- **Frame previews** on the seek bar, decoded ahead while you hover it, and a **waveform seek bar** for music.
+- **Sleep timer** (stop or pause), **A-B loop**, playback speed, **picture-in-picture**, a mini player with its queue.
+- **Startup volume** and volume up to 200 %, audio and video effects that apply live and can be undone.
+- **Updates from GitHub**, checksum-verified; the installed copy updates itself and reopens where you were.
+
 ## Download
 
 Go to **[Releases](https://github.com/KuchiSofts/vlc-redesign/releases/latest)** and pick one:
 
 | | |
 |---|---|
-| **Installer** · `vlc-redesign-…-win64-setup.exe` | Recommended. Installs for you only (no administrator rights needed), adds a Start menu entry, and keeps itself up to date. Optionally adds VLC Redesign to *Open with* without taking over your default player. |
+| **Installer** · `vlc-redesign-…-win64-setup.exe` | Recommended. Installs for you only (no administrator rights needed), adds a Start menu entry, and keeps itself up to date. Its *Options* page can open your videos, music and playlists with VLC Redesign and add *Play with VLC Redesign* to the right-click menu. |
 | **Portable** · `vlc-redesign-…-win64.zip` | Unzip anywhere and run `vlc.exe`. Nothing is installed; delete the folder to remove it. |
 
 Both keep their settings, library and history in their own `portable` folder, so they never touch an
 installed official VLC. Requirements: Windows 10 or 11, 64-bit.
+
+### The installer
+
+<p align="center"><img src="docs/media/installer.png" alt="The installer: Welcome with the design credit, Options with the toggles, the installation, Done" width="820"></p>
+
+Drawn like the app itself, in English or Hebrew. Three clicks from *Welcome* to *Done*, and on the way:
+
+- **Open videos, music and playlists with VLC Redesign**: it becomes the player of the formats VLC plays, wherever you
+  haven't picked another app yourself. Windows keeps your own choices, so *Done* has a button to Windows' *Default apps*
+  to choose VLC Redesign there too.
+- **Play with VLC Redesign** and **Add to VLC Redesign queue** in the right-click menu of media files and folders.
+- **Desktop shortcut**, and **Install for everyone** (Program Files, asks for administrator rights).
+
+An update keeps your choices. Uninstalling removes all of it and gives every file type back to the app it had before.
 
 ### Updates
 
@@ -150,7 +199,6 @@ Running the installer by hand works too: it closes a running VLC Redesign polite
 - A few controls in the design have no VLC equivalent and were left out on purpose.
 - The waveform seek bar works on local files up to 1 GB and 8 minutes; other media get the regular seek bar.
 - HDR output offers Auto / Off / HDR10 / HLG and needs the libplacebo renderer.
-- The compact library over the player shows an empty *Home*; its folders work.
 
 The detailed status of every screen is in [`.specs/`](.specs/project/STATE.md) (in Portuguese, from the first implementation).
 
