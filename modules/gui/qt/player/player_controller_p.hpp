@@ -139,7 +139,11 @@ public:
     //timer
     vlc_player_timer_id* m_player_timer = nullptr;
     vlc_player_timer_id* m_player_timer_smpte = nullptr;
-    struct vlc_player_timer_point m_player_time;
+    // No point until the timer sends one (system_date invalid): playback
+    // started paused interpolated an uninitialized one, into a time of
+    // hundreds of hours
+    struct vlc_player_timer_point m_player_time = { 0., 1., VLC_TICK_INVALID, VLC_TICK_INVALID,
+                                                    false, VLC_TICK_INVALID };
     bool seeking = false;
     QTimer m_position_timer;
     QTimer m_time_timer;

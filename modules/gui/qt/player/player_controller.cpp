@@ -21,9 +21,12 @@
 #endif
 
 #include "dialogs/extensions/extensions_manager.hpp"
+
 #include "player_controller.hpp"
 #include "player_controller_p.hpp"
 #include "util/shared_input_item.hpp"
+
+#include <cmath>
 
 #include <vlc_actions.h>           /* ACTION_ID */
 #include <vlc_url.h>            /* vlc_uri_decode */
@@ -317,13 +320,26 @@ void PlayerControllerPrivate::UpdateSpuOrder(vlc_es_id_t *es_id, enum vlc_vout_o
     }
 }
 
+// The player's clock can come before the first frame (playback started
+// paused at a time, :start-time with --start-paused): a time past the end
+// of the media is taken from the position instead
+static void keepTimeInMedia(VLCTime &time, const VLCDuration &length, double position)
+{
+    if (time.valid() && length.valid() && std::isfinite(position) && position >= 0
+        && !(time <= VLCTime(length + VLCDuration(VLC_TICK_FROM_SEC(1)))))
+        time = VLCTime(length).scale(position);
+}
+
 int PlayerControllerPrivate::interpolateTime(vlc_tick_t system_now)
 {
     vlc_tick_t new_time;
+    if (m_player_time.system_date == VLC_TICK_INVALID)
+        return VLC_EGENERIC;
     if (vlc_player_timer_point_Interpolate(&m_player_time, system_now,
                                            &new_time, &m_position) == VLC_SUCCESS)
     {
         m_time = new_time;
+        keepTimeInMedia(m_time, m_length, m_position);
         return VLC_SUCCESS;
     }
     return VLC_EGENERIC;
@@ -427,6 +443,7 @@ static void on_player_state_changed(vlc_player_t *, enum vlc_player_state state,
             that->m_position = 0;
             that->m_time = 0;
             that->m_length = 0;
+            that->m_player_time.system_date = VLC_TICK_INVALID;
             emit q->positionUpdated( -1.0, VLCTime() , VLCDuration() );
             that->m_rate = 1.0f;
             emit q->rateChanged( 1.0f );
@@ -1895,6 +1912,7 @@ void PlayerController::updateTime(vlc_tick_t system_now, bool forceUpdate)
 {
     Q_D(PlayerController);
 
+    keepTimeInMedia(d->m_time, d->m_length, d->m_position);
     // Update time properties
     emit timeChanged(d->m_time);
     if (d->m_time.valid() && d->m_length.valid() && d->m_time <= VLCTime(d->m_length))
