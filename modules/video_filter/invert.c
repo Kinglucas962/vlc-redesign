@@ -58,6 +58,13 @@ vlc_module_end ()
  *****************************************************************************/
 static int Create( filter_t *p_filter )
 {
+    if( !video_format_IsSameChroma( &p_filter->fmt_in.video,
+                                    &p_filter->fmt_out.video ) )
+    {
+        msg_Err( p_filter, "Input and output chromas don't match" );
+        return VLC_EGENERIC;
+    }
+
     vlc_fourcc_t fourcc = p_filter->fmt_in.video.i_chroma;
 
     if( fourcc == VLC_CODEC_YUVP || fourcc == VLC_CODEC_RGBP

@@ -131,6 +131,10 @@ typedef struct vout_display_sys_t
 #endif
     bool                     place_changed = false;
 
+    /* Chroma of the pictures given to prepare, set when opening and on a
+     * format update: the textures are laid out for it */
+    vlc_fourcc_t             pictureChroma = 0;
+
     int                      log_level = 1;
 
     display_info_t           display = {};
@@ -189,6 +193,7 @@ static int  Direct3D11Open (vout_display_t *, video_format_t *, vlc_video_contex
 static void Direct3D11Close(vout_display_t *);
 
 static int SetupOutputFormat(vout_display_t *, video_format_t *, vlc_video_context *, video_format_t *quad);
+static const d3d_format_t *GetDirectRenderingFormat(vout_display_t *, vlc_fourcc_t i_src_chroma);
 static int  Direct3D11CreateFormatResources (vout_display_t *, const video_format_t *);
 static int  Direct3D11CreateGenericResources(vout_display_t *);
 static void Direct3D11DestroyResources(vout_display_t *);
@@ -529,6 +534,20 @@ static int UpdateFormat(vout_display_t *vd, const video_format_t *fmtp, vlc_vide
 {
     vout_display_sys_t *sys = static_cast<vout_display_sys_t *>(vd->sys);
 
+    /* On success, the core takes the new format as accepted as is and drops
+     * its display converters. A CPU chroma the textures cannot take directly
+     * (YV12 out of a CPU video filter) would then be uploaded into textures
+     * of another layout: wrong colors, then a removed device. Refuse it
+     * before changing anything; the core inserts a converter instead. */
+    if (!is_d3d11_opaque(fmtp->i_chroma) && !is_nvdec_opaque(fmtp->i_chroma) &&
+        sys->hdrMode != hdr_Fake &&
+        GetDirectRenderingFormat(vd, fmtp->i_chroma) == nullptr)
+    {
+        msg_Dbg(vd, "Direct rendering not usable for %4.4s, keeping the current format",
+                (const char *)&fmtp->i_chroma);
+        return VLC_EGENERIC;
+    }
+
     video_format_t fmt;
     video_format_Copy(&fmt, fmtp);
     video_format_Copy(&sys->picQuad.quad_fmt, &fmt);
@@ -545,6 +564,7 @@ static int UpdateFormat(vout_display_t *vd, const video_format_t *fmtp, vlc_vide
     if (err != VLC_SUCCESS)
         goto error;
 
+    sys->pictureChroma = fmtp->i_chroma;
     video_format_Clean(&fmt);
     return VLC_SUCCESS;
 
@@ -872,6 +892,20 @@ static void PreparePicture(vout_display_t *vd, picture_t *picture,
 {
     VLC_UNUSED(date);
     vout_display_sys_t *sys = static_cast<vout_display_sys_t *>(vd->sys);
+
+    /* While video filters are switched, a picture of the former format can
+     * still come: its planes do not fit the textures (copying them overruns
+     * the mapped memory and the device is removed), and a GPU chroma picture
+     * may have no textures. Keep the last frame instead. */
+    const bool gpuPicture = is_d3d11_opaque(picture->format.i_chroma);
+    if (gpuPicture ? picture->context == nullptr
+                   : (is_d3d11_opaque(sys->pictureChroma) ||
+                      picture->format.i_chroma != sys->pictureChroma))
+    {
+        msg_Dbg(vd, "skipping a %4.4s picture, the textures are set up for %4.4s",
+                (const char *)&picture->format.i_chroma, (const char *)&sys->pictureChroma);
+        return;
+    }
 
     if (sys->picQuad.generic.textureFormat->formatTexture == DXGI_FORMAT_UNKNOWN)
     {
@@ -1281,6 +1315,7 @@ static int Direct3D11Open(vout_display_t *vd, video_format_t *fmtp, vlc_video_co
 
     video_format_Clean(fmtp);
     *fmtp = fmt;
+    sys->pictureChroma = fmt.i_chroma;
 
     sys->log_level = var_InheritInteger(vd, "verbose");
 

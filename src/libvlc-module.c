@@ -838,6 +838,9 @@ static const char* const ppsz_restore_playback_desc[] = {
     "You can use this option to vertically adjust the position secondary " \
     "subtitles are displayed.")
 
+#define OSD_DURATION_TEXT N_("On Screen Display duration")
+#define OSD_DURATION_LONGTEXT N_( \
+    "How long the messages of the On Screen Display stay, in milliseconds.")
 #define OSD_TEXT N_("On Screen Display")
 #define OSD_LONGTEXT N_( \
     "VLC can display messages on the video. This is called OSD (On Screen " \
@@ -1295,6 +1298,12 @@ static const char *const psz_recursive_list_text[] = {
 #define ML_LONGTEXT N_( \
     "The media library is automatically saved and reloaded each time you " \
     "start VLC." )
+
+#define ML_ENABLED_TEXT N_("Use the media library")
+#define ML_ENABLED_LONGTEXT N_( \
+    "Start the media library when VLC asks for it (the media player does). " \
+    "Turn it off to browse without indexing your media; this takes effect " \
+    "after a restart." )
 
 #define PLTREE_TEXT N_("Display play queue tree")
 #define PLTREE_LONGTEXT N_( \
@@ -1806,6 +1815,8 @@ vlc_module_begin ()
     add_bool( "spu-fill", true, SPU_FULL_TEXT, SPU_FULL_LONGTEXT )
         change_safe ()
     add_bool( "osd", true, OSD_TEXT, OSD_LONGTEXT )
+    add_integer_with_range( "osd-duration", 1000, 100, 10000, OSD_DURATION_TEXT,
+                            OSD_DURATION_LONGTEXT )
     add_module("text-renderer", "text renderer", "any",
                TEXTRENDERER_TEXT, TEXTRENDERER_LONGTEXT)
 
@@ -2177,6 +2188,7 @@ vlc_module_begin ()
     add_bool( "dbus", false, DBUS_TEXT, DBUS_LONGTEXT )
 #endif
     add_bool( "media-library", false, ML_TEXT, ML_LONGTEXT )
+    add_bool( "media-library-enabled", true, ML_ENABLED_TEXT, ML_ENABLED_LONGTEXT )
     add_bool( "playlist-tree", false, PLTREE_TEXT, PLTREE_LONGTEXT )
 
     add_string( "open", "", OPEN_TEXT, OPEN_LONGTEXT )
@@ -2450,15 +2462,16 @@ vlc_module_begin ()
 #   define KEY_RATE_NORMAL        "="
 #   define KEY_RATE_FASTER_FINE   "]"
 #   define KEY_RATE_SLOWER_FINE   "["
+/* < and > too (the keys of the onboarding); Shift+ as most layouts type them */
 #ifdef _WIN32
 #   define KEY_PLAY_PAUSE         "Space"
-#   define KEY_NEXT               "n"
-#   define KEY_PREV               "p"
+#   define KEY_NEXT               "n\tShift+>\t>"
+#   define KEY_PREV               "p\tShift+<\t<"
 #   define KEY_STOP               "s"
 #else
 #   define KEY_PLAY_PAUSE         "Space\tMedia Play Pause"
-#   define KEY_NEXT               "n\tMedia Next Track"
-#   define KEY_PREV               "p\tMedia Prev Track"
+#   define KEY_NEXT               "n\tMedia Next Track\tShift+>\t>"
+#   define KEY_PREV               "p\tMedia Prev Track\tShift+<\t<"
 #   define KEY_STOP               "s\tMedia Stop"
 #endif
 #   define KEY_PROJECTION_TOGGLE  NULL
@@ -2482,15 +2495,15 @@ vlc_module_begin ()
 #   define KEY_VOL_UP             "Ctrl+Up"
 #   define KEY_VOL_DOWN           "Ctrl+Down"
 #   define KEY_VOL_MUTE           "m"
-#   define KEY_FRAME_NEXT         "e"
+#   define KEY_FRAME_NEXT         "e\t."
 #else
 #   define KEY_VOL_UP             "Ctrl+Up\tVolume Up"
 #   define KEY_VOL_DOWN           "Ctrl+Down\tVolume Down"
 #   define KEY_VOL_MUTE           "m\tVolume Mute"
-#   define KEY_FRAME_NEXT         "e\tBrowser Next"
+#   define KEY_FRAME_NEXT         "e\tBrowser Next\t."
 #endif
 
-#   define KEY_FRAME_PREVIOUS     "Shift+e"
+#   define KEY_FRAME_PREVIOUS     "Shift+e\t,"
 #   define KEY_SUBDELAY_UP        "h"
 #   define KEY_SUBDELAY_DOWN      "g"
 #   define KEY_SUBPOS_DOWN        NULL
@@ -2505,7 +2518,8 @@ vlc_module_begin ()
 #   define KEY_AUDIODELAY_UP      "k"
 #   define KEY_AUDIODELAY_DOWN    "j"
 #   define KEY_RANDOM             "r"
-#   define KEY_LOOP               "l"
+/* l shows the file browser of the interface (the onboarding) */
+#   define KEY_LOOP               "Shift+l"
 
 #   define KEY_AUDIO_TRACK        "b"
 #   define KEY_SUBTITLE_TRACK     "v"

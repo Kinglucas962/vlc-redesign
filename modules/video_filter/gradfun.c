@@ -104,6 +104,13 @@ typedef struct
 
 static int Open(filter_t *filter)
 {
+    if( !video_format_IsSameChroma( &filter->fmt_in.video,
+                                    &filter->fmt_out.video ) )
+    {
+        msg_Err( filter, "Input and output chromas don't match" );
+        return VLC_EGENERIC;
+    }
+
     const vlc_fourcc_t fourcc = filter->fmt_in.video.i_chroma;
 
     const vlc_chroma_description_t *chroma = vlc_fourcc_GetChromaDescription(fourcc);

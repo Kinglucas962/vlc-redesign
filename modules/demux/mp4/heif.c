@@ -107,6 +107,34 @@ static bool MatchPureImage( const MP4_Box_t *p_infe, void *priv )
     return true;
 }
 
+/* Pictures shown one after the other: the primary one (a grid for an iPhone
+ * photo), then those not hidden, not derived, and not an input of a derived
+ * image (the tiles of the grid) */
+static bool MatchShownImage( const MP4_Box_t *p_infe, void *priv )
+{
+    MP4_Box_t *p_root = priv;
+    const MP4_Box_t *p_pitm = MP4_BoxGet( p_root, "meta/pitm" );
+    if( p_pitm && BOXDATA(p_pitm)->i_item_id == BOXDATA(p_infe)->i_item_id )
+        return true;
+    if( (BOXDATA(p_infe)->i_flags & 0x01) != 0x00 ||
+        !MatchPureImage( p_infe, p_root ) )
+        return false;
+    const MP4_Box_t *p_iref = MP4_BoxGet( p_root, "meta/iref" );
+    if( !p_iref )
+        return true;
+    for( const MP4_Box_t *p_refbox = p_iref->p_first;
+                          p_refbox; p_refbox = p_refbox->p_next )
+    {
+        if( p_refbox->i_type != VLC_FOURCC('d','i','m','g') )
+            continue;
+        for( uint16_t i = 0; i < BOXDATA(p_refbox)->i_reference_count; i++ )
+            if( BOXDATA(p_refbox)->p_references[i].i_to_item_id ==
+                BOXDATA(p_infe)->i_item_id )
+                return false;
+    }
+    return true;
+}
+
 static void SeekToPrevImageEnd( struct heif_private_t *p_sys, int i_picture )
 {
     int i = 0;
@@ -114,8 +142,7 @@ static void SeekToPrevImageEnd( struct heif_private_t *p_sys, int i_picture )
     while( i < i_picture &&
           (p_infe = NextAtom( p_sys->p_root, ATOM_infe, "meta/iinf/infe", p_infe )) )
     {
-        if( (BOXDATA(p_infe)->i_flags & 0x01) != 0x00 ||
-                !MatchPureImage( p_infe, p_sys->p_root ) )
+        if( !MatchShownImage( p_infe, p_sys->p_root ) )
             continue;
         i++;
     }
@@ -744,6 +771,12 @@ static int DemuxHEIF( demux_t *p_demux )
             return VLC_DEMUXER_SUCCESS;
         }
         p_sys->i_end_display_time = 0;
+
+        /* The picture was drained: the next one (an iPhone photo shows its
+         * grid tiles after it) starts again, as the still frames of discs.
+         * Sending after a drain without a reset breaks the es_out state. */
+        es_out_Control( p_demux->out, ES_OUT_RESET_PCR );
+        es_out_SetPCR( p_demux->out, p_sys->i_pcr );
     }
 
     /* Reset prev pic params */
@@ -764,7 +797,7 @@ static int DemuxHEIF( demux_t *p_demux )
     {
         p_sys->current.p_infe = GetAtom( p_sys->p_root, p_sys->current.p_infe,
                                          ATOM_infe, "meta/iinf/infe",
-                                         MatchPureImage, p_sys->p_root );
+                                         MatchShownImage, p_sys->p_root );
     }
 
     if( !p_sys->current.p_infe )
@@ -893,8 +926,7 @@ int OpenHEIF( vlc_object_t * p_this )
     MP4_Box_t *p_infe = NULL;
     while( (p_infe = NextAtom( p_root, ATOM_infe, "meta/iinf/infe", p_infe )) )
     {
-        if( (BOXDATA(p_infe)->i_flags & 0x01) != 0x00 ||
-                !MatchPureImage( p_infe, p_root ) )
+        if( !MatchShownImage( p_infe, p_root ) )
             continue;
         seekpoint_t *s = vlc_seekpoint_New();
         if( s )

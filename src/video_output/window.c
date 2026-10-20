@@ -124,7 +124,9 @@ int vlc_window_Enable(vlc_window_t *window)
     window_t *w = container_of(window, window_t, wnd);
 
     if (window->ops->enable != NULL) {
-        int err = window->ops->enable(window, &w->cfg);
+        /* a copy: the vout may resize the window meanwhile */
+        const vlc_window_cfg_t cfg = w->cfg;
+        int err = window->ops->enable(window, &cfg);
         if (err)
             return err;
     }

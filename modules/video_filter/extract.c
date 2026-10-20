@@ -93,6 +93,13 @@ typedef struct
  *****************************************************************************/
 static int Create( filter_t *p_filter )
 {
+    if( !video_format_IsSameChroma( &p_filter->fmt_in.video,
+                                    &p_filter->fmt_out.video ) )
+    {
+        msg_Err( p_filter, "Input and output chromas don't match" );
+        return VLC_EGENERIC;
+    }
+
     switch( p_filter->fmt_in.video.i_chroma )
     {
         case VLC_CODEC_I420:

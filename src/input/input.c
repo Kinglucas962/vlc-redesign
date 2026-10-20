@@ -326,7 +326,10 @@ input_thread_t * input_Create( vlc_object_t *p_parent, input_item_t *p_item,
         priv->p_resource = input_resource_Hold( cfg->resource );
     else
         priv->p_resource = input_resource_New( VLC_OBJECT( p_input ) );
-    input_resource_SetInput( priv->p_resource, p_input );
+    /* The resource learns about the input from its thread (Init): the
+     * creator may hold the player lock, the resource lock may be held by a
+     * vout waiting for the interface thread (its window), which may wait for
+     * the player lock */
 
     /* Init control buffer */
     vlc_mutex_init( &priv->lock_control );
@@ -1294,6 +1297,10 @@ static int Init( input_thread_t * p_input )
 {
     input_thread_private_t *priv = input_priv(p_input);
     input_source_t *master;
+
+    /* before any decoder of the input requests a vout */
+    if( priv->p_resource )
+        input_resource_SetInput( priv->p_resource, p_input );
 
     /* */
     input_ChangeState( p_input, OPENING_S, VLC_TICK_INVALID );

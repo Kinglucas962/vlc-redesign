@@ -35,7 +35,8 @@ vlc_player_input_AddMlSlaves(input_item_t* item, const vlc_ml_media_t* media)
     for (size_t i = 0; i < media->p_files->i_nb_items; ++i)
     {
         const vlc_ml_file_t* file = &media->p_files->p_items[i];
-        if (file->i_type != VLC_ML_FILE_TYPE_SUBTITLE || !file->psz_mrl ||
+        if ((file->i_type != VLC_ML_FILE_TYPE_SUBTITLE &&
+             file->i_type != VLC_ML_FILE_TYPE_SOUNDTRACK) || !file->psz_mrl ||
             !file->b_present || !file->b_external)
             continue;
 
@@ -51,8 +52,9 @@ vlc_player_input_AddMlSlaves(input_item_t* item, const vlc_ml_media_t* media)
         if (exists)
             continue;
 
-        input_item_slave_t* slave = input_item_slave_New(file->psz_mrl, SLAVE_TYPE_SPU,
-                                                         SLAVE_PRIORITY_USER);
+        input_item_slave_t* slave = input_item_slave_New(file->psz_mrl,
+            file->i_type == VLC_ML_FILE_TYPE_SOUNDTRACK ? SLAVE_TYPE_GENERIC : SLAVE_TYPE_SPU,
+            SLAVE_PRIORITY_USER);
         if (slave && input_item_AddSlave(item, slave) != VLC_SUCCESS)
             input_item_slave_Delete(slave);
     }

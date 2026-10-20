@@ -73,6 +73,9 @@ static void Destroy( filter_t * );
     " #00FF00 = green, #FFFF00 = yellow (red + green), #FFFFFF = white" )
 
 #define BOLD_TEXT N_("Force bold")
+#define FONTSIZE_TEXT N_("Font size in pixels")
+#define FONTSIZE_LONGTEXT N_("The size of the text in pixels of the picture. " \
+    "0 sizes it from the picture (see the text scale).")
 
 #define BG_OPACITY_TEXT N_("Background opacity")
 #define BG_COLOR_TEXT N_("Background color")
@@ -195,7 +198,8 @@ vlc_module_begin ()
                             CACHE_SIZE_TEXT, CACHE_SIZE_LONGTEXT )
         change_safe()
 
-    add_obsolete_integer( "freetype-fontsize" ) /* since 4.0.0 */
+    add_integer_with_range( "freetype-fontsize", 0, 0, 4096, FONTSIZE_TEXT, FONTSIZE_LONGTEXT )
+        change_safe()
     add_obsolete_integer( "freetype-rel-fontsize" ) /* since 4.0.0 */
 
     add_bool( "freetype-yuvp", false, YUVP_TEXT,
@@ -206,7 +210,7 @@ vlc_module_begin ()
         change_safe()
 
 #ifdef HAVE_FRIBIDI
-    add_integer_with_range( "freetype-text-direction", 0, 0, 2, TEXT_DIRECTION_TEXT,
+    add_integer_with_range( "freetype-text-direction", 2, 0, 2, TEXT_DIRECTION_TEXT,
                             TEXT_DIRECTION_LONGTEXT )
         change_integer_list( pi_text_direction, ppsz_text_direction )
         change_safe()
@@ -714,6 +718,9 @@ static void UpdateDefaultLiveStyles( filter_t *p_filter )
 
     p_style->i_font_color = var_InheritInteger( p_filter, "freetype-color" );
 
+    /* an absolute size (pixels) takes the place of the relative one */
+    p_style->i_font_size = var_InheritInteger( p_filter, "freetype-fontsize" );
+
     p_style->i_background_alpha = var_InheritInteger( p_filter, "freetype-background-opacity" );
     p_style->i_background_color = var_InheritInteger( p_filter, "freetype-background-color" );
 
@@ -756,7 +763,7 @@ static void FillDefaultStyles( filter_t *p_filter )
     p_sys->p_default_style->e_blending_mode = var_InheritInteger( p_filter, "freetype-blending-mode" );
     p_sys->p_default_style->i_features |= STYLE_HAS_BLENDING_MODE;
 
-    p_sys->p_default_style->i_font_size = 0;
+    p_sys->p_default_style->i_font_size = var_InheritInteger( p_filter, "freetype-fontsize" );
     p_sys->p_default_style->i_style_flags |= STYLE_SHADOW;
     p_sys->p_default_style->i_features |= STYLE_HAS_FLAGS;
 

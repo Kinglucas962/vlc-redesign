@@ -39,6 +39,9 @@
 #include <fcntl.h>
 #include <io.h>
 #include <shlobj.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <wchar.h>
 
 #include "../lib/libvlc_internal.h"
 
@@ -74,6 +77,40 @@ static void PrioritizeSystem32(void)
     PROCESS_MITIGATION_IMAGE_LOAD_POLICY m = { .Flags = 0 };
     m.PreferSystem32Images = 1;
     SetProcessMitigationPolicy( ProcessImageLoadPolicy, &m, sizeof( m ) );
+}
+
+/* A portable copy (a "portable" folder next to vlc.exe) keeps its own
+ * interface language in portable\language (an ISO code, "auto" for the
+ * system's), not in the registry it would share with an installed VLC */
+static wchar_t *PortableLanguage(void)
+{
+    wchar_t path[MAX_PATH];
+    const DWORD size = sizeof(path) / sizeof(path[0]);
+    DWORD read = GetModuleFileNameW(NULL, path, size);
+    if (read == 0 || read == size)
+        return NULL;
+    wchar_t *last = wcsrchr(path, L'\\');
+    if (last == NULL)
+        return NULL;
+    *last = L'\0';
+    if (wcscat_s(path, size, L"\\portable\\language") != 0)
+        return NULL;
+    FILE *file = _wfopen(path, L"rb");
+    if (file == NULL)
+        return NULL;
+    char code[32] = { 0 };
+    size_t len = fread(code, 1, sizeof(code) - 1, file);
+    fclose(file);
+    while (len > 0 && (code[len - 1] == '\n' || code[len - 1] == '\r' || code[len - 1] == ' '))
+        code[--len] = '\0';
+    if (len == 0)
+        return NULL;
+    wchar_t *wide = malloc((len + 1) * sizeof(*wide));
+    if (wide == NULL)
+        return NULL;
+    for (size_t i = 0; i <= len; i++)
+        wide[i] = (unsigned char)code[i];
+    return wide;
 }
 
 static void vlc_kill(void *data)
@@ -187,6 +224,8 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
     _setmode( _fileno( stdin ), _O_BINARY ); /* Needed for pipes */
 
     /* */
+    if (!lang)
+        lang = PortableLanguage();
     if (!lang)
     {
         HKEY h_key;

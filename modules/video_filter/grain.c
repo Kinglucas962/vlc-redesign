@@ -361,6 +361,13 @@ static int Callback(vlc_object_t *object, char const *cmd,
 
 static int Open(filter_t *filter)
 {
+    if( !video_format_IsSameChroma( &filter->fmt_in.video,
+                                    &filter->fmt_out.video ) )
+    {
+        msg_Err( filter, "Input and output chromas don't match" );
+        return VLC_EGENERIC;
+    }
+
     const vlc_chroma_description_t *chroma =
         vlc_fourcc_GetChromaDescription(filter->fmt_in.video.i_chroma);
     assert( chroma != NULL );

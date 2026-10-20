@@ -214,7 +214,10 @@ int libvlc_InternalInit( libvlc_int_t *p_libvlc, int i_argc,
 
     vlc_CPU_dump( VLC_OBJECT(p_libvlc) );
 
-    if( var_InheritBool( p_libvlc, "media-library") )
+    /* asked for (the binaries pass --media-library) and not turned off in
+     * the preferences */
+    if( var_InheritBool( p_libvlc, "media-library")
+     && var_InheritBool( p_libvlc, "media-library-enabled" ) )
     {
         priv->p_media_library = libvlc_MlCreate( p_libvlc );
         if ( priv->p_media_library == NULL )

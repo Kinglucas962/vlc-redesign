@@ -805,6 +805,12 @@ static picture_t *VoutVideoFilterInteractiveNewPicture(filter_t *filter)
     vout_thread_sys_t *sys = filter->owner.sys;
 
     picture_t *picture = picture_pool_Get(sys->private_pool);
+    if (picture && picture->format.i_chroma != filter->fmt_out.video.i_chroma) {
+        /* The pool has the format of the display; a filter writing another
+         * chroma (until a converter follows it) would overrun its planes */
+        picture_Release(picture);
+        return picture_NewFromFormat(&filter->fmt_out.video);
+    }
     if (picture) {
         picture_Reset(picture);
         video_format_CopyCropAr(&picture->format, &filter->fmt_out.video);
@@ -2105,11 +2111,16 @@ void vout_StopDisplay(vout_thread_t *vout)
 static void vout_DisableWindow(vout_thread_sys_t *sys)
 {
     vlc_mutex_lock(&sys->window_lock);
-    if (sys->window_enabled) {
-        vlc_window_Disable(sys->display_cfg.window);
-        sys->window_enabled = false;
-    }
+    const bool enabled = sys->window_enabled;
+    sys->window_enabled = false;
     vlc_mutex_unlock(&sys->window_lock);
+
+    /* Not under the window lock: the window may wait for the thread of the
+     * interface, which may be changing a property taking that lock (crop,
+     * aspect ratio... from a hotkey or a menu). The owner of the vout (the
+     * input resource) never enables and disables its window concurrently. */
+    if (enabled)
+        vlc_window_Disable(sys->display_cfg.window);
 }
 
 void vout_Stop(vout_thread_t *vout)
@@ -2349,7 +2360,11 @@ static int EnableWindowLocked(vout_thread_sys_t *vout, const video_format_t *ori
     vout_UpdateWindowSizeLocked(vout);
 
     if (!sys->window_enabled) {
-        if (vlc_window_Enable(sys->display_cfg.window)) {
+        /* not under the window lock either (see vout_DisableWindow) */
+        vlc_mutex_unlock(&sys->window_lock);
+        int err = vlc_window_Enable(sys->display_cfg.window);
+        vlc_mutex_lock(&sys->window_lock);
+        if (err) {
             msg_Err(&vout->obj, "failed to enable window");
             return -1;
         }
