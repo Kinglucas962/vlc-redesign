@@ -98,4 +98,11 @@ T.Button {
             color: control.color
         }
     }
+
+    // the CSDButton this item shows; registered on the C++ side so
+    // WM_NCHITTEST can find it (unregistered automatically when the
+    // item is destroyed). Buttons with no native counterpart, such as
+    // fullscreen, leave it null
+    property QtObject csdButton: null
+    Component.onCompleted: if (csdButton) csdButton.registerItem(control)
 }

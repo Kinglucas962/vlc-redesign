@@ -474,6 +474,7 @@ modules/gui/macosx/library/audio-library/VLCLibraryAlbumTableCellView.h
 modules/gui/macosx/library/audio-library/VLCLibraryAlbumTableCellView.m
 modules/gui/macosx/library/audio-library/VLCLibraryAudioDataSource.h
 modules/gui/macosx/library/audio-library/VLCLibraryAudioDataSource.m
+modules/gui/macosx/library/home-library/VLCLibraryHomeViewSectionHeaderView.m
 modules/gui/macosx/library/media-source/VLCMediaSource.h
 modules/gui/macosx/library/media-source/VLCMediaSource.m
 modules/gui/macosx/library/media-source/VLCMediaSourceBaseDataSource.h
@@ -799,6 +800,7 @@ modules/gui/qt/maininterface/qml/LocalTopbar.qml
 modules/gui/qt/maininterface/qml/MainDisplay.qml
 modules/gui/qt/maininterface/qml/MainInterface.qml
 modules/gui/qt/maininterface/qml/NoMedialibHome.qml
+modules/gui/qt/maininterface/qml/OpenFileSplitButton.qml
 modules/gui/qt/maininterface/qml/UpdatePane.qml
 modules/gui/qt/maininterface/qml/SideNavigationPane.qml
 modules/gui/qt/widgets/qml/EmptyLabelButton.qml
@@ -1027,6 +1029,7 @@ modules/gui/qt/widgets/qml/ViewHeader.qml
 modules/gui/qt/widgets/qml/TableViewDelegateExt.qml
 modules/gui/qt/widgets/qml/LibraryHeader.qml
 modules/gui/qt/widgets/qml/RedesignDialog.qml
+modules/gui/qt/widgets/qml/SplitButton.qml
 modules/gui/skins2/commands/async_queue.cpp
 modules/gui/skins2/commands/async_queue.hpp
 modules/gui/skins2/commands/cmd_add_item.cpp
