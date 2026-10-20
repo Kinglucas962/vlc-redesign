@@ -27,10 +27,11 @@ T.Popup {
     readonly property color textMuted: VLCStyle.redesign.color(VLCStyle.redesign.textMuted, "#4d4d4d", darkTheme)
 
     parent: T.Overlay.overlay
-    x: Math.round((parent.width - width) / 2)
-    y: Math.round((parent.height - height) / 2)
-    width: Math.min(parent.width - 2 * VLCStyle.dp(24, VLCStyle.scale), VLCStyle.dp(600, VLCStyle.scale))
-    height: Math.min(parent.height - 2 * VLCStyle.dp(24, VLCStyle.scale), implicitHeight)
+    x: parent ? Math.round((parent.width - width) / 2) : 0
+    y: parent ? Math.round((parent.height - height) / 2) : 0
+    width: parent ? Math.min(parent.width - 2 * VLCStyle.dp(24, VLCStyle.scale), VLCStyle.dp(600, VLCStyle.scale))
+                  : VLCStyle.dp(600, VLCStyle.scale)
+    height: parent ? Math.min(parent.height - 2 * VLCStyle.dp(24, VLCStyle.scale), implicitHeight) : implicitHeight
     implicitHeight: content.implicitHeight + topPadding + bottomPadding
     padding: VLCStyle.dp(28, VLCStyle.scale)
     modal: true

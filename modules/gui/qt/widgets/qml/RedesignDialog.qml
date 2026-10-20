@@ -64,10 +64,11 @@ T.Popup {
     }
 
     parent: T.Overlay.overlay
-    x: Math.round((parent.width - width) / 2)
-    y: Math.round((parent.height - height) / 2)
-    width: Math.min(parent.width - 2 * VLCStyle.dp(24, VLCStyle.scale), preferredWidth)
-    height: Math.min(parent.height - 2 * VLCStyle.dp(24, VLCStyle.scale), implicitHeight)
+    // (no parent for a moment while it is created or destroyed)
+    x: parent ? Math.round((parent.width - width) / 2) : 0
+    y: parent ? Math.round((parent.height - height) / 2) : 0
+    width: parent ? Math.min(parent.width - 2 * VLCStyle.dp(24, VLCStyle.scale), preferredWidth) : preferredWidth
+    height: parent ? Math.min(parent.height - 2 * VLCStyle.dp(24, VLCStyle.scale), implicitHeight) : implicitHeight
     // The templates do not size the popup from its content
     implicitHeight: Math.max(implicitBackgroundHeight + topInset + bottomInset,
                              implicitContentHeight + topPadding + bottomPadding)

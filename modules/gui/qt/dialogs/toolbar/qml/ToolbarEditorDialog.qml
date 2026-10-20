@@ -8,6 +8,7 @@ import QtQuick.Controls.Basic as Controls
 import QtQuick.Templates as T
 
 import VLC.MainInterface
+import VLC.Player
 import VLC.Widgets as Widgets
 import VLC.Style
 import VLC.Dialogs
@@ -62,6 +63,12 @@ Controls.Popup {
         if (!saved)
             MainCtx.controlbarProfileModel.reload()
         MainCtx.useGlobalShortcuts = previousGlobalShortcuts
+        // opened from the library: back to it (unless something plays now)
+        if (VLCStyle.customizeFromLibrary) {
+            VLCStyle.customizeFromLibrary = false
+            if (Player.playingState === Player.PLAYING_STATE_STOPPED)
+                MainCtx.playerView = false
+        }
         unload()
     }
 

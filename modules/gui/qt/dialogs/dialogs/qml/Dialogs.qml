@@ -624,6 +624,7 @@ Item {
                 // library, show the player; its dialogs open the editor
                 if (MainCtx.effectiveMainInterfaceMode !== MainCtx.MAININTERFACE_MODE_PLAYER) {
                     VLCStyle.customizeRequested = true
+                    VLCStyle.customizeFromLibrary = true
                     MainCtx.playerView = true
                     return
                 }

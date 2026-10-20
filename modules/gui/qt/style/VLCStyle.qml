@@ -370,6 +370,8 @@ QtObject {
     // Customize Player asked from the library: the player's dialogs open the
     // editor once the player is shown (the library's go away with it)
     property bool customizeRequested: false
+    // ... and closing the editor goes back to the library
+    property bool customizeFromLibrary: false
 
     readonly property bool isScreenSmall: appWidth <= smallWidth
     readonly property bool isScreenReallySmall: appWidth <= MainCtx.dp(380, scale)
