@@ -4,9 +4,12 @@
 #   vlc-redesign-<version>-win64.zip        portable package
 #   vlc-redesign-<version>-win64-setup.exe  installer (Inno Setup 6.7+)
 #   SHA256SUMS.txt
+#   vlc-redesign-<version>-delta-from-<old>.vrdelta  small updates from the
+#                                            3 latest releases whose zip is in -Dist
 # The version comes from modules/gui/qt/util/redesign_version.hpp unless
 # -Version is given. -Quick only rebuilds what changed; -SkipBuild packages
-# the existing -Package folder as it is.
+# the existing -Package folder as it is. Needs Python with bsdiff4 for the
+# small updates (pip install bsdiff4).
 param(
     [string]$Version,
     [string]$Package = "$env:USERPROFILE\source\vlc-redesign-release",
@@ -42,6 +45,13 @@ if (-not (Test-Path "$Package\vlc.exe")) { throw "No package in $Package" }
 
 New-Item -ItemType Directory -Force $Dist | Out-Null
 $name = "vlc-redesign-$Version-win64"
+$python = (Get-Command python -ErrorAction SilentlyContinue).Source
+if (-not $python) { throw 'Python is needed for the small updates (with pip install bsdiff4)' }
+
+# A binary keeps no build time (PE time stamp 0): the files whose code didn't
+# change stay the same from one release to the next, and small updates skip them
+& $python "$PSScriptRoot\release\make-delta.py" normalize $Package
+if ($LASTEXITCODE) { throw "make-delta normalize failed ($LASTEXITCODE)" }
 
 # VLC trusts plugins\plugins.dat only if every plugin keeps the time and size
 # it had when the cache was made. Zip stores times in steps of 2 s, so give
@@ -88,7 +98,23 @@ if (-not $iscc) { throw 'Inno Setup 6.7+ is needed (choco install innosetup)' }
     "$PSScriptRoot\installer\vlc-redesign.iss"
 if ($LASTEXITCODE) { throw "Installer build failed ($LASTEXITCODE)" }
 
-$files = @("$name.zip", "$name-setup.exe")
+# Small updates from the latest releases, each checked by applying it to
+# the old release and comparing every file with this package
+& $python "$PSScriptRoot\release\make-delta.py" deltas $Package $Version $Dist --keep 3
+if ($LASTEXITCODE) { throw "make-delta deltas failed ($LASTEXITCODE)" }
+$deltas = @(Get-ChildItem $Dist -Filter "vlc-redesign-$Version-delta-from-*.vrdelta" | ForEach-Object { $_.Name })
+foreach ($d in $deltas) {
+    $old = $d -replace "^vlc-redesign-$([regex]::Escape($Version))-delta-from-(.+)\.vrdelta$", '$1'
+    $tmp = Join-Path ([IO.Path]::GetTempPath()) "vlc-redesign-delta-check-$old"
+    if (Test-Path $tmp) { Remove-Item -Recurse -Force $tmp }
+    [System.IO.Compression.ZipFile]::ExtractToDirectory("$Dist\vlc-redesign-$old-win64.zip", $tmp)
+    & $python "$PSScriptRoot\release\apply-delta.py" "$Dist\$d" "$tmp\vlc-redesign-$old-win64" --check $Package
+    $ok = $LASTEXITCODE -eq 0
+    Remove-Item -Recurse -Force $tmp
+    if (-not $ok) { throw "The delta from $old doesn't give this release" }
+}
+
+$files = @("$name.zip", "$name-setup.exe") + $deltas
 $sums = foreach ($f in $files) {
     '{0}  {1}' -f (Get-FileHash "$Dist\$f" -Algorithm SHA256).Hash.ToLower(), $f
 }
