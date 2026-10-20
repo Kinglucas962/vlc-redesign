@@ -13,6 +13,7 @@
 #include "profile_settings.hpp"
 #include "maininterface/mainctx.hpp"
 #include "player/player_controlbar_model.hpp"
+#include "player/control_list_model.hpp"
 #include <QChar>
 #include <QMap>
 #include <QStringBuilder>
@@ -108,6 +109,12 @@ bool ControlbarProfileModel::save(bool clearDirty)
 
 bool ControlbarProfileModel::reload()
 {
+    // 0.2.2: the fullscreen button left the title bar (next to Close) for
+    // the end of the bottom bar. Done once for the saved profiles, so a
+    // user who then takes it out of the bar keeps it out.
+    const bool migrateFullscreen = !m_settings->value(QStringLiteral("redesign/fullscreen-in-bar"), false).toBool();
+    bool migratedFullscreen = false;
+
     const auto groupName = metaObject()->className();
 
     m_settings->beginGroup(groupName);
@@ -173,9 +180,20 @@ bool ControlbarProfileModel::reload()
                 return list;
             };
 
-            const std::array<QVector<int>, 3> data { split(alignments[1]),
-                                                     split(alignments[2]),
-                                                     split(alignments[3]) };
+            std::array<QVector<int>, 3> data { split(alignments[1]),
+                                               split(alignments[2]),
+                                               split(alignments[3]) };
+
+            if (migrateFullscreen
+                && (identifier == PlayerControlbarModel::Videoplayer
+                    || identifier == PlayerControlbarModel::Audioplayer)
+                && std::none_of(data.cbegin(), data.cend(), [](const QVector<int>& list) {
+                       return list.contains(ControlListModel::FULLSCREEN_BUTTON);
+                   }))
+            {
+                data[2].append(ControlListModel::FULLSCREEN_BUTTON);
+                migratedFullscreen = true;
+            }
 
             ptrNewProfile->setModelData(identifier, data);
             ptrNewProfile->resetDirty(); // Newly loaded model can not be dirty
@@ -211,6 +229,13 @@ bool ControlbarProfileModel::reload()
     m_skipNextApply = false;
     setModified(false);
     setError(error);
+
+    if (migrateFullscreen)
+    {
+        m_settings->setValue(QStringLiteral("redesign/fullscreen-in-bar"), true);
+        if (migratedFullscreen)
+            save(false);
+    }
 
     return true;
 }

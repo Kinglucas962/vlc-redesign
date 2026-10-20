@@ -80,7 +80,8 @@ decltype (ControlbarProfileModel::m_defaults)
             },
             {
                 Style::DEFAULT_STYLE,
-                // the first profile of the design (Figma 6648:20666)
+                // the first profile of the design (Figma 6648:20666); the
+                // fullscreen button at the end of the bar, away from Close
                 N_("Default"),
                 {
                     {
@@ -100,7 +101,8 @@ decltype (ControlbarProfileModel::m_defaults)
                                     ControlListModel::EXTENDED_BUTTON,
                                     ControlListModel::LANG_BUTTON,
                                     ControlListModel::SETTINGS_BUTTON,
-                                    ControlListModel::PLAYLIST_BUTTON
+                                    ControlListModel::PLAYLIST_BUTTON,
+                                    ControlListModel::FULLSCREEN_BUTTON
                                 }
                             }
                         }
@@ -124,7 +126,8 @@ decltype (ControlbarProfileModel::m_defaults)
                                 {
                                     ControlListModel::VOLUME,
                                     ControlListModel::EXTENDED_BUTTON,
-                                    ControlListModel::PLAYLIST_BUTTON
+                                    ControlListModel::PLAYLIST_BUTTON,
+                                    ControlListModel::FULLSCREEN_BUTTON
                                 }
                             }
                         }
@@ -484,7 +487,8 @@ decltype (ControlbarProfileModel::m_defaults)
                                 {
                                     ControlListModel::VOLUME,
                                     ControlListModel::EXTENDED_BUTTON,
-                                    ControlListModel::PLAYLIST_BUTTON
+                                    ControlListModel::PLAYLIST_BUTTON,
+                                    ControlListModel::FULLSCREEN_BUTTON
                                 }
                             }
                         }
@@ -557,7 +561,8 @@ decltype (ControlbarProfileModel::m_defaults)
                                 {
                                     ControlListModel::VOLUME,
                                     ControlListModel::EXTENDED_BUTTON,
-                                    ControlListModel::PLAYLIST_BUTTON
+                                    ControlListModel::PLAYLIST_BUTTON,
+                                    ControlListModel::FULLSCREEN_BUTTON
                                 }
                             }
                         }
@@ -607,7 +612,8 @@ decltype (ControlbarProfileModel::m_defaults)
                                     ControlListModel::VOLUME,
                                     ControlListModel::FAVORITE_BUTTON,
                                     ControlListModel::PLAYLIST_BUTTON,
-                                    ControlListModel::SETTINGS_BUTTON
+                                    ControlListModel::SETTINGS_BUTTON,
+                                    ControlListModel::FULLSCREEN_BUTTON
                                 }
                             }
                         }
@@ -630,7 +636,8 @@ decltype (ControlbarProfileModel::m_defaults)
                                     ControlListModel::VOLUME,
                                     ControlListModel::FAVORITE_BUTTON,
                                     ControlListModel::EXTENDED_BUTTON,
-                                    ControlListModel::PLAYLIST_BUTTON
+                                    ControlListModel::PLAYLIST_BUTTON,
+                                    ControlListModel::FULLSCREEN_BUTTON
                                 }
                             }
                         }
@@ -683,7 +690,8 @@ decltype (ControlbarProfileModel::m_defaults)
                                     ControlListModel::SNAPSHOT_BUTTON,
                                     ControlListModel::BOOKMARK_BUTTON,
                                     ControlListModel::VOLUME,
-                                    ControlListModel::SETTINGS_BUTTON
+                                    ControlListModel::SETTINGS_BUTTON,
+                                    ControlListModel::FULLSCREEN_BUTTON
                                 }
                             }
                         }
@@ -705,7 +713,8 @@ decltype (ControlbarProfileModel::m_defaults)
                                     ControlListModel::ATOB_BUTTON,
                                     ControlListModel::BOOKMARK_BUTTON,
                                     ControlListModel::VOLUME,
-                                    ControlListModel::PLAYLIST_BUTTON
+                                    ControlListModel::PLAYLIST_BUTTON,
+                                    ControlListModel::FULLSCREEN_BUTTON
                                 }
                             }
                         }

@@ -268,5 +268,8 @@ T.ToolBar {
         height: VLCStyle.redesign.topbarHeight
         active: root._showCSD
         source: "qrc:///qt/qml/VLC/Widgets/CSDWindowButtonSet.qml"
+        // no fullscreen button next to Close: it is in the bottom bar of the
+        // player (F, F11 or a double-click elsewhere)
+        onLoaded: item.fullscreenHidden = true
     }
 }

@@ -167,6 +167,8 @@ FocusScope {
             source:  VLCStyle.palette.hasCSDImage
                      ? "qrc:///qt/qml/VLC/Widgets/CSDThemeButtonSet.qml"
                      : "qrc:///qt/qml/VLC/Widgets/CSDWindowButtonSet.qml"
+            // no fullscreen button next to Close (see LocalTopbar)
+            onLoaded: if (item.hasOwnProperty("fullscreenHidden")) item.fullscreenHidden = true
         }
     }
 

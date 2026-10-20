@@ -101,6 +101,8 @@ T.ToolBar {
             height: Math.min(parent.implicitHeight, VLCStyle.globalToolbar_height)
             active: root._showCSD
             source: "qrc:///qt/qml/VLC/Widgets/CSDWindowButtonSet.qml"
+            // no fullscreen button next to Close (see LocalTopbar)
+            onLoaded: item.fullscreenHidden = true
         }
 
         Keys.priority: Keys.AfterItem
