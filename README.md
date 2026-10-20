@@ -1,30 +1,150 @@
-# JuxtopposedVLC
+<div align="center">
 
-Fork do VLC para implementar o redesign da Juxtopposed em Qt/QML, com Linux como
-primeira plataforma e Windows preparado desde a fundação. M0 entregou o baseline
-Linux e o build/pacote Windows com limitações documentadas. M1 entrega a primeira
-fatia nativa de shell e player, validada no Linux; a biblioteca completa continua
-nos próximos marcos. Windows será validado manualmente após consolidar a interface.
+# VLC Redesign <sub><sup>(unofficial)</sup></sub>
 
-Referência visual: [VLC Redesign — Community, da Juxtopposed](https://www.figma.com/design/fQSxoEi1zmnD5fQacw0qGs/VLC-Redesign--Community-?node-id=0-1).
+**VLC 4 with the interface designed by [Juxtopposed](https://www.youtube.com/@juxtopposed), built for real and running on Windows.**
 
-[Plano e requisitos](.specs/project/PROJECT.md) · [Roadmap](.specs/project/ROADMAP.md) ·
-[Fundação e build Linux](.specs/features/redesign/foundation.md) ·
-[M1 e evidências](.specs/features/redesign/m1.md) ·
-[Build Windows](.specs/features/redesign/windows.md) ·
-[Cobertura do Figma](.specs/features/redesign/coverage.md) ·
-[Intenção e comportamento do vídeo](.specs/features/redesign/video.md)
+[**⬇ Download for Windows**](https://github.com/KuchiSofts/vlc-redesign/releases/latest) ·
+[What's new](CHANGELOG.md) ·
+[Credits](CREDITS.md) ·
+[Build from source](#build-from-source)
 
-Para abrir a compilação local de desenvolvimento depois do build Linux:
+<!-- DEMO -->
 
-```sh
-./extras/juxtopposed/open.sh
+</div>
+
+---
+
+## 🎨 Design by Juxtopposed
+
+<table>
+<tr>
+<td width="44%">
+<a href="https://www.youtube.com/watch?v=ERFeOgqk324">
+<img src="https://img.youtube.com/vi/ERFeOgqk324/maxresdefault.jpg" alt="I Redesigned VLC After 25 Years, by Juxtopposed (YouTube)">
+</a>
+</td>
+<td>
+
+**Every screen of this interface was designed by Juxtopposed.**
+This project only turns that design into working software.
+
+▶ **[Watch the video: *I Redesigned VLC After 25 Years*](https://www.youtube.com/watch?v=ERFeOgqk324)**
+
+[YouTube](https://www.youtube.com/@juxtopposed) ·
+[Website](https://juxtopposed.com) ·
+[Figma](https://www.figma.com/@juxtopposed) ·
+[X / Twitter](https://twitter.com/juxtopposed) ·
+[Bluesky](https://bsky.app/profile/juxtopposed.bsky.social) ·
+[Instagram](https://instagram.com/juxtopposed) ·
+[GitHub](https://github.com/juxtopposed)
+
+If you like how this looks, go subscribe to Juxtopposed's channel. That's where it all comes from.
+
+</td>
+</tr>
+</table>
+
+> The design is **["VLC Redesign (Community)"](https://www.figma.com/community/file/1691465999134370980) by Juxtopposed**,
+> licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+> It was adapted to Qt/QML for this build, and its icons were redrawn and modified.
+> Juxtopposed does not endorse this project.
+
+---
+
+> [!IMPORTANT]
+> **This is an unofficial fork.** It is not made, affiliated with, or endorsed by
+> [VideoLAN](https://www.videolan.org/). *VLC*, *VLC media player* and the cone logo are
+> trademarks of VideoLAN. For the official player, go to [videolan.org](https://www.videolan.org/vlc/).
+> This build is based on the VLC 4.0 development branch: please report problems
+> [here](https://github.com/KuchiSofts/vlc-redesign/issues), not to VideoLAN.
+
+## What it is
+
+The real VLC: same engine, same codecs, same "plays everything". Only the interface is new, and it
+follows the design screen by screen, down to the pixel on the screens that were measured.
+
+| | |
+|---|---|
+| **Player** | Framed video with rounded corners, a waveform seek bar for music, frame previews when hovering the timeline, the cone volume control (up to 200 %), skip ±15 s (and optional ±10 s buttons), picture-in-picture, sleep timer, A-B loop |
+| **Queue & library** | A queue card with Queue / Bookmarks / Chapters tabs, a compact library over the video, *Listen Again* and *Frequently Visited Folders* on Home, folder browsing with breadcrumbs, playlists you can favourite, shuffle and export |
+| **Customise** | Drag and drop the control bar directly on the player, save layouts as profiles, Dark / Light / System themes with 9 accent colours |
+| **Settings** | A single redesigned settings window with search, the design's toggles, dropdowns and sliders, and many more VLC options exposed than before |
+| **Subtitles** | Per-file and per-series subtitle choices remembered, a sync timeline, external subtitle and audio tracks, OpenSubtitles (with your own API key) |
+| **Onboarding** | A three-step welcome: media folder, theme, keyboard shortcuts |
+
+See the full list in the **[changelog](CHANGELOG.md)**.
+
+## Download
+
+1. Go to **[Releases](https://github.com/KuchiSofts/vlc-redesign/releases/latest)** and download `vlc-redesign-…-win64.zip`.
+2. Unzip it anywhere (for example `C:\Apps\vlc-redesign`).
+3. Run **`vlc.exe`**.
+
+It's portable: it doesn't install anything, and it keeps its settings in a `portable` folder
+next to `vlc.exe`, so it won't touch an installed official VLC. To remove it, delete the folder.
+
+Requirements: Windows 10 or 11, 64-bit.
+
+> [!NOTE]
+> Windows SmartScreen may warn about an unknown publisher, because the build isn't code-signed.
+> Click *More info → Run anyway*, or build it yourself from source.
+
+## Known limitations
+
+- **Based on VLC 4.0-dev**, not on the stable VLC 3. Expect the occasional rough edge.
+- **Windows only for now.** The first milestones were also validated on Linux, but the latest work has only been tested on Windows. No macOS build.
+- **English interface** only in the release build (translations aren't compiled yet).
+- Media Info, Bookmarks, Convert/Stream, Open Disc, Capture and Messages still use the classic VLC windows.
+- A few controls in the design have no VLC equivalent and were left out on purpose.
+- The waveform seek bar works on local files up to 1 GB and 8 minutes; other media get the regular seek bar.
+- HDR output offers Auto / Off / HDR10 / HLG and needs the libplacebo renderer.
+
+The detailed status of every screen is in [`.specs/`](.specs/project/STATE.md) (in Portuguese, from the first implementation).
+
+## Build from source
+
+The Windows build is a cross-compile in Docker, using VideoLAN's official build image and prebuilt
+libraries. You need [Docker Desktop](https://www.docker.com/products/docker-desktop/) and Git.
+
+```powershell
+git clone https://github.com/KuchiSofts/vlc-redesign.git
+cd vlc-redesign
+# Development build (debug, asserts on) into %USERPROFILE%\source\vlc-win64
+.\extras\juxtopposed\win64-docker.ps1
+# Release build, stripped, in its own Docker volume
+.\extras\juxtopposed\win64-docker.ps1 -Out C:\vlc-redesign -Volume vlc-win64-release -Strip -r
 ```
 
-O lançador usa Docker, perfil próprio e Qt Quick em software. Os arquivos da
-pasta pessoal ficam disponíveis para leitura em `/media/home`. O módulo Qt já inclui a
-fatia de M1. A aparência Dark foi comparada ao Figma; System/Day/Night permanecem
-disponíveis nas preferências.
+The first build takes a while; later ones only rebuild what changed (`-Quick` skips configure).
+Linux builds use `extras/juxtopposed/linux.sh` (see [foundation.md](.specs/features/redesign/foundation.md)).
+The interface lives in [`modules/gui/qt`](modules/gui/qt).
+
+## Staying in sync with VLC
+
+This repository is a fork of [VLC](https://code.videolan.org/videolan/vlc), forked from the 4.0 development branch
+on 2026-10-12. Fixes from VLC are merged in regularly: a weekly GitHub Action tries the merge and opens a pull request
+when it applies cleanly, or an issue listing the conflicting files when it doesn't.
+
+## Credits
+
+- **Design:** [Juxtopposed](https://www.youtube.com/@juxtopposed). [Video](https://www.youtube.com/watch?v=ERFeOgqk324) · [Figma file](https://www.figma.com/community/file/1691465999134370980) (CC BY 4.0)
+- **First implementation:** [MrDouglax](https://github.com/SrDouglax/JuxtopposedVLC), whose Linux fork this builds on
+- **VLC:** the [VideoLAN](https://www.videolan.org/) team and the VLC contributors ([AUTHORS](AUTHORS))
+- **Fonts:** [Inter](https://github.com/rsms/inter) and [DM Mono](https://github.com/googlefonts/dm-mono), SIL Open Font License 1.1
+
+Details in [CREDITS.md](CREDITS.md).
+
+## License
+
+Like VLC, this is free software under the **GNU GPL version 2 or later** ([COPYING](COPYING)); libVLC is
+under the LGPL 2.1 or later ([COPYING.LIB](COPYING.LIB)). The design is CC BY 4.0, and the fonts are OFL 1.1.
+Every release links to the exact source it was built from.
+
+---
+
+<details>
+<summary><b>The original VLC README</b></summary>
 
 # VLC media player
 
@@ -166,3 +286,5 @@ share/             - Common resource files.
 src/               - libvlccore source code.
 test/              - Testing system.
 ```
+
+</details>

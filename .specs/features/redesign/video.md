@@ -1,6 +1,6 @@
 # Intenção funcional do vídeo de referência
 
-Recebido em **13/10/2026** como transcrição integral fornecida pelo usuário, no arquivo **Texto colado.txt**. O conteúdo é inglês com marcas de reconhecimento automático de fala; termos como VC/DLC, Q/queue e seat/seek podem conter erros de ASR. A síntese abaixo normaliza o sentido, enquanto o [original integral](reference/transcript.txt) permanece byte a byte preservado.
+Recebido em **13/10/2026** como transcrição integral fornecida pelo usuário, no arquivo **Texto colado.txt**. O conteúdo é inglês com marcas de reconhecimento automático de fala; termos como VC/DLC, Q/queue e seat/seek podem conter erros de ASR. A síntese abaixo normaliza o sentido, enquanto o original integral não é redistribuído aqui (direitos autorais do vídeo): veja o [vídeo](https://www.youtube.com/watch?v=ERFeOgqk324).
 
 - Tamanho do original: **23.274 bytes**.
 - SHA-256: `d43c1b056eb3ebb1cf375b9f24d3834710ec2e9f0be59271ec4cc0138e08d606`.
@@ -75,4 +75,4 @@ A matriz já liga essas categorias a frames específicos: `999:5047`, `3046:1005
 
 A cópia do original deve ter igualdade byte a byte e hash idêntico ao anexo. Todos os node IDs citados devem existir no snapshot T02 e na matriz, sem alterar seus estados V/S. Cada intenção tem marco e critério funcional; os recursos sem equivalência comprovada permanecem separados dos candidatos existentes.
 
-Esta entrega contém somente `reference/transcript.txt` e este documento. Não executa build, reprodução, Figma MCP, instalação, pesquisa do vídeo nem implementação. A incorporação da narrativa não comprova aparência ou função do redesign; R02 e os testes de plataforma continuam abertos.
+Esta entrega contém somente este documento (a transcrição foi retirada por direitos autorais). Não executa build, reprodução, Figma MCP, instalação, pesquisa do vídeo nem implementação. A incorporação da narrativa não comprova aparência ou função do redesign; R02 e os testes de plataforma continuam abertos.

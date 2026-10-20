@@ -1,3 +1,18 @@
+VLC Redesign (unofficial build) - user interface design by Juxtopposed:
+"VLC Redesign (Community)" Figma file, licensed under CC BY 4.0
+(https://creativecommons.org/licenses/by/4.0/), adapted to Qt/QML with
+redrawn and modified icons. Juxtopposed does not endorse this build.
+   Video:   https://www.youtube.com/watch?v=ERFeOgqk324
+   Channel: https://www.youtube.com/@juxtopposed
+   Figma:   https://www.figma.com/community/file/1691465999134370980
+   Website: https://juxtopposed.com
+First implementation of the redesign: MrDouglax
+   (https://github.com/SrDouglax/JuxtopposedVLC)
+Inter - Copyright (c) 2016-2020 The Inter Project Authors (rsms/inter), modified
+   (wider advances) - SIL Open Font License 1.1
+DM Mono - Copyright (c) 2020 The DM Mono Project Authors
+   (googlefonts/dm-mono) - SIL Open Font License 1.1
+
 Some VLC plugins use external libraries and make extensive use of the
 following persons' or companies' code:
 
