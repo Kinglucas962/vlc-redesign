@@ -63,7 +63,8 @@ QtObject {
         { id: ControlListModel.DVD_MENUS_BUTTON, file: "DvdMenuButton.qml", label: VLCIcons.dvd_menu, text: qsTr("DVD menus") },
         { id: ControlListModel.PROGRAM_BUTTON, file: "ProgramButton.qml", label: VLCIcons.tv, text: qsTr("Program Button") },
         { id: ControlListModel.TELETEXT_BUTTONS, file: "TeletextButton.qml", label: VLCIcons.tvtelx, text: qsTr("Teletext") },
-        { id: ControlListModel.RENDERER_BUTTON, file: "RendererButton.qml", label: VLCIcons.renderer, text: qsTr("Renderer Button") },
+        // the renderers of VLC, as a cast button (the id saved in the profiles)
+        { id: ControlListModel.RENDERER_BUTTON, file: "CastButton.qml", label: VLCIcons.renderer, icon: "qrc:///redesign/icons/cast/default.png", text: qsTr("Cast to TV") },
         { id: ControlListModel.ASPECT_RATIO_COMBOBOX, file: "AspectRatioWidget.qml", label: VLCIcons.aspect_ratio, text: qsTr("Aspect Ratio") },
         { id: ControlListModel.WIDGET_SPACER, file: "SpacerWidget.qml", label: VLCIcons.space, icon: "", text: qsTr("Spacer") },
         { id: ControlListModel.WIDGET_SPACER_EXTEND, file: "ExpandingSpacerWidget.qml", label: VLCIcons.space, text: qsTr("Expanding Spacer") },
@@ -116,7 +117,7 @@ QtObject {
         ControlListModel.SKIP_FW_10_BUTTON, ControlListModel.SKIP_BACK_10_BUTTON, ControlListModel.SKIP_FW_BUTTON,
         ControlListModel.SKIP_BACK_BUTTON, ControlListModel.STOP_BUTTON, ControlListModel.LOOP_BUTTON,
         ControlListModel.RANDOM_BUTTON, ControlListModel.RECORD_BUTTON, ControlListModel.SNAPSHOT_BUTTON,
-        ControlListModel.PIP_BUTTON, ControlListModel.HDR_BUTTON, ControlListModel.ZOOM_WIDGET,
+        ControlListModel.PIP_BUTTON, ControlListModel.RENDERER_BUTTON, ControlListModel.HDR_BUTTON, ControlListModel.ZOOM_WIDGET,
         ControlListModel.RIGHT_SIDEBAR_BUTTON, ControlListModel.QUIT_BUTTON, ControlListModel.SETTINGS_BUTTON,
         ControlListModel.HOME_BUTTON, ControlListModel.THUMBNAIL_WIDGET, ControlListModel.FILE_NAME_WIDGET,
         ControlListModel.ARTIST_NAME_WIDGET, ControlListModel.FOLDER_NAME_WIDGET, ControlListModel.PLAYLIST_NAME_WIDGET,

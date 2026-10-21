@@ -24,9 +24,12 @@
 
 #include "player_controller.hpp"
 #include "player_controller_p.hpp"
+#include "player/subtitle_finder.hpp"
 #include "util/shared_input_item.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 #include <vlc_actions.h>           /* ACTION_ID */
 #include <vlc_url.h>            /* vlc_uri_decode */
@@ -38,7 +41,9 @@
 #include <vlc_preparser.h>
 
 #include <QFile>
+#include <QFileInfo>
 #include <QDir>
+#include <QUrl>
 #include <QSignalMapper>
 #include <QThreadPool>
 #ifndef QT_HAS_LIBATOMIC
@@ -60,13 +65,27 @@ using SharedTitleList = ::vlc::vlc_shared_data_ptr<vlc_player_title_list,
                                                    &vlc_player_title_list_Hold,
                                                    &vlc_player_title_list_Release>;
 
+extern "C" {
+static int on_cast_time_changed(vlc_object_t *, const char *, vlc_value_t,
+                                vlc_value_t, void *);
+}
+
 PlayerControllerPrivate::~PlayerControllerPrivate()
 {
     assert(m_smpteTimerRequestCount == 0);
 
+    var_DelCallback( VLC_OBJECT( vlc_object_instance( p_intf ) ), "renderer-time",
+                     on_cast_time_changed, this );
+
     vlc_player_locker locker{m_player}; //this also locks the player
     vlc_player_vout_RemoveListener( m_player, m_player_vout_listener );
     vlc_player_aout_RemoveListener( m_player, m_player_aout_listener );
+    /* closed while casting: this computer's volume back */
+    if( m_localVolume >= 0.f )
+    {
+        vlc_player_aout_SetVolume( m_player, m_localVolume );
+        vlc_player_aout_Mute( m_player, m_localMuted );
+    }
     vlc_player_RemoveListener( m_player, m_player_listener );
     vlc_player_RemoveTimer( m_player, m_player_timer );
     if (m_preparser != nullptr)
@@ -338,6 +357,20 @@ int PlayerControllerPrivate::interpolateTime(vlc_tick_t system_now)
     if (vlc_player_timer_point_Interpolate(&m_player_time, system_now,
                                            &new_time, &m_position) == VLC_SUCCESS)
     {
+        // casting: where the device is, which shows the media later than it
+        // is read here (after a seek: where it goes, until it is there)
+        if (m_castTime != VLC_TICK_INVALID && m_rendererManager.useRenderer())
+        {
+            vlc_tick_t cast_time = m_castTime - VLC_TICK_0;
+            if (m_playing_status == PlayerController::PLAYING_STATE_PLAYING)
+                cast_time += std::max<vlc_tick_t>(system_now - m_castTimeDate, 0);
+            if (std::llabs(cast_time - new_time) < VLC_TICK_FROM_SEC(60))
+            {
+                new_time = cast_time;
+                if (m_length.valid() && m_length.toVLCTick() > 0)
+                    m_position = std::clamp(double(cast_time) / m_length.toVLCTick(), 0., 1.);
+            }
+        }
         m_time = new_time;
         keepTimeInMedia(m_time, m_length, m_position);
         return VLC_SUCCESS;
@@ -402,6 +435,17 @@ static  void on_player_current_media_changed(vlc_player_t *, input_item_t *new_m
 
         emit q->inputChanged(true);
     });
+}
+
+/* casting: a media stopped before its end (stop, next, another one): the
+ * device stops now, not once it showed what it has (it is behind) */
+static void on_player_stopping_current_media(vlc_player_t *, input_item_t *,
+                                             enum vlc_player_media_stopping_reason reason,
+                                             void *data)
+{
+    PlayerControllerPrivate* that = static_cast<PlayerControllerPrivate*>(data);
+    if( reason != VLC_PLAYER_MEDIA_STOPPING_EOS )
+        var_TriggerCallback( VLC_OBJECT( vlc_object_instance( that->p_intf ) ), "renderer-stop" );
 }
 
 static void on_player_state_changed(vlc_player_t *, enum vlc_player_state state, void *data)
@@ -507,6 +551,10 @@ static void on_player_state_changed(vlc_player_t *, enum vlc_player_state state,
             break;
         }
         }
+        /* casting: the device pauses and plays with this player */
+        if( state == VLC_PLAYER_STATE_PLAYING || state == VLC_PLAYER_STATE_PAUSED )
+            var_SetBool( VLC_OBJECT( vlc_object_instance( that->p_intf ) ), "renderer-paused",
+                         state == VLC_PLAYER_STATE_PAUSED );
         emit q->playingStateChanged( that->m_playing_status );
     });
 }
@@ -979,6 +1027,7 @@ static void on_player_aout_volume_changed(audio_output_t *, float volume, void *
     that->callAsync([that,volume](){
         that->m_volume = volume;
         emit that->q_func()->volumeChanged( volume );
+        that->castVolume( volume );
     });
 }
 
@@ -989,7 +1038,44 @@ static void on_player_aout_mute_changed(audio_output_t *, bool muted, void *data
     that->callAsync([that,muted](){
         that->m_muted = muted;
         emit that->q_func()->soundMuteChanged(muted);
+        if( that->m_rendererManager.useRenderer() )
+            var_SetInteger( VLC_OBJECT( vlc_object_instance( that->p_intf ) ),
+                            "renderer-muted", muted );
     });
+}
+
+// where the device is in the media, said by its stream output (any thread)
+static int on_cast_time_changed(vlc_object_t *, const char *, vlc_value_t,
+                                vlc_value_t value, void *data)
+{
+    PlayerControllerPrivate* that = static_cast<PlayerControllerPrivate*>(data);
+    const vlc_tick_t time = value.i_int;
+    that->callAsync([that,time](){
+        that->m_castTime = time >= 0 ? time : VLC_TICK_INVALID;
+        that->m_castTimeDate = vlc_tick_now();
+        /* the time shown follows the device as it says it (5 times a second),
+         * whatever the player's own timer does (after a seek it waits for
+         * pictures here that casting does not make) */
+        if (that->m_castTime == VLC_TICK_INVALID || !that->m_rendererManager.useRenderer())
+            return;
+        const vlc_tick_t cast_time = that->m_castTime - VLC_TICK_0;
+        vlc_tick_t player_time;
+        {
+            vlc_player_locker lock{ that->m_player };
+            player_time = vlc_player_GetTime( that->m_player );
+        }
+        /* (a time from elsewhere than the media's: not that) */
+        if (player_time != VLC_TICK_INVALID
+         && std::llabs(cast_time - player_time) >= VLC_TICK_FROM_SEC(60))
+            return;
+        PlayerController* q = that->q_func();
+        that->m_time = cast_time;
+        if (that->m_length.valid() && that->m_length.toVLCTick() > 0)
+            that->m_position = std::clamp(double(cast_time) / that->m_length.toVLCTick(), 0., 1.);
+        q->updatePosition();
+        q->updateTime(that->m_castTimeDate, false);
+    });
+    return VLC_SUCCESS;
 }
 
 static void on_player_corks_changed(vlc_player_t *, unsigned, void *data)
@@ -1136,6 +1222,7 @@ static void on_preparse_ended_callback(vlc_preparser_req *req,
 static const struct vlc_player_cbs player_cbs = [] {
     struct vlc_player_cbs cbs {};
     cbs.on_current_media_changed = on_player_current_media_changed;
+    cbs.on_stopping_current_media = on_player_stopping_current_media;
     cbs.on_state_changed = on_player_state_changed;
     cbs.on_error_changed = on_player_error_changed;
     cbs.on_buffering_changed = on_player_buffering;
@@ -1242,6 +1329,47 @@ PlayerControllerPrivate::PlayerControllerPrivate(PlayerController *playercontrol
 
     m_time_timer.setSingleShot( true );
     m_time_timer.setTimerType( Qt::PreciseTimer );
+
+    /* Casting: the volume of this player is the device's while it plays
+     * (castVolume), from where the device is when it starts */
+    QObject::connect( &m_rendererManager, &RendererManager::deviceVolumeReported, q_ptr,
+                      [this]( float volume ) {
+        if( !m_rendererManager.useRenderer() )
+            return;
+        vlc_player_locker lock{ m_player };
+        vlc_player_aout_SetVolume( m_player, volume * castMaxVolume() );
+    });
+    QObject::connect( &m_rendererManager, &RendererManager::useRendererChanged, q_ptr, [this]() {
+        vlc_object_t *libvlc = VLC_OBJECT( vlc_object_instance( this->p_intf ) );
+        /* nothing of a device for the next one (it says its volume) */
+        var_SetInteger( libvlc, "renderer-volume", -1 );
+        var_SetInteger( libvlc, "renderer-muted", -1 );
+        m_castTime = VLC_TICK_INVALID;
+        if( m_rendererManager.useRenderer() )
+        {
+            /* this computer's volume and mute, for after */
+            vlc_player_locker lock{ m_player };
+            if( m_localVolume < 0.f )
+            {
+                m_localVolume = vlc_player_aout_GetVolume( m_player );
+                m_localMuted = vlc_player_aout_IsMuted( m_player ) > 0;
+            }
+            return;
+        }
+        /* back here: the volume and mute of this computer, once it is (a
+         * device chosen right after, already said, keeps its own: this
+         * computer's volume set meanwhile would go to it) */
+        QTimer::singleShot( 0, q_ptr, [this]() {
+            if( m_rendererManager.useRenderer() || m_localVolume < 0.f )
+                return;
+            vlc_player_locker lock{ m_player };
+            vlc_player_aout_SetVolume( m_player, m_localVolume );
+            vlc_player_aout_Mute( m_player, m_localMuted );
+            m_localVolume = -1.f;
+        });
+    });
+    var_AddCallback( VLC_OBJECT( vlc_object_instance( p_intf ) ), "renderer-time",
+                     on_cast_time_changed, this );
 
     // Initialise fullscreen to match the player state
     m_fullscreen = vlc_player_vout_IsFullscreen( m_player );
@@ -1445,6 +1573,15 @@ void PlayerController::jumpTime(VLCTime i_time)
     if( !d->isCurrentItemSynced() )
         return;
     vlc_player_JumpTime( d->m_player, i_time.toVLCTick() );
+}
+
+void PlayerController::setPositionFast( double position )
+{
+    Q_D(PlayerController);
+    vlc_player_locker lock{ d->m_player };
+    if( !d->isCurrentItemSynced() )
+        return;
+    vlc_player_SetPositionFast( d->m_player, position );
 }
 
 void PlayerController::jumpToPos( double new_pos )
@@ -1846,6 +1983,24 @@ SharedAOut PlayerController::getAout()
     Q_D(PlayerController);
     vlc_player_locker lock{ d->m_player };
     return SharedAOut( vlc_player_aout_Hold( d->m_player ), false );
+}
+
+/* Casting: the sound plays on the device, and the volume of this player goes
+ * there, whatever changes it (the slider, the wheel, the hotkeys): its stream
+ * output follows "renderer-volume". The whole slider, to the maximum volume,
+ * is the device's range (0 to 100): its 100 is as loud as it goes. */
+float PlayerControllerPrivate::castMaxVolume() const
+{
+    return var_InheritInteger( p_intf, "qt-max-volume" ) / 100.f;
+}
+
+void PlayerControllerPrivate::castVolume( float volume )
+{
+    if( !m_rendererManager.useRenderer() )
+        return;
+    const float range = std::clamp( volume / castMaxVolume(), 0.f, 1.f );
+    var_SetInteger( VLC_OBJECT( vlc_object_instance( p_intf ) ), "renderer-volume",
+                    std::lround( range * 100.f ) );
 }
 
 void PlayerController::setVolume(float volume)
@@ -2273,6 +2428,13 @@ bool PlayerController::associateSubtitleFile(const QString &uri)
 int PlayerController::AddAssociatedMedia(es_format_category_e cat, const QString &uri, bool select, bool notify, bool check_ext)
 {
     Q_D(PlayerController);
+    // where its track comes from (the subtitle panel says it)
+    if (cat == SPU_ES)
+    {
+        const QUrl url(uri);
+        SubtitleFinder::noteFile(uri, QStringLiteral("added"),
+                                 url.isLocalFile() ? QFileInfo(url.toLocalFile()).fileName() : url.fileName());
+    }
     vlc_player_locker lock{ d->m_player };
     return vlc_player_AddAssociatedMedia( d->m_player, cat, qtu(uri), select, notify, check_ext );
 }

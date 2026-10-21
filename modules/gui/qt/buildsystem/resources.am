@@ -38,6 +38,8 @@ libqt_plugin_la_RES = \
 	pixmaps/redesign/icons/hotkeys/default.png \
 	pixmaps/redesign/icons/edit/default.png \
 	pixmaps/redesign/icons/PiP/default.png \
+	pixmaps/redesign/icons/cast/default.png \
+	pixmaps/redesign/icons/cast/large.png \
 	pixmaps/redesign/icons/artist/default.png \
 	pixmaps/redesign/icons/ui/default.png \
 	pixmaps/redesign/icons/close/default.png \

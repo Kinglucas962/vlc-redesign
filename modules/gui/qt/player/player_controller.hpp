@@ -244,6 +244,8 @@ public slots:
     void jumpBy( int seconds );
     void jumpTime( VLCTime i_time );
     void jumpToPos( double );
+    // to the nearest key frame: while the seek bar is dragged
+    void setPositionFast( double );
     void frameNext();
     void framePrev();
 

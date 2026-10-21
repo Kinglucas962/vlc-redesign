@@ -86,6 +86,10 @@ FocusScope {
                                            : _controlsUnderVideo ? VLCStyle.dp(1, VLCStyle.scale)
                                                                  : _videoInset
     readonly property real _videoBottomInset: (MainCtx.hasEmbededVideo && !_controlsUnderVideo) ? _videoInset : 0
+    // casting does not work: the card says why, with the picture here too
+    readonly property bool _castTrouble: Player.rendererManager.useRenderer
+                                         && (Player.rendererManager.castStatus === RendererManager.CastFailed
+                                             || Player.rendererManager.firewallBlocked)
     readonly property real _videoRadius: VLCStyle.dp(9, VLCStyle.scale)
 
     // Settings
@@ -293,7 +297,10 @@ FocusScope {
             bottomMargin: rootPlayer._videoBottomInset
         }
 
-        sourceComponent: MainCtx.hasEmbededVideo ? videoComponent : audioComponent
+        // casting: the card (castingCard) instead of the cover
+        sourceComponent: MainCtx.hasEmbededVideo ? videoComponent
+                       : (Player.rendererManager.useRenderer && !Player.rendererManager.displayHere)
+                         ? castingComponent : audioComponent
 
         property int cursorShape
 
@@ -413,6 +420,11 @@ FocusScope {
                     visible: rootPlayer.displayFadeRectangles && !(controlBar.background && controlBar.background.visible)
                 }
             }
+        }
+
+        Component {
+            id: castingComponent
+            Item {}
         }
 
         Component {
@@ -817,8 +829,10 @@ FocusScope {
 
         onRequestLockUnlockAutoHide: (lock) => rootPlayer.lockUnlockAutoHide(lock)
 
-        identifier: (Player.hasVideoOutput) ? PlayerControlbarModel.Videoplayer
-                                            : PlayerControlbarModel.Audioplayer
+        // the video's bar while it plays on a TV too (no video output here)
+        identifier: (Player.hasVideoOutput || (Player.rendererManager.useRenderer && Player.rendererManager.rendererVideo
+                                               && Player.videoTracks.count > 0))
+                    ? PlayerControlbarModel.Videoplayer : PlayerControlbarModel.Audioplayer
 
         onHoveredChanged: rootPlayer.lockUnlockAutoHide(hovered)
 
@@ -869,6 +883,216 @@ FocusScope {
 
         // The controls stay shown while it is
         onVisibleChanged: rootPlayer.lockUnlockAutoHide(visible)
+    }
+
+    // Casting: the media plays on a TV (CastButton). Here, which one, and the
+    // way back to this computer; the bar goes on controlling it
+    Rectangle {
+        id: castingCard
+        objectName: "castingCard"
+        visible: Player.rendererManager.useRenderer
+                 && (!Player.rendererManager.displayHere || !Player.rendererManager.displayHereAvailable
+                     || rootPlayer._castTrouble)
+        anchors.centerIn: parent
+        z: 2
+        width: Math.min(castColumn.implicitWidth + VLCStyle.dp(72, VLCStyle.scale),
+                        rootPlayer.width - VLCStyle.dp(32, VLCStyle.scale))
+        height: castColumn.implicitHeight + VLCStyle.dp(56, VLCStyle.scale)
+        radius: VLCStyle.dp(14, VLCStyle.scale)
+        color: VLCStyle.redesign.color("#141414", "#c4c4c3")
+        border.width: 1
+        border.color: VLCStyle.redesign.color(VLCStyle.redesign.separator, "#9c9c9b")
+
+        ColumnLayout {
+            id: castColumn
+            anchors.centerIn: parent
+            width: Math.min(implicitWidth, castingCard.width - VLCStyle.dp(48, VLCStyle.scale))
+            spacing: VLCStyle.dp(12, VLCStyle.scale)
+
+            Impl.IconImage {
+                id: castIcon
+                Layout.alignment: Qt.AlignHCenter
+                Layout.preferredWidth: VLCStyle.dp(48, VLCStyle.scale)
+                Layout.preferredHeight: VLCStyle.dp(48, VLCStyle.scale)
+                source: "qrc:///redesign/icons/cast/large.png"
+                sourceSize: Qt.size(VLCStyle.dp(48, VLCStyle.scale), VLCStyle.dp(48, VLCStyle.scale))
+                color: rootPlayer._castTrouble ? VLCStyle.redesign.color("#8F8F8F", "#4d4d4d")
+                                               : VLCStyle.redesign.accent
+                // connecting: it breathes until the device plays
+                readonly property bool connecting: castingCard.visible
+                    && Player.rendererManager.castStatus === RendererManager.CastConnecting
+                SequentialAnimation on opacity {
+                    running: castIcon.connecting
+                    loops: Animation.Infinite
+                    NumberAnimation { from: 1; to: 0.35; duration: 700; easing.type: Easing.InOutQuad }
+                    NumberAnimation { from: 0.35; to: 1; duration: 700; easing.type: Easing.InOutQuad }
+                    onRunningChanged: if (!running) castIcon.opacity = 1
+                }
+            }
+            Text {
+                objectName: "castTitle"
+                Layout.alignment: Qt.AlignHCenter
+                Layout.maximumWidth: rootPlayer.width - VLCStyle.dp(96, VLCStyle.scale)
+                text: Player.rendererManager.castStatus === RendererManager.CastFailed
+                      ? qsTr("Not playing on %1").arg(Player.rendererManager.rendererName)
+                      : Player.rendererManager.castStatus === RendererManager.CastConnecting
+                        ? qsTr("Connecting to %1…").arg(Player.rendererManager.rendererName)
+                        : Player.rendererManager.rendererVideo
+                          ? qsTr("Playing on %1").arg(Player.rendererManager.rendererName)
+                          : qsTr("The sound plays on %1").arg(Player.rendererManager.rendererName)
+                color: VLCStyle.redesign.color(VLCStyle.redesign.textPrimary, "#1e1e1e")
+                font.family: VLCStyle.redesign.fontFamily
+                font.pixelSize: VLCStyle.dp(18, VLCStyle.scale)
+                font.weight: Font.Medium
+                elide: Text.ElideRight
+            }
+            // what plays there
+            Text {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.maximumWidth: rootPlayer.width - VLCStyle.dp(96, VLCStyle.scale)
+                visible: text !== ""
+                text: Player.title
+                color: VLCStyle.redesign.color("#B8B8B8", "#2e2e2e")
+                font.family: VLCStyle.redesign.fontFamily
+                font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+                elide: Text.ElideRight
+            }
+            Text {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.maximumWidth: rootPlayer.width - VLCStyle.dp(96, VLCStyle.scale)
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                visible: !rootPlayer._castTrouble
+                text: qsTr("Pause, seek and change the subtitles here: the TV follows.")
+                color: VLCStyle.redesign.color("#8F8F8F", "#4d4d4d")
+                font.family: VLCStyle.redesign.fontFamily
+                font.pixelSize: VLCStyle.dp(13, VLCStyle.scale)
+            }
+            // why it failed; or, before it does, that the device reads the
+            // media from this computer and Windows Firewall keeps it out
+            Text {
+                objectName: "castFirewallText"
+                Layout.alignment: Qt.AlignHCenter
+                Layout.maximumWidth: Math.min(VLCStyle.dp(400, VLCStyle.scale),
+                                              rootPlayer.width - VLCStyle.dp(96, VLCStyle.scale))
+                visible: rootPlayer._castTrouble
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                text: Player.rendererManager.castStatus === RendererManager.CastFailed
+                      ? Player.rendererManager.castMessage
+                      : qsTr("Windows Firewall doesn't let %1 connect to this computer to read the media.")
+                        .arg(Player.rendererManager.rendererName)
+                color: VLCStyle.redesign.accent
+                font.family: VLCStyle.redesign.fontFamily
+                font.pixelSize: VLCStyle.dp(13, VLCStyle.scale)
+            }
+            Widgets.RedesignButton {
+                objectName: "castFirewallButton"
+                Layout.alignment: Qt.AlignHCenter
+                visible: Player.rendererManager.firewallBlocked
+                enabled: !Player.rendererManager.firewallAllowing
+                accent: true
+                text: Player.rendererManager.firewallAllowing ? qsTr("Waiting for Windows…")
+                                                               : qsTr("Allow on private networks")
+                onClicked: Player.rendererManager.allowFirewall()
+            }
+            RowLayout {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: VLCStyle.dp(4, VLCStyle.scale)
+                spacing: VLCStyle.dp(10, VLCStyle.scale)
+                visible: Player.rendererManager.castStatus === RendererManager.CastFailed
+                         && !Player.rendererManager.firewallBlocked
+                Widgets.RedesignButton {
+                    objectName: "castRetryButton"
+                    accent: true
+                    text: qsTr("Try again")
+                    onClicked: Player.rendererManager.retry()
+                }
+                Widgets.RedesignButton {
+                    objectName: "castPlayHereButton"
+                    text: qsTr("Play here")
+                    onClicked: Player.rendererManager.disableRenderer()
+                }
+            }
+            Widgets.RedesignButton {
+                objectName: "stopCastingButton"
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: VLCStyle.dp(4, VLCStyle.scale)
+                visible: !(Player.rendererManager.castStatus === RendererManager.CastFailed
+                           && !Player.rendererManager.firewallBlocked)
+                text: Player.rendererManager.firewallBlocked ? qsTr("Play here") : qsTr("Stop casting")
+                onClicked: Player.rendererManager.disableRenderer()
+            }
+        }
+    }
+
+    // Casting with the picture here too: a small bar instead of the card,
+    // what plays there and the way back
+    Rectangle {
+        id: castingBadge
+        objectName: "castingBadge"
+        visible: Player.rendererManager.useRenderer && Player.rendererManager.displayHere
+                 && Player.rendererManager.displayHereAvailable && !rootPlayer._castTrouble
+        z: 2
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: topBar.bottom
+        anchors.topMargin: VLCStyle.dp(12, VLCStyle.scale)
+        width: Math.min(badgeRow.implicitWidth + VLCStyle.dp(28, VLCStyle.scale),
+                        rootPlayer.width - VLCStyle.dp(32, VLCStyle.scale))
+        height: VLCStyle.dp(38, VLCStyle.scale)
+        radius: height / 2
+        color: VLCStyle.redesign.color("#141414", "#c4c4c3")
+        border.width: 1
+        border.color: VLCStyle.redesign.color(VLCStyle.redesign.separator, "#9c9c9b")
+
+        RowLayout {
+            id: badgeRow
+            anchors.centerIn: parent
+            width: Math.min(implicitWidth, castingBadge.width - VLCStyle.dp(28, VLCStyle.scale))
+            spacing: VLCStyle.dp(10, VLCStyle.scale)
+
+            Impl.IconImage {
+                Layout.preferredWidth: VLCStyle.dp(20, VLCStyle.scale)
+                Layout.preferredHeight: VLCStyle.dp(20, VLCStyle.scale)
+                source: "qrc:///redesign/icons/cast/large.png"
+                sourceSize: Qt.size(VLCStyle.dp(20, VLCStyle.scale), VLCStyle.dp(20, VLCStyle.scale))
+                color: VLCStyle.redesign.accent
+            }
+            Text {
+                Layout.fillWidth: true
+                text: Player.rendererManager.castStatus === RendererManager.CastConnecting
+                      ? qsTr("Connecting to %1…").arg(Player.rendererManager.rendererName)
+                      : qsTr("Also on %1").arg(Player.rendererManager.rendererName)
+                color: VLCStyle.redesign.color(VLCStyle.redesign.textPrimary, "#1e1e1e")
+                font.family: VLCStyle.redesign.fontFamily
+                font.pixelSize: VLCStyle.dp(14, VLCStyle.scale)
+                elide: Text.ElideRight
+            }
+            T.AbstractButton {
+                objectName: "castingBadgeStop"
+                focusPolicy: Qt.StrongFocus
+                text: qsTr("Stop casting")
+                Accessible.name: text
+                implicitWidth: stopText.implicitWidth + VLCStyle.dp(16, VLCStyle.scale)
+                implicitHeight: VLCStyle.dp(26, VLCStyle.scale)
+                background: Rectangle {
+                    radius: height / 2
+                    color: parent.hovered || parent.visualFocus ? VLCStyle.redesign.color("#262626", "#9c9c9b")
+                                                                : "transparent"
+                }
+                contentItem: Text {
+                    id: stopText
+                    text: parent.text
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    color: VLCStyle.redesign.accent
+                    font.family: VLCStyle.redesign.fontFamily
+                    font.pixelSize: VLCStyle.dp(13, VLCStyle.scale)
+                    font.weight: Font.Medium
+                }
+                onClicked: Player.rendererManager.disableRenderer()
+            }
+        }
     }
 
     QmlAudioContextMenu {

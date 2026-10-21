@@ -22,16 +22,169 @@
 #include "renderer_manager.hpp"
 
 #include <QApplication>
+#include <QRegularExpression>
+#include <QSettings>
 #include <QTimer>
 #include <QVector>
 #include <QHash>
 
 #include <vlc_common.h>
+#include <vlc_configuration.h>
 #include <vlc_renderer_discovery.h>
 #include <vlc_player.h>
 #include <vlc_cxx_helpers.hpp>
 
+#ifdef _WIN32
+# include <windows.h>
+# include <ole2.h>
+# include <netfw.h>
+# include <shellapi.h>
+# include <sstream>
+# include <string>
+#endif
+
 static void player_renderer_changed(vlc_player_t *, vlc_renderer_item_t *new_item, void *data);
+
+#ifdef _WIN32
+/* Whether a list of firewall ports ("80,7000-7100") has this one */
+static bool portListHas(const wchar_t *list, long port)
+{
+    std::wstringstream tokens(list);
+    std::wstring token;
+    while (std::getline(tokens, token, L','))
+    {
+        long first = 0, last = 0;
+        const int count = swscanf(token.c_str(), L"%ld-%ld", &first, &last);
+        if (count == 1)
+            last = first;
+        else if (count != 2)
+            continue;
+        if (port >= first && port <= last)
+            return true;
+    }
+    return false;
+}
+
+/* Whether an enabled rule lets the network in, on one of these profiles, to
+ * this program (on any of its ports or that one), or to that TCP port
+ * whatever the program */
+static bool ruleLetsIn(INetFwRule *rule, const wchar_t *path, long port, long profiles)
+{
+    VARIANT_BOOL enabled = VARIANT_FALSE;
+    NET_FW_RULE_DIRECTION direction = NET_FW_RULE_DIR_OUT;
+    NET_FW_ACTION action = NET_FW_ACTION_BLOCK;
+    LONG ruleProfiles = 0, protocol = 0;
+    if (FAILED(rule->get_Enabled(&enabled)) || enabled == VARIANT_FALSE
+     || FAILED(rule->get_Direction(&direction)) || direction != NET_FW_RULE_DIR_IN
+     || FAILED(rule->get_Action(&action)) || action != NET_FW_ACTION_ALLOW
+     || FAILED(rule->get_Profiles(&ruleProfiles)) || !(ruleProfiles & profiles)
+     || FAILED(rule->get_Protocol(&protocol))
+     // (256: NET_FW_IP_PROTOCOL_ANY, missing from some SDKs)
+     || (protocol != NET_FW_IP_PROTOCOL_TCP && protocol != 256))
+        return false;
+
+    BSTR application = nullptr, ports = nullptr;
+    rule->get_ApplicationName(&application);
+    rule->get_LocalPorts(&ports);
+    const bool anyPort = ports == nullptr || *ports == L'\0' || !wcscmp(ports, L"*");
+    bool lets = false;
+    if (application != nullptr && *application != L'\0')
+    {
+        // the rule may name the program with %ProgramFiles% and the like
+        wchar_t expanded[MAX_PATH];
+        const DWORD length = ExpandEnvironmentStringsW(application, expanded, MAX_PATH);
+        const wchar_t *name = length > 0 && length <= MAX_PATH ? expanded : application;
+        lets = !_wcsicmp(name, path) && (anyPort || portListHas(ports, port));
+    }
+    else if (!anyPort)
+        lets = portListHas(ports, port);
+    SysFreeString(application);
+    SysFreeString(ports);
+    return lets;
+}
+
+/* Whether Windows Firewall lets the devices of the network connect to this
+ * program on that TCP port (true when it can't tell). A TV reads the cast
+ * media from VLC's own server: when blocked, it gives up at once. With the
+ * firewall on and blocking by default, that takes a rule for VLC or the
+ * port; Windows may not even ask (its notifications can be off). */
+static bool firewallAllows(long port)
+{
+    wchar_t path[MAX_PATH];
+    const DWORD length = GetModuleFileNameW(nullptr, path, MAX_PATH);
+    if (length == 0 || length >= MAX_PATH)
+        return true;
+
+    const HRESULT init = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    bool allows = true;
+    INetFwPolicy2 *policy = nullptr;
+    if (SUCCEEDED(CoCreateInstance(__uuidof(NetFwPolicy2), nullptr, CLSCTX_INPROC_SERVER,
+                                   __uuidof(INetFwPolicy2), reinterpret_cast<void **>(&policy))))
+    {
+        // the networks connected now (private, public, domain)
+        LONG profiles = 0;
+        policy->get_CurrentProfileTypes(&profiles);
+        bool blocking = false;
+        for (const NET_FW_PROFILE_TYPE2 type : { NET_FW_PROFILE2_DOMAIN, NET_FW_PROFILE2_PRIVATE,
+                                                 NET_FW_PROFILE2_PUBLIC })
+        {
+            VARIANT_BOOL enabled = VARIANT_FALSE, blockAll = VARIANT_FALSE;
+            NET_FW_ACTION inbound = NET_FW_ACTION_ALLOW;
+            if (!(profiles & type) || FAILED(policy->get_FirewallEnabled(type, &enabled))
+             || enabled == VARIANT_FALSE)
+                continue;
+            policy->get_DefaultInboundAction(type, &inbound);
+            policy->get_BlockAllInboundTraffic(type, &blockAll);
+            if (blockAll != VARIANT_FALSE)
+            {
+                blocking = true;
+                profiles = 0;   // no rule lets anything in
+                break;
+            }
+            if (inbound == NET_FW_ACTION_BLOCK)
+                blocking = true;
+        }
+
+        if (blocking)
+        {
+            allows = false;
+            INetFwRules *rules = nullptr;
+            IUnknown *unknown = nullptr;
+            IEnumVARIANT *it = nullptr;
+            if (profiles != 0 && SUCCEEDED(policy->get_Rules(&rules))
+             && SUCCEEDED(rules->get__NewEnum(&unknown))
+             && SUCCEEDED(unknown->QueryInterface(IID_IEnumVARIANT, reinterpret_cast<void **>(&it))))
+            {
+                VARIANT item;
+                VariantInit(&item);
+                ULONG fetched = 0;
+                while (!allows && it->Next(1, &item, &fetched) == S_OK)
+                {
+                    INetFwRule *rule = nullptr;
+                    if (item.vt == VT_DISPATCH && item.pdispVal != nullptr
+                     && SUCCEEDED(item.pdispVal->QueryInterface(__uuidof(INetFwRule),
+                                                                reinterpret_cast<void **>(&rule))))
+                    {
+                        allows = ruleLetsIn(rule, path, port, profiles);
+                        rule->Release();
+                    }
+                    VariantClear(&item);
+                }
+            }
+            if (it)
+                it->Release();
+            if (unknown)
+                unknown->Release();
+            if (rules)
+                rules->Release();
+        }
+        policy->Release();
+    }
+    if (SUCCEEDED(init))
+        CoUninitialize();
+    return allows;
+}
+#endif
 
 using RendererItemPtr = ::vlc::vlc_shared_data_ptr<vlc_renderer_item_t, &vlc_renderer_item_hold, &vlc_renderer_item_release>;
 using vlc_player_locker = vlc_locker<vlc_player_t, vlc_player_Lock, vlc_player_Unlock>;
@@ -65,6 +218,43 @@ public:
     {
         assert(m_player);
         QObject::connect( &m_stop_scan_timer, &QTimer::timeout, q_ptr, [this](){ timerCountdown(); });
+#ifdef _WIN32
+        m_firewallWait.setInterval( 200 );
+        QObject::connect( &m_firewallWait, &QTimer::timeout, q_ptr, [this](){ firewallRuleAdded(); });
+#endif
+
+        // read by the input when it starts casting (InitSout)
+        m_displayHere = p_intf->mainSettings->value( "redesign/cast-display-here", false ).toBool();
+        // devices not to show (by name)
+        m_hidden = p_intf->mainSettings->value( "redesign/cast-hidden-devices" ).toStringList();
+        vlc_object_t *libvlc = VLC_OBJECT( vlc_object_instance( p_intf ) );
+        var_Create( libvlc, "renderer-display", VLC_VAR_BOOL );
+        var_SetBool( libvlc, "renderer-display", m_displayHere );
+        /* The controls of the device while it plays (the renderer's stream
+         * output follows them, see PlayerController): paused, volume (0 to
+         * 100), muted (-1: as it is); its delay behind this computer, for
+         * the picture here; its volume as it says it */
+        var_Create( libvlc, "renderer-paused", VLC_VAR_BOOL );
+        var_Create( libvlc, "renderer-volume", VLC_VAR_INTEGER );
+        var_SetInteger( libvlc, "renderer-volume", -1 );
+        var_Create( libvlc, "renderer-muted", VLC_VAR_INTEGER );
+        var_SetInteger( libvlc, "renderer-muted", -1 );
+        var_Create( libvlc, "renderer-latency", VLC_VAR_INTEGER );
+        var_Create( libvlc, "renderer-volume-device", VLC_VAR_INTEGER );
+        var_SetInteger( libvlc, "renderer-volume-device", -1 );
+        /* where the device is in the media (the input's time, -1: unknown),
+         * said by its stream output as it plays */
+        var_Create( libvlc, "renderer-time", VLC_VAR_INTEGER );
+        var_SetInteger( libvlc, "renderer-time", -1 );
+        /* stopped here: the device stops now (at the end of a media, it
+         * shows what it has first) */
+        var_Create( libvlc, "renderer-stop", VLC_VAR_VOID );
+        /* how the device does, said by its stream output: "connecting",
+         * "playing" or "failed:<why>" (unreachable, unreadable, refused,
+         * stopped, taken), then "|" and the device (its url= or ip= option) */
+        var_Create( libvlc, "renderer-state", VLC_VAR_STRING );
+        var_AddCallback( libvlc, "renderer-volume-device", &deviceVolumeChanged, this );
+        var_AddCallback( libvlc, "renderer-state", &castStateChanged, this );
 
         static struct vlc_player_cbs cbs = {};
         cbs.on_renderer_changed = &player_renderer_changed;
@@ -76,11 +266,101 @@ public:
 
     ~RendererManagerPrivate()
     {
+        var_DelCallback( VLC_OBJECT( vlc_object_instance( p_intf ) ), "renderer-volume-device",
+                         &deviceVolumeChanged, this );
+        var_DelCallback( VLC_OBJECT( vlc_object_instance( p_intf ) ), "renderer-state",
+                         &castStateChanged, this );
+#ifdef _WIN32
+        if (m_firewallProcess)
+            CloseHandle(m_firewallProcess);
+#endif
         if (m_playerListener)
         {
             vlc_player_locker lock{ m_player };
             vlc_player_RemoveListener(m_player, m_playerListener);
         }
+    }
+
+    // the device's volume, said by its stream output (on its thread)
+    static int deviceVolumeChanged( vlc_object_t *, const char *, vlc_value_t,
+                                    vlc_value_t value, void *data )
+    {
+        RendererManagerPrivate *self = static_cast<RendererManagerPrivate *>( data );
+        const int volume = value.i_int;
+        if ( volume >= 0 )
+            QMetaObject::invokeMethod( self->q_func(), [self, volume]() {
+                emit self->q_func()->deviceVolumeReported( volume / 100.f );
+            }, Qt::QueuedConnection );
+        return VLC_SUCCESS;
+    }
+
+    // how the device does, said by its stream output (on its thread)
+    static int castStateChanged( vlc_object_t *, const char *, vlc_value_t,
+                                 vlc_value_t value, void *data )
+    {
+        RendererManagerPrivate *self = static_cast<RendererManagerPrivate *>( data );
+        const QString state = qfu( value.psz_string );
+        QMetaObject::invokeMethod( self->q_func(), [self, state]() {
+            self->onCastState( state );
+        }, Qt::QueuedConnection );
+        return VLC_SUCCESS;
+    }
+
+    // the device it is about plays now (not one cast to before)
+    bool isSelected( const QString &device ) const
+    {
+        if ( !m_selectedItem || device.isEmpty() )
+            return false;
+        const QString sout = qfu( vlc_renderer_item_sout( m_selectedItem.get() ) );
+        return sout.contains( QStringLiteral( "url=" ) + device + QLatin1Char( ',' ) )
+            || sout.contains( QStringLiteral( "url=" ) + device + QLatin1Char( '}' ) )
+            || sout.contains( QStringLiteral( "ip=" ) + device + QLatin1Char( ',' ) )
+            || sout.contains( QStringLiteral( "ip=" ) + device + QLatin1Char( '}' ) );
+    }
+
+    void setCastStatus( RendererManager::CastStatus status, const QString &error )
+    {
+        Q_Q(RendererManager);
+        if ( status == m_castStatus && error == m_castError )
+            return;
+        m_castStatus = status;
+        m_castError = error;
+        emit q->castStatusChanged();
+    }
+
+    void onCastState( const QString &state )
+    {
+        const qsizetype bar = state.indexOf( QLatin1Char( '|' ) );
+        if ( bar < 0 || !isSelected( state.mid( bar + 1 ) ) )
+            return;
+        const QString what = state.left( bar );
+        if ( what == QLatin1String( "connecting" ) )
+            setCastStatus( RendererManager::CastConnecting, {} );
+        else if ( what == QLatin1String( "playing" ) )
+            setCastStatus( RendererManager::CastPlaying, {} );
+        else if ( what.startsWith( QLatin1String( "failed:" ) ) )
+        {
+            const bool wasFailed = m_castStatus == RendererManager::CastFailed;
+            setCastStatus( RendererManager::CastFailed, what.mid( 7 ) );
+            // nothing plays anywhere: the media waits where it is, for the
+            // user to try again or to play it here
+            vlc_player_locker lock{ m_player };
+            if ( !wasFailed && vlc_player_GetState( m_player ) == VLC_PLAYER_STATE_PLAYING )
+            {
+                vlc_player_Pause( m_player );
+                m_pausedForFailure = true;
+            }
+        }
+    }
+
+    // the user chose where it plays: what waited after a failure goes on
+    void resumeAfterFailure()
+    {
+        if ( !m_pausedForFailure )
+            return;
+        m_pausedForFailure = false;
+        vlc_player_locker lock{ m_player };
+        vlc_player_Resume( m_player );
     }
 
     void timerCountdown()
@@ -107,8 +387,24 @@ public:
     }
 
 
+    // a device not to show: by its name, with or without its model after
+    // it ("Living Room TV (Chromecast Ultra)", as mDNS names it)
+    bool isHidden(const QString &name) const
+    {
+        for (const QString &hidden : m_hidden)
+        {
+            const QString h = hidden.trimmed();
+            if (!h.isEmpty() && (name.compare(h, Qt::CaseInsensitive) == 0
+                                 || name.startsWith(h + QStringLiteral(" ("), Qt::CaseInsensitive)))
+                return true;
+        }
+        return false;
+    }
+
     void onRendererAdded(const RendererItemPtr& renderItem) {
         Q_Q(RendererManager);
+        if (isHidden(qfu(vlc_renderer_item_name(renderItem.get()))))
+            return;
         QString key = getItemKey(renderItem);
         if( !m_items.contains( key ) )
         {
@@ -122,6 +418,17 @@ public:
             /* mark the item as seen during this scan */
             ItemEntry& entry = m_items[key];
             entry.currentScan = true;
+            /* the same device found the other way: the longer name (with
+             * its model) shows; the one playing stays */
+            const QString known = qfu(vlc_renderer_item_name(entry.renderItem.get()));
+            const QString found = qfu(vlc_renderer_item_name(renderItem.get()));
+            if (entry.renderItem != m_selectedItem && found.size() > known.size()
+                && found.startsWith(known))
+            {
+                entry.renderItem = renderItem;
+                const auto row = q->index(m_itemsIndex.indexOf(key));
+                emit q->dataChanged(row, row);
+            }
         }
     }
 
@@ -182,14 +489,78 @@ public:
                 emit q->endInsertRows();
             }
         }
+        setCastStatus( renderItem ? RendererManager::CastConnecting : RendererManager::CastIdle, {} );
         emit q->useRendererChanged();
+        checkFirewall();
     }
 
+    // can the device read from VLC (see firewallAllows)
+    void checkFirewall()
+    {
+        Q_Q(RendererManager);
+        bool blocked = false;
+#ifdef _WIN32
+        if (m_selectedItem)
+        {
+            // the port of the server the device reads from
+            const char *type = vlc_renderer_item_type(m_selectedItem.get());
+            const char *option = !strcmp(type, "stream_out_dlna") ? "sout-dlna-http-port"
+                               : !strcmp(type, "chromecast") ? "sout-chromecast-http-port"
+                               : nullptr;
+            if (option && config_FindConfig(option))
+                blocked = !firewallAllows(config_GetInt(option));
+        }
+#endif
+        if (blocked == m_firewallBlocked)
+            return;
+        m_firewallBlocked = blocked;
+        emit q->firewallChanged();
+        emit q->castStatusChanged();    // (its message)
+    }
+
+#ifdef _WIN32
+    // netsh (allowFirewall) is done: cast again if the device can connect now
+    void firewallRuleAdded()
+    {
+        Q_Q(RendererManager);
+        if (WaitForSingleObject(m_firewallProcess, 0) != WAIT_OBJECT_0)
+            return;
+        m_firewallWait.stop();
+        CloseHandle(m_firewallProcess);
+        m_firewallProcess = nullptr;
+        m_firewallAllowing = false;
+        emit q->firewallChanged();
+
+        checkFirewall();
+        if (m_firewallBlocked || !m_selectedItem)
+            return;
+        // the device gave up reading: it starts again from where it is
+        q->retry();
+    }
+#endif
+
+    // A device: a Chromecast by its address (its name differs with the way
+    // it was found), the others by their output
     QString getItemKey(const RendererItemPtr& item) const
     {
         const char* type = vlc_renderer_item_type(item.get());
-        const char* sout = vlc_renderer_item_sout(item.get());
+        const QString sout = qfu(vlc_renderer_item_sout(item.get()));
+        if (!strcmp(type, "chromecast"))
+        {
+            static const QRegularExpression addressRe(QStringLiteral(R"re([{,]ip=([^,}]+)(?:.*[{,]port=(\d+))?)re"));
+            const QRegularExpressionMatch m = addressRe.match(sout);
+            if (m.hasMatch())
+                return QStringLiteral("chromecast-%1:%2").arg(m.captured(1), m.captured(2));
+        }
         return QString("%1-%2").arg(type).arg(sout);
+    }
+
+    // The device playing stops at once (another one is chosen, or this
+    // computer): its output does not wait for it to show what it has
+    void stopCurrent()
+    {
+        if (m_selectedItem)
+            var_TriggerCallback(VLC_OBJECT(vlc_object_instance(p_intf)), "renderer-stop");
     }
 
     int getItemRow(const RendererItemPtr& item) const
@@ -218,6 +589,20 @@ public:
 
     //model automatically stops scanning after a while
     QTimer m_stop_scan_timer;
+
+    bool m_firewallBlocked = false;
+    bool m_firewallAllowing = false;
+    bool m_displayHere = false;
+    RendererManager::CastStatus m_castStatus = RendererManager::CastIdle;
+    // why it failed (see "renderer-state")
+    QString m_castError;
+    // paused when the device failed, until the user chooses
+    bool m_pausedForFailure = false;
+    QStringList m_hidden;
+#ifdef _WIN32
+    HANDLE m_firewallProcess = nullptr;
+    QTimer m_firewallWait;
+#endif
     //remaining time in seconds
     unsigned m_scan_remain = 0;
 
@@ -231,11 +616,58 @@ void RendererManager::disableRenderer()
     if (!d->m_selectedItem)
         return;
 
+    d->stopCurrent();
     {
         vlc_player_locker lock{ d->m_player };
         //vlc_player synchronously report the renderer change
         vlc_player_SetRenderer( d->m_player, nullptr );
     }
+    d->resumeAfterFailure();
+}
+
+// The same device again: the input makes its output again (a new stream,
+// from where the media is), without playing here in between (nor this
+// computer's volume going to the device)
+void RendererManager::retry()
+{
+    Q_D(RendererManager);
+    if (!d->m_selectedItem)
+        return;
+    RendererItemPtr item = d->m_selectedItem;
+    d->setCastStatus( CastConnecting, {} );
+    d->stopCurrent();
+    {
+        vlc_player_locker lock{ d->m_player };
+        vlc_player_SetRenderer( d->m_player, item.get() );
+    }
+    d->resumeAfterFailure();
+}
+
+RendererManager::CastStatus RendererManager::castStatus() const
+{
+    Q_D(const RendererManager);
+    return d->m_castStatus;
+}
+
+QString RendererManager::castMessage() const
+{
+    Q_D(const RendererManager);
+    const QString name = rendererName();
+    if (d->m_castStatus != CastFailed)
+        return {};
+    if (d->m_castError == QLatin1String("unreachable"))
+        return qtr("%1 doesn't answer. Check that it's on, and on the same network as this computer.").arg(name);
+    if (d->m_castError == QLatin1String("unreadable"))
+        return d->m_firewallBlocked
+            ? qtr("Windows Firewall doesn't let %1 connect to this computer to read the video.").arg(name)
+            : qtr("%1 couldn't read the video from this computer.").arg(name);
+    if (d->m_castError == QLatin1String("refused"))
+        return qtr("%1 refused to play this video.").arg(name);
+    if (d->m_castError == QLatin1String("stopped"))
+        return qtr("%1 stopped playing.").arg(name);
+    if (d->m_castError == QLatin1String("taken"))
+        return qtr("%1 is playing something else now.").arg(name);
+    return qtr("%1 couldn't play the video.").arg(name);
 }
 
 QVariant RendererManager::data(const QModelIndex &index, int role) const
@@ -299,6 +731,10 @@ bool RendererManager::setData(const QModelIndex &index, const QVariant &value, i
             enableRenderer = value.toBool();
         else
             return false;
+        // already playing there: nothing to do
+        if ( enableRenderer && entry.renderItem == d->m_selectedItem )
+            return true;
+        d->stopCurrent();
 
         {
             vlc_player_locker lock{ d->m_player };
@@ -308,6 +744,7 @@ bool RendererManager::setData(const QModelIndex &index, const QVariant &value, i
                 enableRenderer ? entry.renderItem.get() : nullptr
             );
         }
+        d->resumeAfterFailure();
         return true;
     }
     default:
@@ -321,9 +758,10 @@ QHash<int,QByteArray> RendererManager::roleNames() const
         { NAME, QByteArrayLiteral("name") },
         { TYPE, QByteArrayLiteral("type") },
         { DEMUX_FILTER, QByteArrayLiteral("demuxFilter") },
-        { SOUT, QByteArrayLiteral("sour") },
+        { SOUT, QByteArrayLiteral("sout") },
         { ICON_URI, QByteArrayLiteral("iconUri") },
         { FLAGS, QByteArrayLiteral("flags") },
+        { SELECTED, QByteArrayLiteral("selected") },
     };
 }
 
@@ -340,7 +778,7 @@ static void renderer_event_item_added( vlc_renderer_discovery_t* p_rd, vlc_rende
     RendererItemPtr renderItem(p_item);
     QMetaObject::invokeMethod(self->q_func(), [self, renderItem = std::move(renderItem)](){
         self->onRendererAdded(renderItem);
-    });
+    }, Qt::QueuedConnection);
 }
 
 static void renderer_event_item_removed( vlc_renderer_discovery_t *p_rd,
@@ -350,16 +788,19 @@ static void renderer_event_item_removed( vlc_renderer_discovery_t *p_rd,
     RendererItemPtr renderItem(p_item);
     QMetaObject::invokeMethod(self->q_func(), [self, renderItem = std::move(renderItem)](){
         self->onRendererRemoved(renderItem);
-    });
+    }, Qt::QueuedConnection);
 }
 
+// The player calls with its lock taken, and on the interface thread itself
+// when the renderer is set from here (vlc_player_SetRenderer): queued, so
+// the interface does not read the player (locking it again) from in there
 static void player_renderer_changed(vlc_player_t *, vlc_renderer_item_t *new_item, void *data)
 {
     RendererManagerPrivate *self = reinterpret_cast<RendererManagerPrivate*>( data);
     RendererItemPtr renderItem(new_item);
     QMetaObject::invokeMethod(self->q_func(), [self, renderItem = std::move(renderItem)](){
         self->onPlayerRendererChanged(renderItem);
-    });
+    }, Qt::QueuedConnection);
 }
 
 RendererManager::RendererManager( qt_intf_t *p_intf_, vlc_player_t* player )
@@ -382,6 +823,97 @@ RendererManager::RendererStatus RendererManager::getStatus() const
 {
     Q_D(const RendererManager);
     return d->m_status;
+}
+
+void RendererManager::select(int row)
+{
+    if (row >= 0 && row < rowCount())
+        setData(index(row), true, SELECTED);
+}
+
+QString RendererManager::rendererName() const
+{
+    Q_D(const RendererManager);
+    return d->m_selectedItem ? qfu(vlc_renderer_item_name(d->m_selectedItem.get())) : QString();
+}
+
+bool RendererManager::rendererVideo() const
+{
+    Q_D(const RendererManager);
+    return d->m_selectedItem
+        && (vlc_renderer_item_flags(d->m_selectedItem.get()) & VLC_RENDERER_CAN_VIDEO);
+}
+
+bool RendererManager::firewallBlocked() const
+{
+    Q_D(const RendererManager);
+    return d->m_firewallBlocked;
+}
+
+bool RendererManager::firewallAllowing() const
+{
+    Q_D(const RendererManager);
+    return d->m_firewallAllowing;
+}
+
+bool RendererManager::displayHereAvailable() const
+{
+    Q_D(const RendererManager);
+    return !d->m_selectedItem
+        || !strcmp( vlc_renderer_item_type( d->m_selectedItem.get() ), "stream_out_dlna" );
+}
+
+bool RendererManager::displayHere() const
+{
+    Q_D(const RendererManager);
+    return d->m_displayHere;
+}
+
+void RendererManager::setDisplayHere(bool display)
+{
+    Q_D(RendererManager);
+    if (display == d->m_displayHere)
+        return;
+    d->m_displayHere = display;
+    d->p_intf->mainSettings->setValue( "redesign/cast-display-here", display );
+    var_SetBool( VLC_OBJECT( vlc_object_instance( d->p_intf ) ), "renderer-display", display );
+    emit displayHereChanged();
+
+    // (casting: a DLNA device's output follows the variable, it goes on; a
+    // Chromecast has no picture here)
+}
+
+void RendererManager::allowFirewall()
+{
+#ifdef _WIN32
+    Q_D(RendererManager);
+    if (d->m_firewallAllowing)
+        return;
+    wchar_t path[MAX_PATH];
+    const DWORD length = GetModuleFileNameW(nullptr, path, MAX_PATH);
+    if (length == 0 || length >= MAX_PATH)
+        return;
+
+    // A rule for this program, on the private and domain networks only.
+    // Windows asks for an administrator's approval (declined: nothing).
+    const std::wstring parameters =
+        L"advfirewall firewall add rule name=\"VLC Redesign\" dir=in action=allow program=\""
+        + std::wstring(path) + L"\" enable=yes profile=private,domain";
+    SHELLEXECUTEINFOW info = {};
+    info.cbSize = sizeof(info);
+    info.fMask = SEE_MASK_NOCLOSEPROCESS;
+    info.lpVerb = L"runas";
+    info.lpFile = L"netsh.exe";
+    info.lpParameters = parameters.c_str();
+    info.nShow = SW_HIDE;
+    if (!ShellExecuteExW(&info) || !info.hProcess)
+        return;
+
+    d->m_firewallProcess = info.hProcess;
+    d->m_firewallAllowing = true;
+    emit firewallChanged();
+    d->m_firewallWait.start();
+#endif
 }
 
 bool RendererManager::useRenderer() const

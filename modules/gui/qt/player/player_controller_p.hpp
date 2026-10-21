@@ -62,6 +62,8 @@ public:
     void UpdateSpuOrder(vlc_es_id_t *es_id, enum vlc_vout_order spu_order);
     int interpolateTime(vlc_tick_t system_now);
     bool isCurrentItemSynced();
+    void castVolume( float volume );
+    float castMaxVolume() const;
 
     // Lazily reads m_syltRaw (the raw sylt-data buffer captured during
     // UpdateMeta) into a list of TimedText entries. The cache is
@@ -147,6 +149,13 @@ public:
     bool seeking = false;
     QTimer m_position_timer;
     QTimer m_time_timer;
+    // Casting: this computer's volume and mute before (-1: none), back
+    // after; where the device is in the media, said by its stream output
+    // ("renderer-time", when it was)
+    float m_localVolume = -1.f;
+    bool m_localMuted = false;
+    vlc_tick_t m_castTime = VLC_TICK_INVALID;
+    vlc_tick_t m_castTimeDate = VLC_TICK_INVALID;
 
     //title/chapters/menu
     TitleListModel m_titleList;

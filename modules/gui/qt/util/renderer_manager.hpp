@@ -35,6 +35,16 @@ public:
     };
     Q_ENUM(RendererStatus)
 
+    // how the device does with the media it was given
+    enum CastStatus
+    {
+        CastIdle,
+        CastConnecting,
+        CastPlaying,
+        CastFailed,
+    };
+    Q_ENUM(CastStatus)
+
     enum Roles {
         NAME = Qt::UserRole,
         TYPE,
@@ -49,12 +59,38 @@ public:
     Q_PROPERTY(int scanRemain READ getScanRemain NOTIFY scanRemainChanged FINAL)
     Q_PROPERTY(RendererStatus status READ getStatus NOTIFY statusChanged FINAL)
     Q_PROPERTY(bool useRenderer READ useRenderer NOTIFY useRendererChanged FINAL)
+    // the device the media plays on, empty on this computer
+    Q_PROPERTY(QString rendererName READ rendererName NOTIFY useRendererChanged FINAL)
+    // whether it shows the video (a TV), or plays the sound only (a speaker)
+    Q_PROPERTY(bool rendererVideo READ rendererVideo NOTIFY useRendererChanged FINAL)
+    // the device reads the media from VLC, and Windows Firewall does not let
+    // it connect (allowFirewall)
+    Q_PROPERTY(bool firewallBlocked READ firewallBlocked NOTIFY firewallChanged FINAL)
+    // waiting for Windows to add the rule
+    Q_PROPERTY(bool firewallAllowing READ firewallAllowing NOTIFY firewallChanged FINAL)
+    // the picture here too while it plays on the device (without the sound)
+    Q_PROPERTY(bool displayHere READ displayHere WRITE setDisplayHere NOTIFY displayHereChanged FINAL)
+    // the device playing can have the picture here too (a DLNA TV: its
+    // output shows it in step with it; not a Chromecast)
+    Q_PROPERTY(bool displayHereAvailable READ displayHereAvailable NOTIFY useRendererChanged FINAL)
+    // connecting, playing there, or it failed (castMessage says why: then
+    // retry, or play here)
+    Q_PROPERTY(CastStatus castStatus READ castStatus NOTIFY castStatusChanged FINAL)
+    Q_PROPERTY(QString castMessage READ castMessage NOTIFY castStatusChanged FINAL)
 
 public:
     RendererManager( qt_intf_t* intf, vlc_player_t* player );
     virtual ~RendererManager();
 
-    void disableRenderer();
+    // back to this computer
+    Q_INVOKABLE void disableRenderer();
+    // plays on the device of that row
+    Q_INVOKABLE void select(int row);
+    // asks Windows (administrator approval) to let the devices of the private
+    // networks connect to VLC, then casts again
+    Q_INVOKABLE void allowFirewall();
+    // the device failed: casts to it again, from where the media is
+    Q_INVOKABLE void retry();
 
 public slots:
     void StartScan();
@@ -72,10 +108,24 @@ public:
     int getScanRemain() const;
     RendererStatus getStatus() const;
     bool useRenderer() const;
+    QString rendererName() const;
+    bool rendererVideo() const;
+    bool firewallBlocked() const;
+    bool firewallAllowing() const;
+    bool displayHere() const;
+    void setDisplayHere(bool display);
+    bool displayHereAvailable() const;
+    CastStatus castStatus() const;
+    QString castMessage() const;
 signals:
     void statusChanged();
     void scanRemainChanged();
     void useRendererChanged();
+    void firewallChanged();
+    void displayHereChanged();
+    void castStatusChanged();
+    // the volume of the device (0 to 1), when it says it as casting starts
+    void deviceVolumeReported(float volume);
 
 private:
     Q_DECLARE_PRIVATE(RendererManager);

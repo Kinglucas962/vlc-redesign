@@ -175,6 +175,8 @@
         <file alias="icons/hotkeys/default.png">pixmaps/redesign/icons/hotkeys/default.png</file>
         <file alias="icons/edit/default.png">pixmaps/redesign/icons/edit/default.png</file>
         <file alias="icons/PiP/default.png">pixmaps/redesign/icons/PiP/default.png</file>
+        <file alias="icons/cast/default.png">pixmaps/redesign/icons/cast/default.png</file>
+        <file alias="icons/cast/large.png">pixmaps/redesign/icons/cast/large.png</file>
         <file alias="icons/artist/default.png">pixmaps/redesign/icons/artist/default.png</file>
         <file alias="icons/ui/default.png">pixmaps/redesign/icons/ui/default.png</file>
         <file alias="icons/close/default.png">pixmaps/redesign/icons/close/default.png</file>
