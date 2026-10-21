@@ -2173,6 +2173,10 @@ vlc_player_New(vlc_object_t *parent, enum vlc_player_lock_type lock_type)
 #undef VAR_CREATE
 
     player->resource = input_resource_New(VLC_OBJECT(player));
+    /* for a "display" stream output of the player (the picture here too
+     * while casting): the player's video window, not one of its own */
+    var_Create(player, "player-resource", VLC_VAR_ADDRESS);
+    var_SetAddress(player, "player-resource", player->resource);
 
     if (!player->resource)
         goto error;

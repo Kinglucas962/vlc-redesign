@@ -103,6 +103,13 @@ VLC_API int  vlc_input_decoder_SetSpuHighlight( vlc_input_decoder_t *, const vlc
 VLC_API void vlc_input_decoder_ChangeDelay( vlc_input_decoder_t *, vlc_tick_t i_delay );
 
 /**
+ * This function changes the pause state.
+ * The date parameter MUST hold the exact date at which the change has been
+ * done for proper vout/aout pausing.
+ */
+VLC_API void vlc_input_decoder_ChangePause( vlc_input_decoder_t *, bool b_paused, vlc_tick_t i_date );
+
+/**
  * It creates an empty input resource handler.
  *
  * The given object MUST stay alive as long as the input_resource_t is
@@ -114,6 +121,11 @@ VLC_API input_resource_t * input_resource_New( vlc_object_t * ) VLC_USED;
  * It releases an input resource.
  */
 VLC_API void input_resource_Release( input_resource_t * );
+
+/**
+ * This function holds the input_resource_t itself
+ */
+VLC_API input_resource_t *input_resource_Hold( input_resource_t * );
 
 /** @} */
 #endif

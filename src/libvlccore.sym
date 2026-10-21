@@ -171,6 +171,7 @@ httpd_RedirectDelete
 httpd_RedirectNew
 httpd_ServerIP
 httpd_StreamDelete
+httpd_StreamFromStart
 httpd_StreamHeader
 httpd_StreamNew
 httpd_StreamSend
@@ -191,6 +192,7 @@ vlc_input_decoder_IsDrained
 vlc_input_decoder_Flush
 vlc_input_decoder_SetSpuHighlight
 vlc_input_decoder_ChangeDelay
+vlc_input_decoder_ChangePause
 input_item_AddInfo
 input_item_AddOption
 input_item_AddOptions
@@ -239,6 +241,7 @@ input_item_parser_id_Release
 input_item_GetMetaExtra
 input_item_GetMetaExtraNames
 input_item_SetMetaExtra
+input_resource_Hold
 input_resource_New
 input_resource_Release
 vlc_readdir_helper_init
@@ -379,6 +382,7 @@ sout_StreamControlVa
 sout_ClockMainCreate
 sout_ClockMainDelete
 sout_ClockMainSetFirstPcr
+sout_ClockMainChangePause
 sout_ClockCreate
 sout_ClockDelete
 spu_Create

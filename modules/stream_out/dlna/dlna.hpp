@@ -29,6 +29,7 @@
 #include "profile_names.hpp"
 
 #include <sstream>
+#include <map>
 #include <iomanip>
 
 struct protocol_info_t {
@@ -96,6 +97,12 @@ const protocol_info_t default_video_protocol = {
     default_video_profile,
 };
 
+const protocol_info_t transcode_video_protocol = {
+    DLNA_TRANSPORT_PROTOCOL_HTTP,
+    DLNA_ORG_CONVERSION_TRANSCODED,
+    transcode_video_profile,
+};
+
 namespace DLNA
 {
 
@@ -122,6 +129,12 @@ public:
     std::string         ConnectionID;
     std::string         AVTransportID;
     std::string         RcsID;
+    /* the service URLs of its description, downloaded once */
+    std::map<std::string, std::string> service_urls;
+
+    /* how the last action went: 0, the device's error (UPnP, > 0), or the
+     * network's (< 0: it did not answer) */
+    int                 last_error = 0;
 
     char *getServiceURL(const char* type, const char* service);
     IXML_Document *SendAction(const char* action_name, const char *service_type,
@@ -129,6 +142,17 @@ public:
 
     int Play(const char *speed);
     int Stop();
+    int Pause();
+    /* where it is in the stream it plays, to the second (VLC_TICK_INVALID
+     * when it does not say) */
+    vlc_tick_t GetPosition(vlc_tick_t *resolution);
+    /* what it does: PLAYING, PAUSED_PLAYBACK, TRANSITIONING, STOPPED,
+     * NO_MEDIA_PRESENT ("" when it does not say, see last_error) */
+    std::string GetTransportState();
+    /* its volume, 0 to 100 (-1 when it does not say) */
+    int GetVolume();
+    int SetVolume(int volume);
+    int SetMute(bool mute);
     std::vector<protocol_info_t> GetProtocolInfo();
     int PrepareForConnection(const char* protocol_str);
     int ConnectionComplete();

@@ -394,6 +394,12 @@ struct vlc_sout_clock_bus;
 VLC_API struct vlc_sout_clock_bus *sout_ClockMainCreate(sout_stream_t *) VLC_USED;
 VLC_API void sout_ClockMainDelete(struct vlc_sout_clock_bus *);
 VLC_API void sout_ClockMainSetFirstPcr(struct vlc_sout_clock_bus *, vlc_tick_t pcr);
+/**
+ * Pause or resume the clock (its decoders must be paused too): once resumed,
+ * the frames are as late as the pause was long.
+ */
+VLC_API void sout_ClockMainChangePause(struct vlc_sout_clock_bus *, vlc_tick_t date,
+                                       bool paused);
 VLC_API vlc_clock_t *sout_ClockCreate(struct vlc_sout_clock_bus *, const es_format_t *) VLC_USED;
 VLC_API void sout_ClockDelete(vlc_clock_t *);
 

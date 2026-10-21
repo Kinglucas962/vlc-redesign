@@ -47,8 +47,10 @@
 
 #define RENDERER_CFG_PREFIX "sout-renderer-"
 
+/* No question before converting a video for a TV: a computer converts it
+ * in real time, and the question stops the casting until it is answered */
 #define add_renderer_opts(prefix) \
-    add_integer(RENDERER_CFG_PREFIX "show-perf-warning", 1, \
+    add_integer(RENDERER_CFG_PREFIX "show-perf-warning", 0, \
             PERF_TEXT, PERF_LONGTEXT ) \
         change_private() \
     add_bool(prefix "audio-passthrough", false, \

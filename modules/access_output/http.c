@@ -60,6 +60,10 @@ static void Close( vlc_object_t * );
 #define METACUBE_TEXT N_("Metacube")
 #define METACUBE_LONGTEXT N_("Use the Metacube protocol. Needed for streaming " \
                              "to the Cubemap reflector.")
+#define DLNA_TEXT N_("DLNA content features")
+#define DLNA_LONGTEXT N_("Answer with the headers of a DLNA media server, " \
+                         "with these content features: a TV reading the " \
+                         "stream may refuse it without them.")
 
 
 vlc_module_begin ()
@@ -75,6 +79,8 @@ vlc_module_begin ()
                 MIME_TEXT, MIME_LONGTEXT )
     add_bool( SOUT_CFG_PREFIX "metacube", false,
               METACUBE_TEXT, METACUBE_LONGTEXT )
+    add_string( SOUT_CFG_PREFIX "dlna", NULL, DLNA_TEXT, DLNA_LONGTEXT )
+        change_private()
     set_callbacks( Open, Close )
 vlc_module_end ()
 
@@ -83,7 +89,7 @@ vlc_module_end ()
  * Exported prototypes
  *****************************************************************************/
 static const char *const ppsz_sout_options[] = {
-    "user", "pwd", "mime", "metacube", NULL
+    "user", "pwd", "mime", "metacube", "dlna", NULL
 };
 
 static ssize_t Write( sout_access_out_t *, block_t * );
@@ -271,13 +277,28 @@ static int Open( vlc_object_t *p_this )
         return VLC_EGENERIC;
     }
 
+    httpd_header headers[3];
+    size_t i_headers = 0;
     if( p_sys->b_metacube )
+        headers[i_headers++] = (httpd_header){ (char *)"Content-encoding",
+                                               (char *)"metacube" };
+    /* a DLNA renderer (a TV) reading the stream wants to know it is one,
+     * live (no seeking) */
+    char *psz_dlna = var_GetNonEmptyString( p_access, SOUT_CFG_PREFIX "dlna" );
+    if( psz_dlna != NULL )
     {
-        const httpd_header headers[] = {
-            { (char *)"Content-encoding", (char *)"metacube" }
-        };
+        headers[i_headers++] = (httpd_header){ (char *)"transferMode.dlna.org",
+                                               (char *)"Streaming" };
+        headers[i_headers++] = (httpd_header){ (char *)"contentFeatures.dlna.org",
+                                               psz_dlna };
+        /* it connects once told to play the stream: from its start */
+        httpd_StreamFromStart( p_sys->p_httpd_stream );
+    }
+    if( i_headers > 0 )
+    {
         int err = httpd_StreamSetHTTPHeaders( p_sys->p_httpd_stream, headers,
-                                              ARRAY_SIZE(headers) );
+                                              i_headers );
+        free( psz_dlna );
         if( err != VLC_SUCCESS )
         {
             free( p_sys );

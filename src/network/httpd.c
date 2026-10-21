@@ -173,6 +173,14 @@ struct httpd_client_t
  * Various functions
  *****************************************************************************/
 
+/* How long a client may stay without reading or sending: a client of a
+ * stream (a TV, a Chromecast) stops reading for as long as its buffer is
+ * full, and gets nothing while the media is paused (the stream waits): it
+ * is not gone for that, however long (a connection that broke ends with an
+ * error when the stream sends again) */
+static vlc_tick_t httpd_ClientTimeout(const struct httpd_host_t *host,
+                                      const httpd_client_t *cl);
+
 static int cmp_code(const void *k, const void *e)
 {
     const unsigned *code = k;
@@ -649,6 +657,11 @@ struct httpd_stream_t
     int64_t     i_buffer_pos;       /* absolute position from beginning */
     int64_t     i_buffer_last_pos;  /* a new connection will start with that */
 
+    /* new clients get the start, while it is in the buffer, in the seconds
+     * after the first one connected (httpd_StreamFromStart) */
+    bool        b_from_start;
+    vlc_tick_t  i_first_client;
+
     /* custom headers */
     size_t        i_http_headers;
     httpd_header * p_http_headers;
@@ -742,9 +755,24 @@ static int httpd_StreamCallBack(httpd_callback_sys_t *p_sys,
                 cl->i_keyframe_wait_to_pass = stream->i_last_keyframe_seen_pos;
             else
                 cl->i_keyframe_wait_to_pass = -1;
+            /* a renderer connecting as the stream starts (some connect
+             * twice): from the first byte */
+            if (stream->b_from_start
+             && stream->i_buffer_pos - 1 <= stream->i_buffer_size)
+            {
+                const vlc_tick_t now = vlc_tick_now();
+                if (stream->i_first_client == VLC_TICK_INVALID)
+                    stream->i_first_client = now;
+                if (now - stream->i_first_client < VLC_TICK_FROM_SEC(10))
+                {
+                    answer->i_body_offset = 1;
+                    cl->i_keyframe_wait_to_pass = -1;
+                }
+            }
             vlc_mutex_unlock(&stream->lock);
         } else {
-            httpd_MsgAdd(answer, "Content-Length", "0");
+            /* no length for a live stream: "0" made TVs (Samsung) take it
+             * for an empty file and refuse to play it */
             answer->i_body_offset = 0;
         }
 
@@ -816,6 +844,8 @@ httpd_stream_t *httpd_StreamNew(httpd_host_t *host,
     stream->i_buffer_last_pos = 1;
     stream->b_has_keyframes = false;
     stream->i_last_keyframe_seen_pos = 0;
+    stream->b_from_start = false;
+    stream->i_first_client = VLC_TICK_INVALID;
     stream->i_http_headers = 0;
     stream->p_http_headers = NULL;
 
@@ -837,6 +867,24 @@ error:
     free(stream);
 
     return NULL;
+}
+
+void httpd_StreamFromStart(httpd_stream_t *stream)
+{
+    vlc_mutex_lock(&stream->lock);
+    /* the seconds before the renderer connects, at a good bitrate */
+    const int i_size = 32000000;
+    if (stream->i_buffer_pos == 1 && stream->i_buffer_size < i_size)
+    {
+        uint8_t *p_buffer = realloc(stream->p_buffer, i_size);
+        if (p_buffer != NULL)
+        {
+            stream->p_buffer = p_buffer;
+            stream->i_buffer_size = i_size;
+        }
+    }
+    stream->b_from_start = true;
+    vlc_mutex_unlock(&stream->lock);
 }
 
 int httpd_StreamHeader(httpd_stream_t *stream, uint8_t *p_data, int i_data)
@@ -1731,6 +1779,14 @@ auth_failed:
     return false;
 }
 
+static vlc_tick_t httpd_ClientTimeout(const struct httpd_host_t *host,
+                                      const httpd_client_t *cl)
+{
+    if (cl->b_stream_mode)
+        return VLC_TICK_FROM_SEC(24 * 3600);
+    return VLC_TICK_FROM_SEC(host->timeout_sec);
+}
+
 static void httpdLoop(httpd_host_t *host)
 {
     struct pollfd ufd[host->nfd + host->client_count];
@@ -1766,13 +1822,16 @@ static void httpdLoop(httpd_host_t *host)
 
         if (cl->i_state == HTTPD_CLIENT_DEAD
          || (host->timeout_sec > 0 && cl->i_timeout_date < now)) {
+            msg_Dbg(host, "client gone (%s), %"PRId64" bytes sent",
+                    cl->i_state == HTTPD_CLIENT_DEAD ? "closed" : "timeout",
+                    cl->answer.i_body_offset);
             host->client_count--;
             httpd_ClientDestroy(cl);
             continue;
         }
 
         if (val == 0) {
-            cl->i_timeout_date = now + VLC_TICK_FROM_SEC(host->timeout_sec);
+            cl->i_timeout_date = now + httpd_ClientTimeout(host, cl);
             delay = 0;
         }
 
@@ -1797,6 +1856,15 @@ static void httpdLoop(httpd_host_t *host)
                 httpd_message_t *query  = &cl->query;
 
                 httpd_MsgInit(answer);
+
+                /* what a client asks (a TV reading a stream is picky) */
+                const char *psz_range = httpd_MsgGet(query, "Range");
+                const char *psz_features = httpd_MsgGet(query, "getcontentFeatures.dlna.org");
+                const char *psz_agent = httpd_MsgGet(query, "User-Agent");
+                msg_Dbg(host, "request %d %s HTTP/1.%d, range %s, content features %s, agent %s",
+                        query->i_type, query->psz_url ? query->psz_url : "",
+                        query->i_version, psz_range ? psz_range : "-",
+                        psz_features ? psz_features : "-", psz_agent ? psz_agent : "-");
 
                 /* Handle what we received */
                 switch (query->i_type) {

@@ -142,6 +142,14 @@ VLC_API void httpd_StreamDelete( httpd_stream_t * );
 VLC_API int httpd_StreamHeader( httpd_stream_t *, uint8_t *p_data, int i_data );
 VLC_API int httpd_StreamSend( httpd_stream_t *, const block_t *p_block );
 VLC_API int httpd_StreamSetHTTPHeaders(httpd_stream_t *, const httpd_header *, size_t);
+/**
+ * Clients connecting in the first seconds of the stream get it from its
+ * first byte, instead of from what is being sent: a renderer told to play
+ * the stream, which connects a moment later, misses nothing of it (and its
+ * position in the stream is the time since its start). To be called before
+ * anything is sent: the buffer grows for it.
+ */
+VLC_API void httpd_StreamFromStart(httpd_stream_t *);
 
 /* Msg functions facilities */
 VLC_API void httpd_MsgAdd( httpd_message_t *, const char *psz_name, const char *psz_value, ... ) VLC_FORMAT( 3, 4 );

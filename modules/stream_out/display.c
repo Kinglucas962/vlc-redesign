@@ -35,6 +35,7 @@
 #include <vlc_frame.h>
 #include <vlc_plugin.h>
 #include <vlc_sout.h>
+#include <vlc_vector.h>
 
 /*****************************************************************************
  * Module descriptor
@@ -75,6 +76,8 @@ static const char *const ppsz_sout_options[] = {
     "audio", "video", "delay", NULL
 };
 
+typedef struct sout_stream_id_sys_t sout_stream_id_sys_t;
+
 typedef struct
 {
     bool b_audio;
@@ -83,16 +86,73 @@ typedef struct
     vlc_tick_t i_delay;
     input_resource_t *p_resource;
 
+    /* Casting with the picture here too: it shows what the renderer shows
+     * when it does. The renderer's output says by how much the renderer is
+     * behind the times of its stream ("renderer-latency" of libvlc): the
+     * frames here are that much later, less what this display waits by
+     * itself (Send). It pauses with the renderer ("renderer-paused"). The
+     * lock guards these and the decoders' list. */
+    vlc_object_t *libvlc;
+    vlc_mutex_t lock;
+    vlc_tick_t latency;
+    bool paused;
+    struct VLC_VECTOR(sout_stream_id_sys_t *) ids;
+
     struct vlc_sout_clock_bus *main_clock;
     bool first_pcr_signaled;
+    bool reanchor;
     bool error;
 } sout_stream_sys_t;
 
-typedef struct
+struct sout_stream_id_sys_t
 {
     vlc_input_decoder_t *dec;
     vlc_clock_t *clock;
-} sout_stream_id_sys_t;
+};
+
+/* What a frame waits here before it shows, past its time: the clock's
+ * margin for the input (DEFAULT_PTS_DELAY) and the delay of the decoders */
+static vlc_tick_t LocalDelay( const sout_stream_sys_t *p_sys )
+{
+    return DEFAULT_PTS_DELAY
+         + ( p_sys->i_delay != VLC_TICK_INVALID ? p_sys->i_delay : 0 );
+}
+
+static int LatencyChanged( vlc_object_t *obj, char const *var, vlc_value_t old,
+                           vlc_value_t cur, void *data )
+{
+    VLC_UNUSED(obj); VLC_UNUSED(var); VLC_UNUSED(old);
+    sout_stream_sys_t *p_sys = data;
+
+    vlc_mutex_lock( &p_sys->lock );
+    p_sys->latency = VLC_TICK_FROM_MS( cur.i_int );
+    vlc_mutex_unlock( &p_sys->lock );
+    return VLC_SUCCESS;
+}
+
+/* the decoders and their clock stop and go on with the renderer */
+static int PausedChanged( vlc_object_t *obj, char const *var, vlc_value_t old,
+                          vlc_value_t cur, void *data )
+{
+    VLC_UNUSED(obj); VLC_UNUSED(var); VLC_UNUSED(old);
+    sout_stream_sys_t *p_sys = data;
+
+    vlc_mutex_lock( &p_sys->lock );
+    if( cur.b_bool != p_sys->paused )
+    {
+        const vlc_tick_t now = vlc_tick_now();
+        p_sys->paused = cur.b_bool;
+        if( !p_sys->paused )
+            sout_ClockMainChangePause( p_sys->main_clock, now, false );
+        sout_stream_id_sys_t *id;
+        vlc_vector_foreach( id, &p_sys->ids )
+            vlc_input_decoder_ChangePause( id->dec, p_sys->paused, now );
+        if( p_sys->paused )
+            sout_ClockMainChangePause( p_sys->main_clock, now, true );
+    }
+    vlc_mutex_unlock( &p_sys->lock );
+    return VLC_SUCCESS;
+}
 
 static void *Add( sout_stream_t *p_stream, const es_format_t *p_fmt, const char *es_id )
 {
@@ -129,14 +189,30 @@ static void *Add( sout_stream_t *p_stream, const es_format_t *p_fmt, const char 
     if( p_sys->i_delay != VLC_TICK_INVALID )
         vlc_input_decoder_ChangeDelay( id->dec, p_sys->i_delay );
 
+    vlc_mutex_lock( &p_sys->lock );
+    if( p_sys->paused )
+        vlc_input_decoder_ChangePause( id->dec, true, vlc_tick_now() );
+    if( !vlc_vector_push( &p_sys->ids, id ) )
+        msg_Warn( p_stream, "this decoder will not pause with the renderer" );
+    vlc_mutex_unlock( &p_sys->lock );
+
     return id;
 }
 
 static void Del( sout_stream_t *p_stream, void *id )
 {
-    (void) p_stream;
-
+    sout_stream_sys_t *p_sys = p_stream->p_sys;
     sout_stream_id_sys_t *id_sys = id;
+
+    vlc_mutex_lock( &p_sys->lock );
+    for( size_t i = 0; i < p_sys->ids.size; ++i )
+        if( p_sys->ids.data[i] == id_sys )
+        {
+            vlc_vector_remove( &p_sys->ids, i );
+            break;
+        }
+    vlc_mutex_unlock( &p_sys->lock );
+
     vlc_input_decoder_Flush(id_sys->dec);
     vlc_input_decoder_Delete( id_sys->dec );
     sout_ClockDelete( id_sys->clock );
@@ -160,11 +236,26 @@ static int Send( sout_stream_t *p_stream, void *id, vlc_frame_t *frames )
         return VLC_EGENERIC;
     }
 
+    vlc_mutex_lock( &p_sys->lock );
+    const vlc_tick_t latency = p_sys->latency > LocalDelay( p_sys )
+                             ? p_sys->latency - LocalDelay( p_sys ) : 0;
+    vlc_mutex_unlock( &p_sys->lock );
+
     while( frames )
     {
         vlc_frame_t *p_next = frames->p_next;
 
         frames->p_next = NULL;
+
+        /* later by the renderer's delay (the clock goes on: the decoders
+         * wait that much) */
+        if( latency > 0 )
+        {
+            if( frames->i_pts != VLC_TICK_INVALID )
+                frames->i_pts += latency;
+            if( frames->i_dts != VLC_TICK_INVALID )
+                frames->i_dts += latency;
+        }
 
         if( id != NULL && frames->i_buffer > 0 )
             vlc_input_decoder_Decode( id_sys->dec, frames, false );
@@ -173,6 +264,16 @@ static int Send( sout_stream_t *p_stream, void *id, vlc_frame_t *frames )
     }
 
     return VLC_SUCCESS;
+}
+
+/* a seek: what the decoders have is dropped, the next PCR starts again */
+static void Flush( sout_stream_t *p_stream, void *id )
+{
+    sout_stream_sys_t *p_sys = p_stream->p_sys;
+    sout_stream_id_sys_t *id_sys = id;
+
+    vlc_input_decoder_Flush( id_sys->dec );
+    p_sys->reanchor = true;
 }
 
 static int Control( sout_stream_t *p_stream, int i_query, va_list args )
@@ -201,17 +302,19 @@ static void SetPCR( sout_stream_t *p_stream, vlc_tick_t pcr )
 {
     sout_stream_sys_t *sys = p_stream->p_sys;
 
-    if( sys->first_pcr_signaled )
+    if( sys->first_pcr_signaled && !sys->reanchor )
         return;
 
     sout_ClockMainSetFirstPcr( sys->main_clock, pcr );
     sys->first_pcr_signaled = true;
+    sys->reanchor = false;
 }
 
 static const struct sout_stream_operations ops = {
     .add = Add,
     .del = Del,
     .send = Send,
+    .flush = Flush,
     .control = Control,
     .set_pcr = SetPCR,
     .close = Close,
@@ -229,7 +332,11 @@ static int Open( vlc_object_t *p_this )
     if( p_sys == NULL )
         return VLC_ENOMEM;
 
-    p_sys->p_resource = input_resource_New( p_this );
+    /* Under a player (its picture here too while it casts): the player's
+     * resources, so the picture goes into the player's video window */
+    input_resource_t *p_player_resource = var_InheritAddress( p_this, "player-resource" );
+    p_sys->p_resource = p_player_resource != NULL ? input_resource_Hold( p_player_resource )
+                                                  : input_resource_New( p_this );
     if( unlikely(p_sys->p_resource == NULL) )
     {
         free( p_sys );
@@ -252,7 +359,26 @@ static int Open( vlc_object_t *p_this )
     p_sys->i_delay =
         VLC_TICK_FROM_MS( var_GetInteger(p_stream, SOUT_CFG_PREFIX "delay") );
     p_sys->first_pcr_signaled = false;
+    p_sys->reanchor = false;
     p_sys->error = false;
+
+    vlc_mutex_init( &p_sys->lock );
+    vlc_vector_init( &p_sys->ids );
+    p_sys->latency = 0;
+    p_sys->paused = false;
+    p_sys->libvlc = VLC_OBJECT( vlc_object_instance( p_stream ) );
+    if( var_Type( p_sys->libvlc, "renderer-latency" ) )
+    {
+        p_sys->latency =
+            VLC_TICK_FROM_MS( var_GetInteger( p_sys->libvlc, "renderer-latency" ) );
+        var_AddCallback( p_sys->libvlc, "renderer-latency", LatencyChanged, p_sys );
+        var_AddCallback( p_sys->libvlc, "renderer-paused", PausedChanged, p_sys );
+        /* made while it is paused: paused too */
+        vlc_value_t paused = { .b_bool = var_GetBool( p_sys->libvlc, "renderer-paused" ) };
+        PausedChanged( p_sys->libvlc, "renderer-paused", paused, paused, p_sys );
+    }
+    else
+        p_sys->libvlc = NULL;
 
     p_stream->ops = &ops;
     p_stream->p_sys = p_sys;
@@ -266,6 +392,12 @@ static void Close( sout_stream_t *p_stream )
 {
     sout_stream_sys_t *p_sys = p_stream->p_sys;
 
+    if( p_sys->libvlc != NULL )
+    {
+        var_DelCallback( p_sys->libvlc, "renderer-latency", LatencyChanged, p_sys );
+        var_DelCallback( p_sys->libvlc, "renderer-paused", PausedChanged, p_sys );
+    }
+    vlc_vector_destroy( &p_sys->ids );
     input_resource_Release( p_sys->p_resource );
     sout_ClockMainDelete( p_sys->main_clock );
     free( p_sys );

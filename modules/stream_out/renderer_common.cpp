@@ -31,6 +31,9 @@
 #include <map>
 #include <sstream>
 
+#include <vlc_codec.h>
+#include <vlc_modules.h>
+
 #include "renderer_common.hpp"
 
 std::string
@@ -79,6 +82,50 @@ std::map<vlc_fourcc_t, std::vector<venc_options>> opts = {
     },
 };
 
+/* Whether the video encoder of an option ("venc=name{...}", any encoder
+ * without) opens for this format. The transcode stream only opens its
+ * video encoder with the first picture, so a stream test alone passes with
+ * one that can't work on this computer (Quick Sync without an Intel GPU),
+ * and the conversion then fails. */
+static bool VideoEncoderOpens( sout_stream_t *p_stream, const std::string &venc,
+                               vlc_fourcc_t codec, const es_format_t *p_fmt )
+{
+    std::string name = "any";
+    const size_t start = venc.find( "venc=" );
+    if( start != std::string::npos )
+    {
+        const size_t end = venc.find_first_of( "{,", start + 5 );
+        name = venc.substr( start + 5, end == std::string::npos ? std::string::npos
+                                                                : end - start - 5 );
+    }
+
+    encoder_t *p_enc = sout_EncoderCreate( p_stream, sizeof(encoder_t) );
+    if( p_enc == NULL )
+        return false;
+    p_enc->obj.logger = NULL;
+    p_enc->obj.no_interact = true;
+    es_format_Copy( &p_enc->fmt_in, p_fmt );
+    es_format_Init( &p_enc->fmt_out, VIDEO_ES, codec );
+    p_enc->fmt_out.video.i_visible_width = p_enc->fmt_out.video.i_width = p_fmt->video.i_width;
+    p_enc->fmt_out.video.i_visible_height = p_enc->fmt_out.video.i_height = p_fmt->video.i_height;
+    p_enc->fmt_out.video.i_sar_num = p_enc->fmt_out.video.i_sar_den = 1;
+    p_enc->fmt_out.video.i_frame_rate = p_fmt->video.i_frame_rate;
+    p_enc->fmt_out.video.i_frame_rate_base = p_fmt->video.i_frame_rate_base;
+    p_enc->fmt_out.i_bitrate = 3000000;
+
+    p_enc->p_module = module_need( p_enc, "video encoder", name.c_str(), true );
+    const bool opens = p_enc->p_module != NULL;
+    if( opens )
+    {
+        if( p_enc->ops != NULL && p_enc->ops->close != NULL )
+            p_enc->ops->close( p_enc );
+        p_enc->ops = NULL;
+        module_unneed( p_enc, p_enc->p_module );
+    }
+    vlc_encoder_Destroy( p_enc );
+    return opens;
+}
+
 std::string
 GetVencOption( sout_stream_t *p_stream, std::vector<vlc_fourcc_t> codecs,
         vlc_fourcc_t *out_codec, const video_format_t *p_vid, int i_quality )
@@ -123,8 +170,9 @@ GetVencOption( sout_stream_t *p_stream, std::vector<vlc_fourcc_t> codecs,
 
                 void *id = sout_StreamIdAdd( p_sout_test, &fmt, "video/1" );
 
+                const bool success = id != NULL
+                    && VideoEncoderOpens( p_stream, ssvenc.str(), codec, &fmt );
                 es_format_Clean( &fmt );
-                const bool success = id != NULL;
 
                 if( id )
                     sout_StreamIdDel( p_sout_test, id );

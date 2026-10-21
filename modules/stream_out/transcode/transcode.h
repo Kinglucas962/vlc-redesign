@@ -132,6 +132,7 @@ struct sout_stream_id_sys_t
              filter_chain_t  *p_final_conv_static; /**< converter to adapt filtered pics to the encoder */
              vlc_blender_t   *p_spu_blender;
              spu_t           *p_spu;
+             ssize_t          i_spu_channel; /**< of the subtitles blended */
              vlc_decoder_device *dec_dev;
              vlc_video_context *enc_vctx_in;
          };
@@ -234,5 +235,6 @@ void transcode_video_flush  ( sout_stream_id_sys_t * );
 int transcode_video_get_output_dimensions( sout_stream_id_sys_t *,
                                            unsigned *w, unsigned *h );
 void transcode_video_push_spu( sout_stream_t *, sout_stream_id_sys_t *, subpicture_t * );
+spu_t *transcode_video_spu( sout_stream_t *, sout_stream_id_sys_t * );
 int  transcode_video_init    ( sout_stream_t *, const es_format_t *,
                                sout_stream_id_sys_t *);

@@ -405,7 +405,7 @@ static int transcode_video_filters_init( sout_stream_t *p_stream,
     /* SPU Sources */
     if( p_cfg->video.psz_spu_sources )
     {
-        if( id->p_spu || (id->p_spu = spu_Create( p_stream, NULL )) )
+        if( transcode_video_spu( p_stream, id ) )
             spu_ChangeSources( id->p_spu, p_cfg->video.psz_spu_sources );
     }
 
@@ -447,12 +447,14 @@ void transcode_video_clean( sout_stream_id_sys_t *id )
 void transcode_video_push_spu( sout_stream_t *p_stream, sout_stream_id_sys_t *id,
                                subpicture_t *p_subpicture )
 {
-    if( !id->p_spu )
-        id->p_spu = spu_Create( p_stream, NULL );
-    if( !id->p_spu )
+    if( !transcode_video_spu( p_stream, id ) )
         subpicture_Delete( p_subpicture );
     else
+    {
+        if( id->i_spu_channel >= 0 )
+            p_subpicture->i_channel = id->i_spu_channel;
         spu_PutSubpicture( id->p_spu, p_subpicture );
+    }
 }
 
 int transcode_video_get_output_dimensions( sout_stream_id_sys_t *id,
@@ -463,6 +465,19 @@ int transcode_video_get_output_dimensions( sout_stream_id_sys_t *id,
     *h = id->decoder_out.video.i_visible_height;
     vlc_mutex_unlock( &id->fifo.lock );
     return (*w && *h) ? VLC_SUCCESS : VLC_EGENERIC;
+}
+
+/* The subtitles blended have a channel of their own: on the default one (the
+ * OSD's), each new subtitle clears those before it, and only the last one
+ * that came shows (they come with their pictures, or a little before) */
+spu_t *transcode_video_spu( sout_stream_t *p_stream, sout_stream_id_sys_t *id )
+{
+    if( !id->p_spu )
+    {
+        id->p_spu = spu_Create( p_stream, NULL );
+        id->i_spu_channel = id->p_spu ? spu_RegisterChannel( id->p_spu ) : -1;
+    }
+    return id->p_spu;
 }
 
 static picture_t * RenderSubpictures( sout_stream_id_sys_t *id, picture_t *p_pic )

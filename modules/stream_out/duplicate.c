@@ -61,6 +61,7 @@ vlc_module_end ()
 static void *Add( sout_stream_t *, const es_format_t *, const char * );
 static void  Del( sout_stream_t *, void * );
 static int   Send( sout_stream_t *, void *, vlc_frame_t * );
+static void  Flush( sout_stream_t *, void * );
 static void  SetPCR( sout_stream_t *, vlc_tick_t );
 
 typedef struct {
@@ -177,6 +178,20 @@ static sout_stream_t *PCRSelectorNew( sout_stream_t *parent )
 }
 
 /*****************************************************************************
+ * Flush: a seek, for each output (a display drops what it has and starts
+ * again, a renderer goes on from the new place)
+ *****************************************************************************/
+static void Flush( sout_stream_t *p_stream, void *_id )
+{
+    (void) p_stream;
+    sout_stream_id_sys_t *id = _id;
+
+    duplicated_id_t *dup_id;
+    vlc_vector_foreach_ref( dup_id, &id->dup_ids )
+        sout_StreamFlush( dup_id->stream_owner, dup_id->id );
+}
+
+/*****************************************************************************
  * Control
  *****************************************************************************/
 static int Control( sout_stream_t *p_stream, int i_query, va_list args )
@@ -197,9 +212,22 @@ static int Control( sout_stream_t *p_stream, int i_query, va_list args )
             }
             return VLC_SUCCESS;
         }
+        case SOUT_STREAM_IS_SYNCHRONOUS:
+        {
+            /* In real time when one of the outputs is (a display, a TV
+             * reading a stream): otherwise the input reads as fast as it can
+             * and the picture here and the TV race ahead */
+            sout_stream_sys_t *p_sys = p_stream->p_sys;
+            bool *synchronous = va_arg( args, bool * );
+            *synchronous = false;
+            duplicated_stream_t *dup_stream;
+            vlc_vector_foreach_ref( dup_stream, &p_sys->streams )
+                if( sout_StreamIsSynchronous( dup_stream->stream ) )
+                    *synchronous = true;
+            return VLC_SUCCESS;
+        }
     }
 
-    (void)p_stream;
     return VLC_EGENERIC;
 }
 
@@ -226,6 +254,7 @@ static const struct sout_stream_operations ops = {
     .add = Add,
     .del = Del,
     .send = Send,
+    .flush = Flush,
     .control = Control,
     .set_pcr = SetPCR,
     .close = Close,

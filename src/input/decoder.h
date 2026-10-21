@@ -86,13 +86,6 @@ vlc_input_decoder_New( vlc_object_t *parent,
                        const struct vlc_input_decoder_cfg *cfg );
 
 /**
- * This function changes the pause state.
- * The date parameter MUST hold the exact date at which the change has been
- * done for proper vout/aout pausing.
- */
-void vlc_input_decoder_ChangePause( vlc_input_decoder_t *, bool b_paused, vlc_tick_t i_date );
-
-/**
  * Changes the decoder rate.
  *
  * This function changes rate of the intended playback speed to nominal speed.

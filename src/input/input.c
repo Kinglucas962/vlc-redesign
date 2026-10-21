@@ -795,8 +795,26 @@ static int InitSout( input_thread_t * p_input )
         bool keep_sout = psz == NULL;
         free(psz);
 
+        /* The picture here too, while it plays on the renderer, when the
+         * interface asks ("renderer-display", on an ancestor): without the
+         * sound, which the renderer plays */
+        bool b_display = false;
+        for( vlc_object_t *obj = VLC_OBJECT(p_input); obj != NULL;
+             obj = vlc_object_parent(obj) )
+            if( var_Type( obj, "renderer-display" ) )
+            {
+                b_display = var_GetBool( obj, "renderer-display" );
+                break;
+            }
+
         const char *psz_renderer_sout = vlc_renderer_item_sout( priv->p_renderer );
-        if( asprintf( &psz, "#%s", psz_renderer_sout ) < 0 )
+        /* the DLNA output shows it itself: what it sends, when the renderer
+         * shows it (and as the interface asks, without starting again); a
+         * picture here beside the others (a Chromecast, which holds the
+         * stream back as it reads it) would only show late, dropped */
+        b_display = false;
+        if( asprintf( &psz, b_display ? "#duplicate{dst=display{noaudio},dst=%s}" : "#%s",
+                      psz_renderer_sout ) < 0 )
             return VLC_ENOMEM;
         if( keep_sout )
             var_SetBool( p_input, "sout-keep", true );
@@ -3130,12 +3148,26 @@ static void InputSourceMeta( input_thread_t *p_input,
 }
 
 
+/* The demux reading the master, under its demux filters: those can report
+ * another time (the chromecast one, the playback time of the renderer,
+ * seconds behind what is read and converted) */
+static demux_t *MasterReadingDemux( input_thread_t *p_input )
+{
+    demux_t *p_demux = input_priv(p_input)->master->p_demux;
+    /* a demux filter has no ES output, and reads the next demux */
+    while( p_demux->out == NULL && p_demux->s != NULL )
+        p_demux = (demux_t *)p_demux->s;
+    return p_demux;
+}
+
 static void SlaveDemux( input_thread_t *p_input )
 {
     input_thread_private_t *priv = input_priv(p_input);
     vlc_tick_t i_time;
 
-    if( demux_Control( input_priv(p_input)->master->p_demux, DEMUX_GET_TIME, &i_time ) )
+    /* The slaves go with what is read: a subtitle of a file burnt into a
+     * video converted for a renderer must come before the pictures */
+    if( demux_Control( MasterReadingDemux( p_input ), DEMUX_GET_TIME, &i_time ) )
     {
         msg_Err( p_input, "demux doesn't like DEMUX_GET_TIME" );
         return;
@@ -3203,7 +3235,7 @@ static void SlaveSeek( input_thread_t *p_input )
 {
     vlc_tick_t i_time;
 
-    if( demux_Control( input_priv(p_input)->master->p_demux, DEMUX_GET_TIME, &i_time ) )
+    if( demux_Control( MasterReadingDemux( p_input ), DEMUX_GET_TIME, &i_time ) )
     {
         msg_Err( p_input, "demux doesn't like DEMUX_GET_TIME" );
         return;

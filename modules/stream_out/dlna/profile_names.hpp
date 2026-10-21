@@ -167,6 +167,21 @@ const dlna_profile_t default_video_profile = {
     VLC_CODEC_MP4A,
 };
 
+/**
+ * AVC HD video with MPEG-4 AAC audio in an MPEG-2 transport stream, for a
+ * converted video: it goes out as it is made (a fragmented MP4 waits for
+ * every track to have enough data, and held it back to the end when the
+ * video started later than the sound), and TVs play it live.
+ */
+const dlna_profile_t transcode_video_profile = {
+    "AVC_TS_MP_HD_AAC_MULT5_ISO",
+    "ts",
+    "video/mpeg",
+    DLNA_CLASS_AV,
+    VLC_CODEC_H264,
+    VLC_CODEC_MP4A,
+};
+
 const dlna_profile_t default_image_profile = {
     "JPEG_MED",
     "jpg",
