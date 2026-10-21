@@ -46,10 +46,10 @@
 #define TRANSCODING_VIDEO 0x1
 #define TRANSCODING_AUDIO 0x2
 
-#if 0
-/* TODO: works only with internal spu and transcoding/blending for now */
+/* The subtitle shown in the player goes to the TV burnt into the picture:
+ * the video is transcoded and the subtitle blended (soverlay), with the
+ * style of the player's own subtitles */
 #define CC_ENABLE_SPU
-#endif
 
 namespace {
 
@@ -753,7 +753,10 @@ static void DelInternal(sout_stream_t *p_stream, void *_id, bool reset_config)
 
     if ( p_sys->out_streams.empty() )
     {
-        if (p_sys->access_out_live.waitForClient(CHROMECAST_HANDOFF_ATTACH_TIMEOUT))
+        /* the end of the media: the TV plays what it has (not when the user
+         * stopped, or chose another device: it stops at once) */
+        if (!p_sys->p_intf->userStopped()
+         && p_sys->access_out_live.waitForClient(CHROMECAST_HANDOFF_ATTACH_TIMEOUT))
         {
             p_sys->access_out_live.waitForClient(CHROMECAST_HANDOFF_ATTACH_TIMEOUT, true);
             p_sys->p_intf->preservePlaybackOnTeardown();
@@ -1341,6 +1344,13 @@ static int Open(vlc_object_t *p_this)
     catch (const std::runtime_error& err )
     {
         msg_Err( p_this, "cannot load the Chromecast controller (%s)", err.what() );
+        /* it does not answer: the interface says it (see reportState) */
+        vlc_object_t *libvlc = VLC_OBJECT( vlc_object_instance( p_this ) );
+        if ( var_Type( libvlc, "renderer-state" ) )
+        {
+            const std::string state = std::string( "failed:unreachable|" ) + psz_ip;
+            var_SetString( libvlc, "renderer-state", state.c_str() );
+        }
         goto error;
     }
     catch (const std::bad_alloc& )

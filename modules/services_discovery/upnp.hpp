@@ -157,6 +157,7 @@ public:
 
 private:
     void parseNewRenderer( IXML_Document* doc, const std::string& location );
+    void parseNewChromecast( IXML_Document* doc, const std::string& location );
 
 private:
     vlc_renderer_discovery_t* const m_rd;

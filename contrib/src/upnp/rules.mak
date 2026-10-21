@@ -43,6 +43,7 @@ ifdef HAVE_IOS
 	$(APPLY) $(SRC)/upnp/fix-reuseaddr-option.patch
 endif
 	$(APPLY) $(SRC)/upnp/0001-Don-t-assume-strndup-to-be-missing-on-Windows.patch
+	$(APPLY) $(SRC)/upnp/0002-Don-t-rename-the-POSIX-string-functions-with-MinGW.patch
 	$(MOVE)
 
 .upnp: upnp toolchain.cmake

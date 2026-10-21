@@ -32,7 +32,9 @@
 # include <poll.h>
 #endif
 
+#include <algorithm>
 #include <iomanip>
+#include <locale>
 
 #include <vlc_input_item.h>
 #include <vlc_url.h>
@@ -53,6 +55,10 @@ ChromecastCommunication::ChromecastCommunication( vlc_object_t* p_module,
     m_creds = vlc_tls_ClientCreate( vlc_object_parent(m_module) );
     if (m_creds == NULL)
         throw std::runtime_error( "Failed to create TLS client" );
+    /* A Chromecast certifies itself (no authority): it is the device picked
+     * on the network, no "Insecure site" question */
+    var_Create( m_creds, "tls-device-certificate", VLC_VAR_BOOL );
+    var_SetBool( m_creds, "tls-device-certificate", true );
 
     m_tls = vlc_tls_SocketOpenTLS( m_creds, targetIP, devicePort, "tcps",
                                    NULL, NULL );
@@ -227,6 +233,43 @@ unsigned ChromecastCommunication::msgReceiverClose( const std::string& destinati
     std::string s("{\"type\":\"CLOSE\"}");
     return buildMessage( NAMESPACE_CONNECTION, s, destinationId )
            == VLC_SUCCESS ? 1 : kInvalidId;
+}
+
+unsigned ChromecastCommunication::msgReceiverSetVolume( float level )
+{
+    unsigned id = getNextReceiverRequestId();
+    std::stringstream ss;
+    ss.imbue( std::locale::classic() );
+    ss << "{\"type\":\"SET_VOLUME\","
+       <<  "\"volume\":{\"level\":" << std::max( 0.f, std::min( level, 1.f ) ) << "},"
+       <<  "\"requestId\":" << id << "}";
+
+    return buildMessage( NAMESPACE_RECEIVER, ss.str(), DEFAULT_CHOMECAST_RECEIVER )
+           == VLC_SUCCESS ? id : kInvalidId;
+}
+
+unsigned ChromecastCommunication::msgReceiverSetMute( bool muted )
+{
+    unsigned id = getNextReceiverRequestId();
+    std::stringstream ss;
+    ss << "{\"type\":\"SET_VOLUME\","
+       <<  "\"volume\":{\"muted\":" << ( muted ? "true" : "false" ) << "},"
+       <<  "\"requestId\":" << id << "}";
+
+    return buildMessage( NAMESPACE_RECEIVER, ss.str(), DEFAULT_CHOMECAST_RECEIVER )
+           == VLC_SUCCESS ? id : kInvalidId;
+}
+
+unsigned ChromecastCommunication::msgReceiverStopApp( const std::string& sessionId )
+{
+    unsigned id = getNextReceiverRequestId();
+    std::stringstream ss;
+    ss << "{\"type\":\"STOP\","
+       <<  "\"sessionId\":\"" << sessionId << "\","
+       <<  "\"requestId\":" << id << "}";
+
+    return buildMessage( NAMESPACE_RECEIVER, ss.str(), DEFAULT_CHOMECAST_RECEIVER )
+           == VLC_SUCCESS ? id : kInvalidId;
 }
 
 unsigned ChromecastCommunication::msgReceiverGetStatus()

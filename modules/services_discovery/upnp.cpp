@@ -52,6 +52,8 @@
 */
 const char* MEDIA_SERVER_DEVICE_TYPE = "urn:schemas-upnp-org:device:MediaServer:1";
 const char* MEDIA_RENDERER_DEVICE_TYPE = "urn:schemas-upnp-org:device:MediaRenderer:1";
+/* Chromecasts answer it (as Chrome finds them, with mDNS) */
+const char* DIAL_SERVICE_TYPE = "urn:dial-multiscreen-org:service:dial:1";
 const char* CONTENT_DIRECTORY_SERVICE_TYPE = "urn:schemas-upnp-org:service:ContentDirectory:1";
 const char* SATIP_SERVER_DEVICE_TYPE = "urn:ses-com:device:SatIPServer:1";
 
@@ -749,17 +751,29 @@ int MediaServerList::onEvent( Upnp_EventType event_type, UpnpEventPtr p_event, v
     if (p_user_data != MEDIA_SERVER_DEVICE_TYPE)
         return 0;
 
+    /* The description of a device is downloaded without the lock (a device
+     * that does not answer takes the HTTP timeout) */
+    IXML_Document *p_description_doc = NULL;
+    int i_res = UPNP_E_SUCCESS;
+    if ( event_type == UPNP_DISCOVERY_ADVERTISEMENT_ALIVE ||
+         event_type == UPNP_DISCOVERY_SEARCH_RESULT )
+        i_res = UpnpDownloadXmlDoc( UpnpDiscovery_get_Location_cstr( ( const UpnpDiscovery* )p_event ),
+                                    &p_description_doc );
+
+    vlc::threads::mutex_locker locker( m_lock );
+    if ( m_detached )
+    {
+        if ( p_description_doc )
+            ixmlDocument_free( p_description_doc );
+        return UPNP_E_SUCCESS;
+    }
+
     switch( event_type )
     {
     case UPNP_DISCOVERY_ADVERTISEMENT_ALIVE:
     case UPNP_DISCOVERY_SEARCH_RESULT:
     {
         const UpnpDiscovery* p_discovery = ( const UpnpDiscovery* )p_event;
-
-        IXML_Document *p_description_doc = NULL;
-
-        int i_res;
-        i_res = UpnpDownloadXmlDoc( UpnpDiscovery_get_Location_cstr( p_discovery ), &p_description_doc );
 
         if ( i_res != UPNP_E_SUCCESS )
         {
@@ -1533,28 +1547,92 @@ void MediaRendererList::parseNewRenderer( IXML_Document* doc,
     ixmlNodeList_free( p_device_nodes );
 }
 
+/* A Chromecast also answers DIAL searches (the other way Chrome finds them,
+ * when mDNS answers are late or lost): one made by Google becomes the same
+ * renderer as found by mDNS. TVs answer DIAL too, for their own apps, but
+ * cannot be cast to. */
+void MediaRendererList::parseNewChromecast( IXML_Document* doc,
+                                            const std::string& location )
+{
+    vlc_url_t url;
+    vlc_UrlParse( &url, location.c_str() );
+    IXML_NodeList* p_device_nodes = url.psz_host != nullptr
+        ? ixmlDocument_getElementsByTagName( doc, "device" ) : nullptr;
+
+    for ( unsigned int i = 0; p_device_nodes && i < ixmlNodeList_length( p_device_nodes ); i++ )
+    {
+        IXML_Element* p_device_element = ( IXML_Element* ) ixmlNodeList_item( p_device_nodes, i );
+        if ( !p_device_element )
+            continue;
+        const char* psz_manufacturer = xml_getChildElementValue( p_device_element, "manufacturer" );
+        const char* psz_name = xml_getChildElementValue( p_device_element, "friendlyName" );
+        const char* psz_model = xml_getChildElementValue( p_device_element, "modelName" );
+        const char* psz_udn = xml_getChildElementValue( p_device_element, "UDN" );
+        if ( !psz_manufacturer || !strstr( psz_manufacturer, "Google" )
+          || !psz_name || !psz_udn || getRenderer( psz_udn ) )
+            continue;
+
+        /* a Chromecast Audio plays the sound only */
+        const bool b_video = !psz_model || !strstr( psz_model, "Audio" );
+        char *psz_uri;
+        if ( asprintf( &psz_uri, "chromecast://%s:8009", url.psz_host ) < 0 )
+            continue;
+        vlc_renderer_item_t *p_item = vlc_renderer_item_new( "chromecast", psz_name, psz_uri,
+                b_video ? nullptr : "no-video", "cc_demux", nullptr,
+                VLC_RENDERER_CAN_AUDIO | ( b_video ? VLC_RENDERER_CAN_VIDEO : 0 ) );
+        free( psz_uri );
+        if ( !p_item )
+            continue;
+
+        MediaRendererDesc *p_desc = new MediaRendererDesc( psz_udn, psz_name, location, location );
+        p_desc->inputItem = p_item;
+        msg_Dbg( m_rd, "Adding Chromecast '%s' with uuid %s (DIAL)", psz_name, psz_udn );
+        vlc_rd_add_item( m_rd, p_item );
+        m_list.push_back( p_desc );
+    }
+    if ( p_device_nodes )
+        ixmlNodeList_free( p_device_nodes );
+    vlc_UrlClean( &url );
+}
+
 int MediaRendererList::onEvent( Upnp_EventType event_type,
                                 UpnpEventPtr Event,
                                 void *p_user_data )
 {
-    if (p_user_data != MEDIA_RENDERER_DEVICE_TYPE)
+    if (p_user_data != MEDIA_RENDERER_DEVICE_TYPE && p_user_data != DIAL_SERVICE_TYPE)
         return 0;
+
+    /* The description of a device is downloaded without the lock (a device
+     * that does not answer takes the HTTP timeout) */
+    IXML_Document *p_doc = NULL;
+    int i_res = UPNP_E_SUCCESS;
+    if (event_type == UPNP_DISCOVERY_SEARCH_RESULT)
+        i_res = UpnpDownloadXmlDoc( UpnpDiscovery_get_Location_cstr( (const UpnpDiscovery*)Event ),
+                                    &p_doc );
+
+    vlc::threads::mutex_locker locker( m_lock );
+    if (m_detached)
+    {
+        if (p_doc)
+            ixmlDocument_free(p_doc);
+        return UPNP_E_SUCCESS;
+    }
 
     switch (event_type)
     {
         case UPNP_DISCOVERY_SEARCH_RESULT:
         {
             const UpnpDiscovery *p_discovery = (const UpnpDiscovery*)Event;
-            IXML_Document *p_doc = NULL;
-            int i_res;
 
-            i_res = UpnpDownloadXmlDoc( UpnpDiscovery_get_Location_cstr( p_discovery ), &p_doc);
             if (i_res != UPNP_E_SUCCESS)
             {
                 fprintf(stderr, "%s\n", UpnpDiscovery_get_Location_cstr( p_discovery ));
                 return i_res;
             }
-            parseNewRenderer(p_doc, UpnpDiscovery_get_Location_cstr( p_discovery ) );
+            if (p_user_data == DIAL_SERVICE_TYPE)
+                parseNewChromecast(p_doc, UpnpDiscovery_get_Location_cstr( p_discovery ) );
+            else
+                parseNewRenderer(p_doc, UpnpDiscovery_get_Location_cstr( p_discovery ) );
             ixmlDocument_free(p_doc);
         }
         break;
@@ -1594,6 +1672,10 @@ void *SearchThread(void *data)
         msg_Err( p_rd, "Error sending search request: %s", UpnpGetErrorMessage( i_res ) );
         return NULL;
     }
+    i_res = UpnpSearchAsync(p_sys->p_upnp->handle(), UPNP_SEARCH_TIMEOUT_SECONDS,
+            DIAL_SERVICE_TYPE, DIAL_SERVICE_TYPE);
+    if( i_res != UPNP_E_SUCCESS )
+        msg_Warn( p_rd, "Error sending the DIAL search request: %s", UpnpGetErrorMessage( i_res ) );
     return data;
 }
 

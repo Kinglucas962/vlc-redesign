@@ -1,0 +1,46 @@
+From a988d3de17ac5962d9c8f0a4dffd70286fefd5e1 Mon Sep 17 00:00:00 2001
+From: KuchiSofts <32385966+KuchiSofts@users.noreply.github.com>
+Date: Wed, 21 Oct 2026 03:30:00 +0300
+Subject: [PATCH] Don't rename the POSIX string functions with MinGW
+
+MinGW-w64 provides strcasecmp() and strncasecmp() as inline functions
+calling _stricmp() and _strnicmp(). Renaming those to the MSVC names
+before <string.h> is included turns them into functions calling
+themselves, which GCC compiles as an endless loop: token_string_casecmp(),
+used to check the scheme of every HTTP URL, never returns, so the
+download of a device description or any SOAP action hangs.
+
+MinGW has all the POSIX names: rename them for MSVC only.
+---
+ ixml/inc/posix_overwrites.h | 4 +++-
+ upnp/src/inc/uri.h          | 2 +-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/ixml/inc/posix_overwrites.h b/ixml/inc/posix_overwrites.h
+index 162ccf9..ef6d5e5 100644
+--- a/ixml/inc/posix_overwrites.h
++++ b/ixml/inc/posix_overwrites.h
+@@ -1,7 +1,9 @@
+ #ifndef POSIX_OVERWRITES_H
+ #define POSIX_OVERWRITES_H
+ 
+-#ifdef _WIN32
++/* MinGW has the POSIX names already, some as inline functions calling the
++ * MSVC ones: renaming them would make those call themselves forever. */
++#if defined(_WIN32) && !defined(__MINGW32__)
+ 
+ 	/* POSIX names for functions */
+ 	#define fileno _fileno
+diff --git a/upnp/src/inc/uri.h b/upnp/src/inc/uri.h
+index 5061be0..8e2e726 100644
+--- a/upnp/src/inc/uri.h
++++ b/upnp/src/inc/uri.h
+@@ -60,7 +60,7 @@
+ 	#include <netdb.h> /* for struct addrinfo */
+ #endif
+ 
+-#ifdef _WIN32
++#if defined(_WIN32) && !defined(__MINGW32__)
+ 	#define strncasecmp strnicmp
+ #else
+ 	/* Other systems have strncasecmp */

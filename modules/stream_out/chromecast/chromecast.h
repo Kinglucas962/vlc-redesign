@@ -62,7 +62,8 @@ static const std::string NAMESPACE_RECEIVER         = "urn:x-cast:com.google.cas
 #define CHROMECAST_CONTROL_PORT 8009
 #define HTTP_PORT               8010
 
-#define PACKET_MAX_LEN 10 * 1024
+/* (Cast allows 64 KiB: a device with many apps sends more than 10) */
+#define PACKET_MAX_LEN 64 * 1024
 
 //#define CHROMECAST_VERBOSE
 
@@ -120,6 +121,11 @@ public:
     unsigned msgReceiverLaunchApp();
     unsigned msgReceiverGetStatus();
     unsigned msgReceiverClose(const std::string& destinationId);
+    /* the device's own volume (0 to 1), its mute, and closing the app it
+     * runs (back to its own screen) */
+    unsigned msgReceiverSetVolume( float level );
+    unsigned msgReceiverSetMute( bool muted );
+    unsigned msgReceiverStopApp( const std::string& sessionId );
     unsigned msgAuth();
     unsigned msgPlayerLoad( const std::string& destinationId,
                             const std::string& mime, const vlc_meta_t *p_meta, vlc_tick_t input_length );
@@ -220,6 +226,18 @@ private:
     // Sets the current state and signal the associated wait cond.
     // This must be called with the lock held
     void setState( States state );
+    // how it does, for the interface ("renderer-state" of libvlc)
+    void reportState( States previous );
+public:
+    // stopped by the user, or another device chosen: the TV stops at once
+    // (else, at the end of the media, it plays what it has)
+    bool userStopped() const;
+private:
+    // the interface's controls ("renderer-volume", "renderer-muted",
+    // "renderer-stop" of libvlc): the device's volume and mute (m_lock)
+    static int rendererVarChanged( vlc_object_t *, const char *, vlc_value_t,
+                                   vlc_value_t, void * );
+    void applyVolume();
 
     void mainLoop();
     void processAuthMessage( const castchannel::CastMessage& msg );
@@ -255,8 +273,17 @@ private:
     std::string    m_device_name;
 
     std::string m_appTransportId;
+    // the app's session, to close it (receiver STOP)
+    std::string m_appSessionId;
     unsigned m_last_request_id;
     int64_t m_mediaSessionId;
+    vlc_object_t *m_libvlc = nullptr;
+    bool m_user_stop = false;
+    int m_want_volume = -1;
+    int m_sent_volume = -1;
+    int m_want_muted = -1;
+    int m_sent_muted = -1;
+    bool m_volume_reported = false;
 
     mutable vlc::threads::mutex  m_lock;
     vlc::threads::condition_variable m_stateChangedCond;

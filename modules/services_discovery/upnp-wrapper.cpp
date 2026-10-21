@@ -33,6 +33,7 @@
 UpnpInstanceWrapper* UpnpInstanceWrapper::s_instance;
 UpnpInstanceWrapper::Listeners UpnpInstanceWrapper::s_listeners;
 vlc::threads::mutex UpnpInstanceWrapper::s_lock;
+vlc::threads::mutex UpnpInstanceWrapper::s_init_lock;
 
 UpnpInstanceWrapper::UpnpInstanceWrapper()
     : m_handle( -1 )
@@ -48,6 +49,8 @@ UpnpInstanceWrapper::~UpnpInstanceWrapper()
 
 UpnpInstanceWrapper *UpnpInstanceWrapper::get(vlc_object_t *p_obj)
 {
+    // not while the previous instance finishes
+    vlc::threads::mutex_locker init_lock( s_init_lock );
     vlc::threads::mutex_locker lock( s_lock );
     if ( s_instance == NULL )
     {
@@ -58,6 +61,7 @@ UpnpInstanceWrapper *UpnpInstanceWrapper::get(vlc_object_t *p_obj)
         }
 
         char *net_iface = var_InheritString( p_obj, "miface" );
+        const bool forced = net_iface != NULL;
         if ( net_iface == NULL )
         {
             // No forced multicast network interface, select one by default.
@@ -66,7 +70,15 @@ UpnpInstanceWrapper *UpnpInstanceWrapper::get(vlc_object_t *p_obj)
         msg_Info( p_obj, "Initializing libupnp on '%s' interface",
                   net_iface ? net_iface : "default" );
         int i_res = UpnpInit2( net_iface, 0 );
+        if ( i_res == UPNP_E_INVALID_INTERFACE && !forced && net_iface != NULL )
+        {
+            // libupnp could not find the interface by our name of it
+            msg_Warn( p_obj, "Interface not found by libupnp, letting it choose" );
+            i_res = UpnpInit2( NULL, 0 );
+        }
         free( net_iface );
+        if ( i_res == UPNP_E_SUCCESS )
+            msg_Dbg( p_obj, "libupnp uses %s", UpnpGetServerIpAddress() );
 
         if( i_res != UPNP_E_SUCCESS )
         {
@@ -104,13 +116,18 @@ UpnpInstanceWrapper *UpnpInstanceWrapper::get(vlc_object_t *p_obj)
 
 void UpnpInstanceWrapper::release()
 {
+    vlc::threads::mutex_locker init_lock( s_init_lock );
     UpnpInstanceWrapper *p_delete = NULL;
-    vlc::threads::mutex_locker lock( s_lock );
-    if (--s_instance->m_refcount == 0)
     {
-        p_delete = s_instance;
-        s_instance = NULL;
+        vlc::threads::mutex_locker lock( s_lock );
+        if (--s_instance->m_refcount == 0)
+        {
+            p_delete = s_instance;
+            s_instance = NULL;
+        }
     }
+    // UpnpFinish() waits for the libupnp threads, which can be waiting for
+    // s_lock in Callback
     delete p_delete;
 }
 
@@ -121,8 +138,15 @@ UpnpClient_Handle UpnpInstanceWrapper::handle() const
 
 int UpnpInstanceWrapper::Callback(Upnp_EventType event_type, UpnpEventPtr p_event, void *p_user_data)
 {
-    vlc::threads::mutex_locker lock( s_lock );
-    for (Listeners::iterator iter = s_listeners.begin(); iter != s_listeners.end(); ++iter)
+    // Without the lock: a listener can download a device description,
+    // which takes up to the HTTP timeout when the device does not answer
+    // (see Listener::detach)
+    Listeners listeners;
+    {
+        vlc::threads::mutex_locker lock( s_lock );
+        listeners = s_listeners;
+    }
+    for (Listeners::iterator iter = listeners.begin(); iter != listeners.end(); ++iter)
     {
         (*iter)->onEvent(event_type, p_event, p_user_data);
     }
@@ -139,6 +163,7 @@ void UpnpInstanceWrapper::addListener(ListenerPtr listener)
 
 void UpnpInstanceWrapper::removeListener(ListenerPtr listener)
 {
+    listener->detach();
     vlc::threads::mutex_locker lock( s_lock );
     Listeners::iterator iter = std::find( s_listeners.begin(), s_listeners.end(), listener );
     if ( iter != s_listeners.end() )

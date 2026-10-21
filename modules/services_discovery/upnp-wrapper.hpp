@@ -64,11 +64,29 @@ public:
             virtual int onEvent( Upnp_EventType event_type,
                                  UpnpEventPtr p_event,
                                  void* p_user_data ) = 0;
+
+            /* The events come on the libupnp threads without the instance
+             * lock, so that a long download of a device description does
+             * not hold up the other listeners, nor the opening and closing
+             * of the discoveries: a removed listener can still be handling
+             * one. Once detached, it reports nothing more (checked with
+             * m_lock taken). */
+            void detach()
+            {
+                vlc::threads::mutex_locker locker( m_lock );
+                m_detached = true;
+            }
+
+        protected:
+            vlc::threads::mutex m_lock;
+            bool m_detached = false;
     };
 
 private:
     static UpnpInstanceWrapper* s_instance;
     static vlc::threads::mutex s_lock;
+    /* Taken while libupnp starts or finishes */
+    static vlc::threads::mutex s_init_lock;
     UpnpClient_Handle m_handle;
     int m_refcount;
     typedef std::shared_ptr<Listener> ListenerPtr;
@@ -192,6 +210,18 @@ inline IP_ADAPTER_ADDRESSES* ListAdapters()
     return addresses;
 }
 
+/* The name of an adapter as libupnp sees it: its friendly name converted with
+ * wcstombs_s in the C library's locale ("C" in VLC, so a localized name, or
+ * one with the bidi marks of a right-to-left Windows, gives "") */
+inline char* upnpAdapterName( const wchar_t *friendly_name )
+{
+    char name[LINE_SIZE] = { 0 };
+    size_t size;
+    if (wcstombs_s( &size, name, sizeof(name), friendly_name, sizeof(name) ) != 0)
+        name[0] = '\0';
+    return strdup( name );
+}
+
 inline char* getPreferedAdapter()
 {
     IP_ADAPTER_ADDRESSES *p_adapter, *addresses;
@@ -200,25 +230,58 @@ inline char* getPreferedAdapter()
     if (addresses == NULL)
         return NULL;
 
-    /* find one with multicast capabilities */
-    p_adapter = addresses;
-    while (p_adapter != NULL)
+    /* The adapter of the default route, where the TVs and the media servers
+     * are (not a virtual adapter before it); else the first one with
+     * multicast capabilities. GetBestInterfaceEx only reads the routes. */
+    DWORD best = 0;
+    struct sockaddr_in dst = {};
+    dst.sin_family = AF_INET;
+    dst.sin_addr.s_addr = htonl( 0x08080808 );
+    if (GetBestInterfaceEx( (struct sockaddr *)&dst, &best ) != NO_ERROR)
+        best = 0;
+
+    IP_ADAPTER_ADDRESSES *pick = NULL;
+    for (p_adapter = addresses; p_adapter != NULL; p_adapter = p_adapter->Next)
     {
-        if (isAdapterSuitable( p_adapter ))
+        /* make sure it supports 239.255.255.250 */
+        if (!isAdapterSuitable( p_adapter ) || getMulticastAddress( p_adapter ) == NULL)
+            continue;
+        if (best != 0 && p_adapter->IfIndex == best)
         {
-            /* make sure it supports 239.255.255.250 */
-            IP_ADAPTER_MULTICAST_ADDRESS *p_multicast = getMulticastAddress( p_adapter );
-            if (p_multicast != NULL)
+            pick = p_adapter;
+            break;
+        }
+        if (pick == NULL)
+            pick = p_adapter;
+    }
+
+    char *res = pick ? upnpAdapterName( pick->FriendlyName ) : NULL;
+    if (res != NULL && res[0] == '\0')
+    {
+        /* libupnp takes the first adapter that is up, with multicast, whose
+         * name converts to "" too: only good if that one is ours, otherwise
+         * libupnp chooses (NULL) */
+        for (p_adapter = addresses; p_adapter != NULL; p_adapter = p_adapter->Next)
+        {
+            if ((p_adapter->Flags & IP_ADAPTER_NO_MULTICAST) ||
+                p_adapter->OperStatus != IfOperStatusUp)
+                continue;
+            char *name = upnpAdapterName( p_adapter->FriendlyName );
+            const bool unnamed = name != NULL && name[0] == '\0';
+            free( name );
+            if (unnamed)
             {
-                char* res = FromWide( p_adapter->FriendlyName );
-                free( addresses );
-                return res;
+                if (p_adapter != pick)
+                {
+                    free( res );
+                    res = NULL;
+                }
+                break;
             }
         }
-        p_adapter = p_adapter->Next;
     }
-    free(addresses);
-    return NULL;
+    free( addresses );
+    return res;
 }
 #else /* _WIN32 */
 

@@ -437,6 +437,16 @@ static int gnutls_ClientHandshake(vlc_tls_t *tls,
     if (status != 0 || host == NULL)
         goto error; /* Really bad certificate */
 
+    /* A device of the local network with its own self-signed certificate,
+     * the one the caller found and connects to (a Chromecast): there is no
+     * site to check, and nothing to ask */
+    if (var_Type(obj, "tls-device-certificate") != 0
+     && var_GetBool(obj, "tls-device-certificate"))
+    {
+        msg_Dbg(obj, "self-signed certificate of the device %s accepted", host);
+        return 0;
+    }
+
     /* Look up mismatching certificate in store */
     const gnutls_datum_t *datum;
     unsigned count;

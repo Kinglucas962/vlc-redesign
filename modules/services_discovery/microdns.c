@@ -112,6 +112,9 @@ struct item
 struct srv
 {
     const char              *psz_protocol;
+    /* the full name of the service ("name._googlecast._tcp.local"), valid
+     * while the entries are parsed: its TXT record has the same */
+    const char              *psz_srv_name;
     char                    *psz_device_name;
     uint16_t                i_port;
     enum input_item_type_e  item_type;
@@ -336,6 +339,7 @@ parse_entries( const struct rr_entry *p_entries, bool b_renderer,
                     if( p_srv->psz_device_name == NULL )
                         break;
                     p_srv->psz_protocol = protocols[i].psz_protocol;
+                    p_srv->psz_srv_name = p_entry->name;
                     p_srv->i_port = p_entry->data.SRV.port;
                     p_srv->item_type = protocols[i].item_type;
                     p_srv->b_renderer = protocols[i].b_renderer;
@@ -352,7 +356,22 @@ parse_entries( const struct rr_entry *p_entries, bool b_renderer,
             psz_ip = p_entry->data.AAAA.addr_str;
             *p_ipv6 = true;
         }
-        else if( p_entry->type == RR_TXT && p_srv != NULL )
+    }
+
+    /* The TXT records, in any order with the SRV ones (a Chromecast can send
+     * its TXT first: its name and that it shows video were then lost) */
+    for( const struct rr_entry *p_entry = p_entries;
+         p_entry != NULL; p_entry = p_entry->next )
+    {
+        if( p_entry->type != RR_TXT )
+            continue;
+        p_srv = NULL;
+        for( unsigned int i = 0; i < i_nb_srv && p_srv == NULL; ++i )
+            if( p_entry->name != NULL && !strcasecmp( p_entry->name, p_srvs[i].psz_srv_name ) )
+                p_srv = &p_srvs[i];
+        if( p_srv == NULL && i_nb_srv == 1 )
+            p_srv = &p_srvs[0];
+        if( p_srv != NULL )
         {
             for ( struct rr_data_txt *p_txt = p_entry->data.TXT;
                   p_txt != NULL ; p_txt = p_txt->next )

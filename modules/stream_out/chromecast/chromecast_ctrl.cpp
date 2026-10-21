@@ -35,6 +35,7 @@
 
 #include <cassert>
 #include <cerrno>
+#include <cmath>
 #include <iomanip>
 #include <string_view>
 
@@ -190,6 +191,15 @@ intf_sys_t::intf_sys_t(vlc_object_t * const p_this, int port, std::string device
     m_common.pf_set_meta         = set_meta;
     m_common.pf_set_input_length = set_input_length;
 
+    /* the interface's controls, when it has them (see the DLNA output) */
+    vlc_object_t *libvlc = VLC_OBJECT( vlc_object_instance( p_this ) );
+    if ( var_Type( libvlc, "renderer-volume" ) && var_Type( libvlc, "renderer-stop" ) )
+    {
+        m_libvlc = libvlc;
+        for ( const char *var : { "renderer-volume", "renderer-muted", "renderer-stop" } )
+            var_AddCallback( libvlc, var, rendererVarChanged, this );
+    }
+
     assert( var_Type( vlc_object_parent(vlc_object_parent(m_module)), CC_SHARED_VAR_NAME) == 0 );
     if (var_Create( vlc_object_parent(vlc_object_parent(m_module)), CC_SHARED_VAR_NAME, VLC_VAR_ADDRESS ) == VLC_SUCCESS )
         var_SetAddress( vlc_object_parent(vlc_object_parent(m_module)), CC_SHARED_VAR_NAME, &m_common );
@@ -205,11 +215,38 @@ intf_sys_t::intf_sys_t(vlc_object_t * const p_this, int port, std::string device
 
 intf_sys_t::~intf_sys_t()
 {
+    if ( m_libvlc != nullptr )
+        for ( const char *var : { "renderer-volume", "renderer-muted", "renderer-stop" } )
+            var_DelCallback( m_libvlc, var, rendererVarChanged, this );
     var_Destroy( vlc_object_parent(vlc_object_parent(m_module)), CC_SHARED_VAR_NAME );
 
     m_lock.lock();
     if( m_communication )
     {
+        /* casting stops (the user stopped, chose another device or this
+         * computer): the TV stops and closes the app, back to its screen
+         * (at the end of the media, it plays what it has: TakenOver) */
+        switch ( m_state )
+        {
+        case Ready:
+        case Loading:
+        case Buffering:
+        case Playing:
+        case Paused:
+            if ( m_mediaSessionId != 0 )
+                m_communication->msgPlayerStop( m_appTransportId, m_mediaSessionId );
+            if ( !m_appSessionId.empty() )
+                m_communication->msgReceiverStopApp( m_appSessionId );
+            break;
+        case Stopping:
+        case Stopped:
+            /* (stopped by the user: the app closes too) */
+            if ( m_user_stop && !m_appSessionId.empty() )
+                m_communication->msgReceiverStopApp( m_appSessionId );
+            break;
+        default:
+            break;
+        }
         switch ( m_state )
         {
         case Ready:
@@ -623,8 +660,8 @@ bool intf_sys_t::processMessage(const castchannel::CastMessage &msg)
     struct json_object json;
     int val = json_parse(&sys, &json);
     if (val) {
-        msg_Dbg(m_module, "error: could not parse json!");
-        return false;
+        msg_Warn(m_module, "a message of the Chromecast could not be read (ignored)");
+        return true;
     }
 
     bool ret = true;
@@ -783,7 +820,7 @@ bool intf_sys_t::processReceiverMessage( const castchannel::CastMessage& msg , c
             {
                 const char *appId = json_get_str(&applications->array.entries[i].object, "appId");
                 const char *transportId = json_get_str(&applications->array.entries[i].object, "transportId");
-                if ( strcmp( appId, APP_ID ) == 0 ) 
+                if ( appId != NULL && strcmp( appId, APP_ID ) == 0 )
                 {
                     if (  transportId != NULL )
                     {
@@ -794,6 +831,22 @@ bool intf_sys_t::processReceiverMessage( const castchannel::CastMessage& msg , c
             }
         }
         vlc::threads::mutex_locker lock( m_lock );
+        if ( p_app != NULL )
+        {
+            const char *sessionId = json_get_str( p_app, "sessionId" );
+            if ( sessionId != NULL )
+                m_appSessionId = sessionId;
+        }
+        /* its volume, once, for the interface's control (it starts there) */
+        const json_object *volume = json_get_object( &status->object, "volume" );
+        const double level = volume ? json_get_num( volume, "level" ) : NAN;
+        if ( !m_volume_reported && !std::isnan( level ) && m_libvlc != nullptr
+          && var_Type( m_libvlc, "renderer-volume-device" ) )
+        {
+            m_volume_reported = true;
+            m_sent_volume = (int)std::lround( level * 100. );
+            var_SetInteger( m_libvlc, "renderer-volume-device", m_sent_volume );
+        }
 
         switch ( m_state )
         {
@@ -1079,7 +1132,7 @@ bool intf_sys_t::handleMessages()
             vlc::threads::mutex_locker lock( m_lock );
             if ( m_pingRetriesLeft == 0 )
             {
-                m_state = Dead;
+                setState( Dead );
                 msg_Warn( m_module, "No PING response from the chromecast" );
                 return false;
             }
@@ -1097,7 +1150,7 @@ bool intf_sys_t::handleMessages()
             {
                 msg_Err( m_module, "Payload size is too long: dropping connection" );
                 vlc::threads::mutex_locker lock( m_lock );
-                m_state = Dead;
+                setState( Dead );
                 return false;
             }
             continue;
@@ -1266,6 +1319,96 @@ vlc_tick_t intf_sys_t::getPlaybackTimestamp()
     }
 }
 
+/* How the Chromecast does, for the interface ("renderer-state" of libvlc,
+ * as the DLNA output says it): connecting until it plays, playing, or why
+ * it does not: it does not answer or the connection broke (unreachable), it
+ * could not load the stream (unreadable: a firewall, most of the time),
+ * another app took it (taken), or its app was closed (stopped) */
+void intf_sys_t::reportState( States previous )
+{
+    const char *state = NULL;
+    switch( m_state )
+    {
+        case Authenticating:
+        case Connecting:
+        case Connected:
+        case Launching:
+        case Ready:
+        case Loading:
+        case Buffering:
+            if ( !m_played_once )
+                state = "connecting";
+            break;
+        case Playing:
+        case Paused:
+            state = "playing";
+            break;
+        case LoadFailed:
+            state = "failed:unreadable";
+            break;
+        case Dead:
+            state = "failed:unreachable";
+            break;
+        case TakenOver:
+            state = "failed:taken";
+            break;
+        case Stopped:
+            /* not when it was told to stop */
+            if ( m_played_once && previous != Stopping )
+                state = "failed:stopped";
+            break;
+        default:
+            break;
+    }
+    if ( state == NULL )
+        return;
+    vlc_object_t *libvlc = VLC_OBJECT( vlc_object_instance( m_module ) );
+    if ( !var_Type( libvlc, "renderer-state" ) )
+        return;
+    const std::string value = std::string( state ) + '|' + m_device_addr;
+    var_SetString( libvlc, "renderer-state", value.c_str() );
+}
+
+bool intf_sys_t::userStopped() const
+{
+    vlc::threads::mutex_locker lock( m_lock );
+    return m_user_stop;
+}
+
+/* The volume and mute asked by the interface, sent when they changed and
+ * the device can take them (m_lock held) */
+void intf_sys_t::applyVolume()
+{
+    if ( m_communication == NULL || m_state == Authenticating || m_state == Connecting
+      || m_state == Dead )
+        return;
+    if ( m_want_volume >= 0 && m_want_volume != m_sent_volume )
+    {
+        m_sent_volume = m_want_volume;
+        m_communication->msgReceiverSetVolume( m_want_volume / 100.f );
+    }
+    if ( m_want_muted >= 0 && m_want_muted != m_sent_muted )
+    {
+        m_sent_muted = m_want_muted;
+        m_communication->msgReceiverSetMute( m_want_muted > 0 );
+    }
+}
+
+int intf_sys_t::rendererVarChanged( vlc_object_t *, const char *psz_var, vlc_value_t,
+                                    vlc_value_t newval, void *data )
+{
+    intf_sys_t *p_this = static_cast<intf_sys_t *>( data );
+    vlc::threads::mutex_locker lock( p_this->m_lock );
+    if ( !strcmp( psz_var, "renderer-stop" ) )
+        p_this->m_user_stop = true;
+    else if ( !strcmp( psz_var, "renderer-volume" ) )
+        p_this->m_want_volume = newval.i_int;
+    else if ( !strcmp( psz_var, "renderer-muted" ) )
+        p_this->m_want_muted = newval.i_int;
+    p_this->applyVolume();
+    return VLC_SUCCESS;
+}
+
 void intf_sys_t::setState( States state )
 {
     if ( m_state != state )
@@ -1273,12 +1416,15 @@ void intf_sys_t::setState( States state )
 #ifndef NDEBUG
         msg_Dbg( m_module, "Switching from state %s to %s", StateToStr( m_state ), StateToStr( state ) );
 #endif
+        const States previous = m_state;
         m_state = state;
+        reportState( previous );
 
         switch( m_state )
         {
             case Connected:
             case Ready:
+                applyVolume();
                 tryLoad();
                 break;
             case Paused:

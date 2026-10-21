@@ -43,6 +43,21 @@ build_updater() {
     $triplet-gcc -O2 -municode -mwindows -static -Wl,--no-insert-timestamp         -o /build/package/vlc-redesign-update.exe         /src/extras/juxtopposed/updater/vlc-redesign-update.c -ladvapi32 -lshell32
 }
 
+# The prebuilt libupnp never returns from its HTTP requests (pupnp renames
+# the MinGW string functions into ones calling themselves, see
+# contrib/src/upnp): build it from source with the fix, once per contrib
+# prefix (a prebuilt archive brings the old one back), and link the UPnP
+# plugin again.
+upnp_from_source() {
+    stamp=contrib/$triplet/.upnp-from-source
+    sum=$(cat contrib/src/upnp/rules.mak contrib/src/upnp/*.patch | sha1sum | cut -d' ' -f1)
+    [ "$(cat "$stamp" 2>/dev/null)" = "$sum" ] && return 1
+    # (set -e does not apply in a function called as a condition)
+    (cd contrib/contrib-win64 && rm -f .upnp && make .upnp) || exit 1
+    echo "$sum" > "$stamp"
+    rm -f win64/modules/libupnp_plugin.la
+}
+
 # The copy has no .git: src/Makefile then reads the version from revision.txt.
 git -C /src -c safe.directory='*' describe --tags --long --match '?.*.*' --always \
     > /build/revision.txt
@@ -64,6 +79,7 @@ fi
 # build.sh run bootstraps and configures again, which takes minutes.
 if [ "${QUICK:-}" = 1 ] && [ -f win64/Makefile ]; then
     export PATH="/build/vlc/extras/tools/build/bin:$PATH"
+    upnp_from_source || true
     make -C win64 -j"$jobs"
     make -C win64 package-win-common
     build_updater
@@ -96,6 +112,10 @@ rm -f extras/package/win32/build-prebuilt-only.sh
 
 test -s /build/package/vlc.exe
 test -s /build/package/plugins/gui/libqt_plugin.dll
+if upnp_from_source; then
+    make -C win64 -j"$jobs"
+    make -C win64 package-win-common
+fi
 build_updater
 strip_package
 # The host mount refuses owner/group/permission and directory time changes.
