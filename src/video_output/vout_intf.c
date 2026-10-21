@@ -80,6 +80,8 @@ static int SubMarginCallback( vlc_object_t *, char const *,
                               vlc_value_t, vlc_value_t, void * );
 static int SecondarySubMarginCallback( vlc_object_t *, char const *,
                                        vlc_value_t, vlc_value_t, void * );
+static int SubPositionCallback( vlc_object_t *, char const *,
+                                vlc_value_t, vlc_value_t, void * );
 static int ViewpointCallback( vlc_object_t *, char const *,
                               vlc_value_t, vlc_value_t, void * );
 static int Stereo3DCallback( vlc_object_t *, char const *,
@@ -345,6 +347,11 @@ void vout_CreateVars( vout_thread_t *p_vout )
                 VLC_VAR_INTEGER | VLC_VAR_DOINHERIT | VLC_VAR_ISCOMMAND );
     var_AddCallback( p_vout, "secondary-sub-margin", SecondarySubMarginCallback, NULL );
 
+    /* How high the subtitles are, in percent of the picture */
+    var_Create( p_vout, "sub-position",
+                VLC_VAR_INTEGER | VLC_VAR_DOINHERIT | VLC_VAR_ISCOMMAND );
+    var_AddCallback( p_vout, "sub-position", SubPositionCallback, NULL );
+
     /* Mouse coordinates */
     var_Create( p_vout, "mouse-button-down", VLC_VAR_INTEGER );
     var_Create( p_vout, "mouse-moved", VLC_VAR_COORDS );
@@ -413,6 +420,7 @@ void vout_IntfDeinit(vlc_object_t *obj)
     var_DelCallback(obj, "viewpoint", ViewpointCallback, NULL);
     var_DelCallback(obj, "sub-margin", SubMarginCallback, NULL);
     var_DelCallback(obj, "secondary-sub-margin", SecondarySubMarginCallback, NULL);
+    var_DelCallback(obj, "sub-position", SubPositionCallback, NULL);
     var_DelCallback(obj, "sub-filter", SubFilterCallback, NULL);
     var_DelCallback(obj, "sub-source", SubSourceCallback, NULL);
     var_DelCallback(obj, "video-filter", VideoFilterCallback, NULL);
@@ -824,6 +832,16 @@ static int SecondarySubMarginCallback( vlc_object_t *p_this, char const *psz_cmd
     VLC_UNUSED(psz_cmd); VLC_UNUSED(oldval); VLC_UNUSED(p_data);
 
     vout_ChangeSpuChannelMargin(p_vout, VLC_VOUT_ORDER_SECONDARY, newval.i_int);
+    return VLC_SUCCESS;
+}
+
+static int SubPositionCallback( vlc_object_t *p_this, char const *psz_cmd,
+                                vlc_value_t oldval, vlc_value_t newval, void *p_data)
+{
+    vout_thread_t *p_vout = (vout_thread_t *)p_this;
+    VLC_UNUSED(psz_cmd); VLC_UNUSED(oldval); VLC_UNUSED(p_data);
+
+    vout_ChangeSubtitlePosition(p_vout, newval.i_int);
     return VLC_SUCCESS;
 }
 

@@ -818,6 +818,12 @@ static const char* const ppsz_restore_playback_desc[] = {
     "You can use this option to place the subtitles under the movie, " \
     "instead of over the movie. Try several positions.")
 
+#define SUB_POSITION_TEXT N_("Subtitle position")
+#define SUB_POSITION_LONGTEXT N_( \
+    "How high the subtitles are, in percent of the height of the picture " \
+    "above their usual place (below it when negative). The same on any " \
+    "screen and in any window size.")
+
 #define SUB_TEXT_SCALE_TEXT N_("Subtitles text scaling factor")
 #define SUB_TEXT_SCALE_LONGTEXT N_("Changes the subtitles size where possible")
 
@@ -1838,6 +1844,8 @@ vlc_module_begin ()
                  SUB_PATH_TEXT, SUB_PATH_LONGTEXT )
     add_integer( "sub-margin", 0, SUB_MARGIN_TEXT,
                  SUB_MARGIN_LONGTEXT )
+    add_integer_with_range( "sub-position", 0, -20, 60, SUB_POSITION_TEXT,
+                            SUB_POSITION_LONGTEXT )
     add_integer_with_range( "sub-text-scale", 100, 10, 500,
                SUB_TEXT_SCALE_TEXT, SUB_TEXT_SCALE_LONGTEXT )
     set_section( N_( "Overlays" ) , NULL )
@@ -2362,8 +2370,8 @@ vlc_module_begin ()
 #   define KEY_VOL_MUTE           "Command+Alt+Down"
 #   define KEY_SUBDELAY_UP        "j"
 #   define KEY_SUBDELAY_DOWN      "h"
-#   define KEY_SUBPOS_DOWN        NULL
-#   define KEY_SUBPOS_UP          NULL
+#   define KEY_SUBPOS_DOWN        "Shift+Down"
+#   define KEY_SUBPOS_UP          "Shift+Up"
 #   define KEY_SUBTEXT_SCALEUP    "Command+Mouse Wheel Up"
 #   define KEY_SUBTEXT_SCALEDOWN  "Command+Mouse Wheel Down"
 #   define KEY_SUBTEXT_SCALE      "Command+0"
@@ -2506,8 +2514,8 @@ vlc_module_begin ()
 #   define KEY_FRAME_PREVIOUS     "Shift+e\t,"
 #   define KEY_SUBDELAY_UP        "h"
 #   define KEY_SUBDELAY_DOWN      "g"
-#   define KEY_SUBPOS_DOWN        NULL
-#   define KEY_SUBPOS_UP          NULL
+#   define KEY_SUBPOS_DOWN        "Shift+Down"
+#   define KEY_SUBPOS_UP          "Shift+Up"
 #   define KEY_SUBTEXT_SCALEUP    "Ctrl+Mouse Wheel Up"
 #   define KEY_SUBTEXT_SCALEDOWN  "Ctrl+Mouse Wheel Down"
 #   define KEY_SUBTEXT_SCALE      "Ctrl+0"

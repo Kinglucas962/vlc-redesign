@@ -126,6 +126,11 @@ struct spu_private_t {
      * Secondary sub margin is not absolute to enable overlap detection.
      */
     int secondary_margin;
+    /**
+     * How high the subtitles are, in percent of the height of the picture
+     * (sub-position): with the margin, whatever the size of the picture.
+     */
+    int position;
     int secondary_alignment;       /**< Force alignment for secondary subs */
     subtitles_positions_vector subs_pos;
 
@@ -1026,7 +1031,10 @@ static struct subpicture_region_rendered *SpuRenderRegion(spu_t *spu,
      * to ensure that overlap does not occur. */
     int y_margin = 0;
     if (!crop_requested && subpic->b_subtitle)
-        y_margin = apply_scale ? spu_invscale_h(sys->margin, scale_size) : sys->margin;
+    {
+        const int margin = sys->margin + sys->position * (int)output_height / 100;
+        y_margin = apply_scale ? spu_invscale_h(margin, scale_size) : margin;
+    }
 
     /* Place the picture
      * We compute the position in the rendered size */
@@ -1966,6 +1974,7 @@ spu_t *spu_Create(vlc_object_t *object, vout_thread_t *vout)
 
     sys->margin = var_InheritInteger(spu, "sub-margin");
     sys->secondary_margin = var_InheritInteger(spu, "secondary-sub-margin");
+    sys->position = var_InheritInteger(spu, "sub-position");
 
     sys->secondary_alignment = var_InheritInteger(spu,
                                                   "secondary-sub-alignment");
@@ -2486,6 +2495,15 @@ void spu_ChangeFilters(spu_t *spu, const char *filters)
     else if (sys->filter_chain_current)
         sys->filter_chain_update = strdup(sys->filter_chain_current);
 
+    vlc_mutex_unlock(&sys->lock);
+}
+
+void spu_ChangePosition(spu_t *spu, int position)
+{
+    spu_private_t *sys = container_of(spu, spu_private_t, spu);
+
+    vlc_mutex_lock(&sys->lock);
+    sys->position = position;
     vlc_mutex_unlock(&sys->lock);
 }
 

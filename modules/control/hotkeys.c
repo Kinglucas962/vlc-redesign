@@ -893,10 +893,26 @@ VOUT_ACTION_HANDLER(SubtitleDisplay)
     switch (action_id)
     {
         case ACTIONID_SUBPOS_DOWN:
-            var_DecInteger(vout, psz_sub_margin);
-            break;
         case ACTIONID_SUBPOS_UP:
-            var_IncInteger(vout, psz_sub_margin);
+            if (sys->spu_channel_order == VLC_VOUT_ORDER_PRIMARY)
+            {
+                /* in percent of the picture: the same on any screen; for
+                 * the next videos too (saved with the settings) */
+                int position = var_GetInteger(vout, "sub-position")
+                             + (action_id == ACTIONID_SUBPOS_UP ? 1 : -1);
+                position = VLC_CLIP(position, -20, 60);
+                var_SetInteger(vout, "sub-position", position);
+                config_PutInt("sub-position", position);
+                vlc_player_t *player = vlc_playlist_GetPlayer(sys->playlist);
+                if (position == 0)
+                    vlc_player_osd_Message(player, _("Subtitle position: usual"));
+                else
+                    vlc_player_osd_Message(player, _("Subtitle position: %+d%%"), position);
+            }
+            else if (action_id == ACTIONID_SUBPOS_DOWN)
+                var_DecInteger(vout, psz_sub_margin);
+            else
+                var_IncInteger(vout, psz_sub_margin);
             break;
         default:
         {
