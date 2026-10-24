@@ -1403,9 +1403,8 @@ msgid "Actors"
 msgstr "Atores"
 
 #: src/input/meta.c:79 modules/demux/mp4/meta.c:101
-#, fuzzy
 msgid "Album Artist"
-msgstr "Artista"
+msgstr "Artista do álbum"
 
 #: src/input/meta.c:80
 #, fuzzy
@@ -1665,9 +1664,8 @@ msgstr ""
 "automaticamente o melhor método disponível."
 
 #: src/libvlc-module.c:129
-#, fuzzy
 msgid "Media role"
-msgstr "Ângulo da Mídia"
+msgstr "Função da mídia"
 
 #: src/libvlc-module.c:130
 msgid "Media (player) role for operating system policy."
@@ -1687,9 +1685,8 @@ msgstr ""
 "decodificação de áudio não irá ocorrer, economizando processamento."
 
 #: src/libvlc-module.c:142
-#, fuzzy
 msgid "Music"
-msgstr "Musical"
+msgstr "Música"
 
 #: src/libvlc-module.c:142
 #, fuzzy
@@ -1706,9 +1703,8 @@ msgid "Notification"
 msgstr "Amplificação"
 
 #: src/libvlc-module.c:143
-#, fuzzy
 msgid "Animation"
-msgstr "Destino"
+msgstr "Animação"
 
 #: src/libvlc-module.c:143
 #, fuzzy
@@ -3863,9 +3859,8 @@ msgstr ""
 "reprodução, por exemplo. Use uma lista de extensões, separada por vírgulas."
 
 #: src/libvlc-module.c:1141
-#, fuzzy
 msgid "Show hidden files"
-msgstr "Exibir Detalhes"
+msgstr "Mostrar arquivos ocultos"
 
 #: src/libvlc-module.c:1143
 msgid "Ignore files starting with '.'"
@@ -3934,9 +3929,8 @@ msgid "Pause each item in the playlist on the last frame."
 msgstr "Pausa cada item da lista de reprodução sobre o último quadro."
 
 #: src/libvlc-module.c:1174
-#, fuzzy
 msgid "Start paused"
-msgstr "Momento de início"
+msgstr "Começar pausado"
 
 #: src/libvlc-module.c:1176
 #, fuzzy
@@ -5150,7 +5144,7 @@ msgstr "F9"
 
 #: src/misc/actions.c:79
 msgid "Home"
-msgstr "Home"
+msgstr "Início"
 
 #: src/misc/actions.c:80
 msgid "Insert"
@@ -17083,9 +17077,8 @@ msgid "Seek forward"
 msgstr "Avançar"
 
 #: modules/gui/macosx/VLCControlsBarCommon.m:76
-#, fuzzy
 msgid "Playback position"
-msgstr "Controle de reprodução"
+msgstr "Posição de reprodução"
 
 #: modules/gui/macosx/VLCControlsBarCommon.m:127
 #, fuzzy
@@ -19938,9 +19931,8 @@ msgstr "Nenhum dado de guia de programação disponível"
 
 #: modules/gui/qt/components/extended_panels.cpp:362
 #: modules/gui/qt/components/extended_panels.cpp:373
-#, fuzzy
 msgid "Image Files"
-msgstr "Parede de imagens"
+msgstr "Arquivos de imagem"
 
 #: modules/gui/qt/components/extended_panels.cpp:364 modules/spu/logo.c:49
 msgid "Logo filenames"
@@ -20083,9 +20075,8 @@ msgstr ""
 "ganho"
 
 #: modules/gui/qt/components/extended_panels.cpp:1333
-#, fuzzy
 msgid "Adjust pitch"
-msgstr "Ajuda a prioridade do VLC"
+msgstr "Ajustar tom"
 
 #: modules/gui/qt/components/extended_panels.cpp:1367
 msgid "(Hastened)"
@@ -20808,9 +20799,8 @@ msgid "Convert"
 msgstr "Converter"
 
 #: modules/gui/qt/dialogs/convert.cpp:58
-#, fuzzy
 msgid "Multiple files selected."
-msgstr "Nenhum arquivo selecionado"
+msgstr "Vários arquivos selecionados."
 
 #: modules/gui/qt/dialogs/convert.cpp:65 modules/stream_out/rtp.c:76
 msgid "Destination"
@@ -20825,18 +20815,16 @@ msgid "Browse"
 msgstr "Procurar"
 
 #: modules/gui/qt/dialogs/convert.cpp:86
-#, fuzzy
 msgid "Multiple Files Selected."
-msgstr "&Abrir &Vários Arquivos..."
+msgstr "Vários arquivos selecionados."
 
 #: modules/gui/qt/dialogs/convert.cpp:88
 msgid "Files will be placed in the same directory with the same name."
-msgstr ""
+msgstr "Os arquivos serão colocados na mesma pasta com o mesmo nome."
 
 #: modules/gui/qt/dialogs/convert.cpp:91
-#, fuzzy
 msgid "Append '-converted' to filename"
-msgstr "Anexar ao arquivo"
+msgstr "Acrescentar '-converted' ao nome do arquivo"
 
 #: modules/gui/qt/dialogs/convert.cpp:99
 msgid "Settings"
@@ -20888,9 +20876,8 @@ msgid "Adjustments and Effects"
 msgstr "Ajustes e Efeitos"
 
 #: modules/gui/qt/dialogs/extended.cpp:80
-#, fuzzy
 msgid "Stereo Widener"
-msgstr "Modo estéreo"
+msgstr "Ampliador estéreo"
 
 #: modules/gui/qt/dialogs/extended.cpp:111
 msgid "Synchronization"
@@ -21036,9 +21023,8 @@ msgid "Save log file as..."
 msgstr "Salvar o arquivo de registro como..."
 
 #: modules/gui/qt/dialogs/messages.cpp:261
-#, fuzzy
 msgid "Texts/Logs (*.log *.txt);; All (*.*)"
-msgstr "Textos / Registros (*.log *.txt);; Todos (*.*) "
+msgstr "Textos/Registros (*.log *.txt);; Todos (*.*)"
 
 #: modules/gui/qt/dialogs/messages.cpp:267
 msgid "Application"
@@ -21572,9 +21558,8 @@ msgid "Empty"
 msgstr "Vazio"
 
 #: modules/gui/qt/extensions_manager.cpp:197
-#, fuzzy
 msgid "Deactivate"
-msgstr "Habilitar"
+msgstr "Desativar"
 
 #: modules/gui/qt/main_interface.cpp:371
 msgid "Do you want to restart the playback where left off?"
@@ -21613,9 +21598,8 @@ msgid "Subti&tle"
 msgstr "Legen&da"
 
 #: modules/gui/qt/menus.cpp:339 modules/gui/qt/menus.cpp:1076
-#, fuzzy
 msgid "Tool&s"
-msgstr "&Ferramentas"
+msgstr "Ferramen&tas"
 
 #: modules/gui/qt/menus.cpp:342 modules/gui/qt/menus.cpp:1083
 msgid "V&iew"
@@ -21710,9 +21694,8 @@ msgid "Docked Playlist"
 msgstr "Lista de Reprodução Embutida"
 
 #: modules/gui/qt/menus.cpp:499
-#, fuzzy
 msgid "Always on &top"
-msgstr "Sempre visível"
+msgstr "Sempre no &topo"
 
 #: modules/gui/qt/menus.cpp:507
 msgid "Mi&nimal Interface"
@@ -21904,14 +21887,12 @@ msgid "&Clear"
 msgstr "&Limpar"
 
 #: modules/gui/qt/menus.cpp:1636
-#, fuzzy
 msgid "&Renderer"
-msgstr "Gerador de textos"
+msgstr "&Renderizador"
 
 #: modules/gui/qt/menus.cpp:1640
-#, fuzzy
 msgid "<Local>"
-msgstr "Voz"
+msgstr "<Local>"
 
 #: modules/gui/qt/menus.cpp:1653
 msgid "Scan"
@@ -22288,9 +22269,8 @@ msgid "Select skin"
 msgstr "Selecionar capa"
 
 #: modules/gui/skins2/src/theme_repository.cpp:116
-#, fuzzy
 msgid "Open skin..."
-msgstr "Abrir capa..."
+msgstr "Abrir skin..."
 
 #: modules/hw/d3d11/d3d11_filters.c:87 modules/hw/d3d9/d3d9_filters.c:68
 #: modules/video_filter/adjust.c:61
@@ -22551,7 +22531,6 @@ msgid "Any"
 msgstr ""
 
 #: modules/keystore/keychain.m:46
-#, fuzzy
 msgid "System default"
 msgstr "Padrão do sistema"
 
@@ -24242,9 +24221,8 @@ msgid "Now playing"
 msgstr "Reproduzindo agora"
 
 #: modules/notify/osx_notifications.m:402
-#, fuzzy
 msgid "Skip"
-msgstr "Ignorar "
+msgstr "Pular"
 
 #: modules/notify/notify.c:55
 msgid "Timeout (ms)"
@@ -26569,9 +26547,8 @@ msgid "Shadow distance"
 msgstr "Distância da sombra"
 
 #: modules/text_renderer/freetype/freetype.c:118
-#, fuzzy
 msgid "Text direction"
-msgstr "Posição do texto"
+msgstr "Direção do texto"
 
 #: modules/text_renderer/freetype/freetype.c:119
 msgid "Paragraph base direction for the Unicode bi-directional algorithm."
@@ -26598,14 +26575,12 @@ msgid "Thick"
 msgstr "Cheio"
 
 #: modules/text_renderer/freetype/freetype.c:151
-#, fuzzy
 msgid "Left to right"
-msgstr "Da esquerda para a direita /  De cima para baixo"
+msgstr "Da esquerda para a direita"
 
 #: modules/text_renderer/freetype/freetype.c:151
-#, fuzzy
 msgid "Right to left"
-msgstr "Direita para esquerda/De baixo para cima"
+msgstr "Da direita para a esquerda"
 
 #: modules/text_renderer/freetype/freetype.c:156
 msgid "Text renderer"
@@ -40368,7 +40343,7 @@ msgid "MC"
 msgstr "MC"
 
 msgid "Playlists"
-msgstr "Listas de reprodução"
+msgstr "Playlists"
 
 msgid "Artists"
 msgstr "Artistas"
@@ -42047,3 +42022,311 @@ msgstr "Usar expressão regular"
 msgid "See All"
 msgstr "Ver tudo"
 
+msgid "Enable window titlebar"
+msgstr "Ativar barra de título da janela"
+
+msgid "Show the menu bar"
+msgstr "Mostrar a barra de menus"
+
+msgid "Pin video controls"
+msgstr "Fixar controles de vídeo"
+
+msgid "Show the frame at the hovered position above the seek bar"
+msgstr "Mostrar o quadro da posição sob o cursor acima da barra de progresso"
+
+msgid "Hide the window on close"
+msgstr "Ocultar a janela ao fechar"
+
+msgid "Instead of closing the application, hide the window. This setting is only applicable when system tray icon is enabled."
+msgstr "Em vez de fechar o aplicativo, oculta a janela. Esta opção só vale quando o ícone da bandeja do sistema está ativado."
+
+msgid "Enable backdrop blur filter for the main window if possible"
+msgstr "Ativar o desfoque de fundo na janela principal, se possível"
+
+msgid "Enable picture-in-picture (PiP) mode"
+msgstr "Ativar o modo imagem em imagem (PiP)"
+
+msgid "Picture-in-picture mode allows playing video contained in a smaller area so that the interface remains usable."
+msgstr "O modo imagem em imagem reproduz o vídeo numa área menor para que a interface continue utilizável."
+
+msgid "Check for VLC Redesign updates"
+msgstr "Verificar atualizações do VLC Redesign"
+
+msgid "Look for a new release of VLC Redesign on GitHub at startup, at most once a day."
+msgstr "Procura uma nova versão do VLC Redesign no GitHub ao iniciar, no máximo uma vez por dia."
+
+msgid "Resume at"
+msgstr "Retomar em"
+
+msgid "Seconds into the media of the command line where playback continues, after an update."
+msgstr "Segundos da mídia da linha de comando em que a reprodução continua, após uma atualização."
+
+msgid "<p>In order to protect your privacy, <i>VLC media player</i> does <b>not</b> collect personal data or transmit them, not even in anonymized form, to anyone.</p>\n<p>Nevertheless, <i>VLC</i> is able to automatically retrieve information about the media in your play queue from third party Internet-based services. This includes cover art, track names, artist names and other meta-data.</p>\n<p>Consequently, this may entail identifying some of your media files to third party entities. Therefore the <i>VLC</i> developers require your express consent for the media player to access the Internet automatically.</p>\n"
+msgstr "<p>Para proteger a sua privacidade, o <i>VLC media player</i> <b>não</b> coleta dados pessoais nem os transmite, nem mesmo de forma anônima, a ninguém.</p>\n<p>Mesmo assim, o <i>VLC</i> consegue buscar automaticamente, em serviços de terceiros na internet, informações sobre as mídias da sua fila de reprodução. Isso inclui capas, nomes de faixas, nomes de artistas e outros metadados.</p>\n<p>Por isso, isso pode implicar identificar alguns dos seus arquivos de mídia para terceiros. Assim, os desenvolvedores do <i>VLC</i> exigem o seu consentimento expresso para que o player acesse a internet automaticamente.</p>\n"
+
+msgid "<ul><li>No client-side decoration</li><li>Toolbar menu</li><li>Pinned video controls</li></ul>"
+msgstr "<ul><li>Sem decoração de janela própria</li><li>Menu na barra de ferramentas</li><li>Controles de vídeo fixos</li></ul>"
+
+msgid "<ul><li>Client-side decoration</li><li>No toolbar menu</li><li>Video controls unpinned</li></ul>"
+msgstr "<ul><li>Decoração de janela própria</li><li>Sem menu na barra de ferramentas</li><li>Controles de vídeo soltos</li></ul>"
+
+msgid "Seek Backward / Forward"
+msgstr "Voltar / avançar"
+
+msgid "Previous / Next Item"
+msgstr "Item anterior / próximo"
+
+msgid "Previous / Next Frame"
+msgstr "Quadro anterior / próximo"
+
+msgid "Cycle Subtitle Track"
+msgstr "Alternar faixa de legenda"
+
+msgid "Cycle Audio Track"
+msgstr "Alternar faixa de áudio"
+
+msgid "Toggle Fullscreen"
+msgstr "Alternar tela cheia"
+
+msgid "Increase / Decrease Volume"
+msgstr "Aumentar / diminuir volume"
+
+msgid "Show / Hide Queue"
+msgstr "Mostrar / ocultar fila"
+
+msgid "Show / Hide File Browser"
+msgstr "Mostrar / ocultar navegador de arquivos"
+
+msgid "Take a Snapshot"
+msgstr "Capturar imagem"
+
+msgid "Video camera"
+msgstr "Câmera de vídeo"
+
+msgid "Service discoveries adds new sources to your play queue such as web radios, video websites, ..."
+msgstr "Descobertas de serviço adicionam novas fontes à sua fila de reprodução, como rádios web, sites de vídeo..."
+
+msgid "Greek"
+msgstr "Grego"
+
+msgid "Largest"
+msgstr "Maior"
+
+msgid "Slightly raised"
+msgstr "Levemente elevada"
+
+msgid "Raised"
+msgstr "Elevada"
+
+msgid "Looks for the cast devices of the local network when the Renderer menu opens."
+msgstr "Procura dispositivos de transmissão na rede local quando o menu Renderizador abre."
+
+msgid "Opens the window where it was when VLC was closed."
+msgstr "Abre a janela onde ela estava quando o VLC foi fechado."
+
+msgid "How long the popup of the track changes stays on the screen."
+msgstr "Por quanto tempo o aviso de troca de faixa fica na tela."
+
+msgid "How much processor time the system gives VLC compared with the other programs."
+msgstr "Quanto tempo de processador o sistema dá ao VLC em relação aos outros programas."
+
+msgid "What a double click on the video does."
+msgstr "O que o clique duplo no vídeo faz."
+
+msgid "Nothing|Toggle fullscreen"
+msgstr "Nada|Alternar tela cheia"
+
+msgid "Choose the size of the subtitles by name (relative to the picture), or in pixels."
+msgstr "Escolha o tamanho das legendas por nome (relativo à imagem) ou em pixels."
+
+msgid "Relative|Pixels"
+msgstr "Relativo|Pixels"
+
+msgid "Relative"
+msgstr "Relativo"
+
+msgid "How opaque the box behind the subtitles is when there is one (kept while there is none)."
+msgstr "Quão opaca é a caixa atrás das legendas, quando há uma (mantido enquanto não há)."
+
+msgid "A regular expression: the items whose address or name matches it are not saved in the history, nor their playback position."
+msgstr "Uma expressão regular: os itens cujo endereço ou nome corresponda a ela não são salvos no histórico, nem a posição de reprodução deles."
+
+msgid "Ultra fast"
+msgstr "Ultrarrápido"
+
+msgid "Super fast"
+msgstr "Superrápido"
+
+msgid "Very fast"
+msgstr "Muito rápido"
+
+msgid "Very slow"
+msgstr "Muito lento"
+
+msgid "Placebo"
+msgstr "Placebo"
+
+msgid "Film"
+msgstr "Filme"
+
+msgid "Still image"
+msgstr "Imagem estática"
+
+msgid "Fast decoding"
+msgstr "Decodificação rápida"
+
+msgid "Zero latency"
+msgstr "Latência zero"
+
+msgid "Above normal"
+msgstr "Acima do normal"
+
+msgid "Below normal"
+msgstr "Abaixo do normal"
+
+msgid "Idle"
+msgstr "Ocioso"
+
+msgid "This displays the resulting media, but can slow things down."
+msgstr "Mostra a mídia resultante, mas pode deixar tudo mais lento."
+
+msgid "This module outputs the transcoded stream to a network via SRT."
+msgstr "Este módulo envia o stream convertido por uma rede via SRT."
+
+msgid "Empty Style"
+msgstr "Estilo vazio"
+
+msgid "Minimalist Style"
+msgstr "Estilo minimalista"
+
+msgid "One-liner Style"
+msgstr "Estilo de uma linha"
+
+msgid "Simplest Style"
+msgstr "Estilo mais simples"
+
+msgid "Classic Style"
+msgstr "Estilo clássico"
+
+msgid "Movies"
+msgstr "Filmes"
+
+msgid "Shows"
+msgstr "Séries"
+
+msgid "Work"
+msgstr "Trabalho"
+
+msgid "Do you really want to delete the selected playlist?"
+msgstr "Tem certeza de que quer excluir a lista de reprodução selecionada?"
+
+msgid "Video player"
+msgstr "Player de vídeo"
+
+msgid "Audio player"
+msgstr "Player de áudio"
+
+msgid "A file of VLC Redesign was changed since it was installed, so the small update can't be used: update with the installer instead."
+msgstr "Um arquivo do VLC Redesign foi alterado depois da instalação, então a atualização pequena não pode ser usada: atualize pelo instalador."
+
+msgid "Asturian"
+msgstr "Asturiano"
+
+msgid "Cebuano"
+msgstr "Cebuano"
+
+msgid "Central Kurdish"
+msgstr "Curdo central"
+
+msgid "Montenegrin"
+msgstr "Montenegrino"
+
+msgid "Hawaiian"
+msgstr "Havaiano"
+
+msgid "Hmong"
+msgstr "Hmong"
+
+msgid "Manipuri"
+msgstr "Manipuri"
+
+msgid "Dari"
+msgstr "Dari"
+
+msgid "Syriac"
+msgstr "Siríaco"
+
+msgid "Cantonese"
+msgstr "Cantonês"
+
+msgid "Standard Moroccan Tamazight"
+msgstr "Tamazight marroquino padrão"
+
+msgid "Portuguese (Brazil)"
+msgstr "Português (Brasil)"
+
+msgid "Chinese (Traditional)"
+msgstr "Chinês (tradicional)"
+
+msgid "Spanish (Latin America)"
+msgstr "Espanhol (América Latina)"
+
+msgid "%1 Bookmark"
+msgid_plural "%1 Bookmarks"
+msgstr[0] "%1 marcador"
+msgstr[1] "%1 marcadores"
+
+msgid "%1 file selected"
+msgid_plural "%1 files selected"
+msgstr[0] "%1 arquivo selecionado"
+msgstr[1] "%1 arquivos selecionados"
+
+msgid "%1 item"
+msgid_plural "%1 items"
+msgstr[0] "%1 item"
+msgstr[1] "%1 itens"
+
+msgid "%1 media file"
+msgid_plural "%1 media files"
+msgstr[0] "%1 arquivo de mídia"
+msgstr[1] "%1 arquivos de mídia"
+
+msgid "%1 Other"
+msgid_plural "%1 Other"
+msgstr[0] "%1 outro"
+msgstr[1] "%1 outros"
+
+msgid "%1 song"
+msgid_plural "%1 songs"
+msgstr[0] "%1 música"
+msgstr[1] "%1 músicas"
+
+msgid "%1 Song"
+msgid_plural "%1 Songs"
+msgstr[0] "%1 música"
+msgstr[1] "%1 músicas"
+
+msgid "%1 track"
+msgid_plural "%1 tracks"
+msgstr[0] "%1 faixa"
+msgstr[1] "%1 faixas"
+
+msgid "%1 Track"
+msgid_plural "%1 Tracks"
+msgstr[0] "%1 faixa"
+msgstr[1] "%1 faixas"
+
+msgid "%1 video"
+msgid_plural "%1 videos"
+msgstr[0] "%1 vídeo"
+msgstr[1] "%1 vídeos"
+
+msgid "%1 Video"
+msgid_plural "%1 Videos"
+msgstr[0] "%1 vídeo"
+msgstr[1] "%1 vídeos"
+
+msgid "Delete playlist"
+msgid_plural "Delete playlists"
+msgstr[0] "Excluir lista de reprodução"
+msgstr[1] "Excluir listas de reprodução"

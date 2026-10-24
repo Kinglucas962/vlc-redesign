@@ -29619,9 +29619,6 @@ msgstr ""
 msgid "%1 - %2 - %3 - %4"
 msgstr ""
 
-msgid "#"
-msgstr ""
-
 msgid "Tracks Count"
 msgstr ""
 
@@ -30012,31 +30009,7 @@ msgstr ""
 msgid "Discard the filtered out items"
 msgstr ""
 
-msgid "Ctrl + O"
-msgstr ""
-
-msgid "Ctrl + F"
-msgstr ""
-
-msgid "Ctrl + N"
-msgstr ""
-
-msgid "Ctrl + D"
-msgstr ""
-
-msgid "Ctrl + C"
-msgstr ""
-
-msgid "Ctrl + R"
-msgstr ""
-
-msgid "Ctrl + P"
-msgstr ""
-
 msgid "About VLC"
-msgstr ""
-
-msgid "Shift + F1"
 msgstr ""
 
 msgid "Documents"
@@ -30292,9 +30265,6 @@ msgid "close video"
 msgstr ""
 
 msgid "maximize player"
-msgstr ""
-
-msgid "4.00"
 msgstr ""
 
 msgid "Presets:"
@@ -30618,9 +30588,6 @@ msgstr ""
 msgid "Show %1 in the library"
 msgstr ""
 
-msgid "%1x"
-msgstr ""
-
 msgid "Video Tracks"
 msgstr ""
 
@@ -30660,9 +30627,6 @@ msgstr ""
 msgid "Show Preferences"
 msgstr ""
 
-msgid "%1 ms"
-msgstr ""
-
 msgid "Audio track synchronization"
 msgstr ""
 
@@ -30673,9 +30637,6 @@ msgid "Sound Heard"
 msgstr ""
 
 msgid "Sound Spotted"
-msgstr ""
-
-msgid "%1 fps"
 msgstr ""
 
 msgid "Subtitle synchronization"
@@ -30697,9 +30658,6 @@ msgid "Artist unavailable"
 msgstr ""
 
 msgid "Open player"
-msgstr ""
-
-msgid "%1\n%2\n%3"
 msgstr ""
 
 msgid "A to B Loop"
@@ -30787,9 +30745,6 @@ msgid "Navigation Buttons"
 msgstr ""
 
 msgid "change playback speed"
-msgstr ""
-
-msgid "1x"
 msgstr ""
 
 msgid "Play Queue (%1/%2)"
@@ -30972,9 +30927,6 @@ msgstr ""
 msgid "%1h%2"
 msgstr ""
 
-msgid "%1ms"
-msgstr ""
-
 msgid "infos"
 msgstr ""
 
@@ -31070,3 +31022,312 @@ msgstr ""
 
 msgid "See All"
 msgstr ""
+
+msgid "Enable window titlebar"
+msgstr ""
+
+msgid "Show the menu bar"
+msgstr ""
+
+msgid "Pin video controls"
+msgstr ""
+
+msgid "Show the frame at the hovered position above the seek bar"
+msgstr ""
+
+msgid "Hide the window on close"
+msgstr ""
+
+msgid "Instead of closing the application, hide the window. This setting is only applicable when system tray icon is enabled."
+msgstr ""
+
+msgid "Enable backdrop blur filter for the main window if possible"
+msgstr ""
+
+msgid "Enable picture-in-picture (PiP) mode"
+msgstr ""
+
+msgid "Picture-in-picture mode allows playing video contained in a smaller area so that the interface remains usable."
+msgstr ""
+
+msgid "Check for VLC Redesign updates"
+msgstr ""
+
+msgid "Look for a new release of VLC Redesign on GitHub at startup, at most once a day."
+msgstr ""
+
+msgid "Resume at"
+msgstr ""
+
+msgid "Seconds into the media of the command line where playback continues, after an update."
+msgstr ""
+
+msgid "<p>In order to protect your privacy, <i>VLC media player</i> does <b>not</b> collect personal data or transmit them, not even in anonymized form, to anyone.</p>\n<p>Nevertheless, <i>VLC</i> is able to automatically retrieve information about the media in your play queue from third party Internet-based services. This includes cover art, track names, artist names and other meta-data.</p>\n<p>Consequently, this may entail identifying some of your media files to third party entities. Therefore the <i>VLC</i> developers require your express consent for the media player to access the Internet automatically.</p>\n"
+msgstr ""
+
+msgid "<ul><li>No client-side decoration</li><li>Toolbar menu</li><li>Pinned video controls</li></ul>"
+msgstr ""
+
+msgid "<ul><li>Client-side decoration</li><li>No toolbar menu</li><li>Video controls unpinned</li></ul>"
+msgstr ""
+
+msgid "Seek Backward / Forward"
+msgstr ""
+
+msgid "Previous / Next Item"
+msgstr ""
+
+msgid "Previous / Next Frame"
+msgstr ""
+
+msgid "Cycle Subtitle Track"
+msgstr ""
+
+msgid "Cycle Audio Track"
+msgstr ""
+
+msgid "Toggle Fullscreen"
+msgstr ""
+
+msgid "Increase / Decrease Volume"
+msgstr ""
+
+msgid "Show / Hide Queue"
+msgstr ""
+
+msgid "Show / Hide File Browser"
+msgstr ""
+
+msgid "Take a Snapshot"
+msgstr ""
+
+msgid "Video camera"
+msgstr ""
+
+msgid "Service discoveries adds new sources to your play queue such as web radios, video websites, ..."
+msgstr ""
+
+msgid "Greek"
+msgstr ""
+
+msgid "Largest"
+msgstr ""
+
+msgid "Slightly raised"
+msgstr ""
+
+msgid "Raised"
+msgstr ""
+
+msgid "Looks for the cast devices of the local network when the Renderer menu opens."
+msgstr ""
+
+msgid "Opens the window where it was when VLC was closed."
+msgstr ""
+
+msgid "How long the popup of the track changes stays on the screen."
+msgstr ""
+
+msgid "How much processor time the system gives VLC compared with the other programs."
+msgstr ""
+
+msgid "What a double click on the video does."
+msgstr ""
+
+msgid "Nothing|Toggle fullscreen"
+msgstr ""
+
+msgid "Choose the size of the subtitles by name (relative to the picture), or in pixels."
+msgstr ""
+
+msgid "Relative|Pixels"
+msgstr ""
+
+msgid "Relative"
+msgstr ""
+
+msgid "How opaque the box behind the subtitles is when there is one (kept while there is none)."
+msgstr ""
+
+msgid "A regular expression: the items whose address or name matches it are not saved in the history, nor their playback position."
+msgstr ""
+
+msgid "Ultra fast"
+msgstr ""
+
+msgid "Super fast"
+msgstr ""
+
+msgid "Very fast"
+msgstr ""
+
+msgid "Very slow"
+msgstr ""
+
+msgid "Placebo"
+msgstr ""
+
+msgid "Film"
+msgstr ""
+
+msgid "Still image"
+msgstr ""
+
+msgid "Fast decoding"
+msgstr ""
+
+msgid "Zero latency"
+msgstr ""
+
+msgid "Above normal"
+msgstr ""
+
+msgid "Below normal"
+msgstr ""
+
+msgid "Idle"
+msgstr ""
+
+msgid "This displays the resulting media, but can slow things down."
+msgstr ""
+
+msgid "This module outputs the transcoded stream to a network via SRT."
+msgstr ""
+
+msgid "Empty Style"
+msgstr ""
+
+msgid "Minimalist Style"
+msgstr ""
+
+msgid "One-liner Style"
+msgstr ""
+
+msgid "Simplest Style"
+msgstr ""
+
+msgid "Classic Style"
+msgstr ""
+
+msgid "Movies"
+msgstr ""
+
+msgid "Shows"
+msgstr ""
+
+msgid "Work"
+msgstr ""
+
+msgid "Do you really want to delete the selected playlist?"
+msgstr ""
+
+msgid "Video player"
+msgstr ""
+
+msgid "Audio player"
+msgstr ""
+
+msgid "A file of VLC Redesign was changed since it was installed, so the small update can't be used: update with the installer instead."
+msgstr ""
+
+msgid "Asturian"
+msgstr ""
+
+msgid "Cebuano"
+msgstr ""
+
+msgid "Central Kurdish"
+msgstr ""
+
+msgid "Montenegrin"
+msgstr ""
+
+msgid "Hawaiian"
+msgstr ""
+
+msgid "Hmong"
+msgstr ""
+
+msgid "Manipuri"
+msgstr ""
+
+msgid "Dari"
+msgstr ""
+
+msgid "Syriac"
+msgstr ""
+
+msgid "Cantonese"
+msgstr ""
+
+msgid "Standard Moroccan Tamazight"
+msgstr ""
+
+msgid "Portuguese (Brazil)"
+msgstr ""
+
+msgid "Chinese (Traditional)"
+msgstr ""
+
+msgid "Spanish (Latin America)"
+msgstr ""
+
+msgid "%1 Bookmark"
+msgid_plural "%1 Bookmarks"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%1 file selected"
+msgid_plural "%1 files selected"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%1 item"
+msgid_plural "%1 items"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%1 media file"
+msgid_plural "%1 media files"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%1 Other"
+msgid_plural "%1 Other"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%1 song"
+msgid_plural "%1 songs"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%1 Song"
+msgid_plural "%1 Songs"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%1 track"
+msgid_plural "%1 tracks"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%1 Track"
+msgid_plural "%1 Tracks"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%1 video"
+msgid_plural "%1 videos"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%1 Video"
+msgid_plural "%1 Videos"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "Delete playlist"
+msgid_plural "Delete playlists"
+msgstr[0] ""
+msgstr[1] ""
